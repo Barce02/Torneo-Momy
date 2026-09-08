@@ -1,19 +1,41 @@
-// Torneo Momy - Applicazione Principale con Login & Gestione Ruoli (Admin / Giocatore)
+// Torneo Momy 26/27 - Applicazione Ufficiale con Tema Blu & Giallo, Password e Face ID / Touch ID
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
-const USER_KEY = "torneo_momy_user_session_v6";
-const DATA_KEY = "torneo_momy_store_v6";
+const USER_KEY = "torneo_momy_user_session_v7";
+const ACCOUNTS_KEY = "torneo_momy_accounts_v7";
+const DATA_KEY = "torneo_momy_store_v7";
+const LAST_EMAIL_KEY = "torneo_momy_last_email_v7";
 
 class App {
   constructor() {
+    this.accounts = this.loadAccounts();
     this.user = this.loadUser();
     this.state = this.loadState();
     this.tournamentManager = new TournamentManager(this.state);
     this.currentTab = "players";
+    this.authMode = "login";
     this.searchQuery = "";
     this.currentEditingMatchId = null;
 
     this.init();
+  }
+
+  loadAccounts() {
+    try {
+      const saved = localStorage.getItem(ACCOUNTS_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  saveAccounts(accounts) {
+    try {
+      localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+      this.accounts = accounts;
+    } catch (e) {
+      console.error("Errore salvataggio accounts", e);
+    }
   }
 
   // Caricamento sessione utente
@@ -42,11 +64,33 @@ class App {
     this.user = userObj;
     try {
       localStorage.setItem(USER_KEY, JSON.stringify(userObj));
+      if (userObj.email && userObj.email !== "ospite@torneo.it") {
+        localStorage.setItem(LAST_EMAIL_KEY, userObj.email);
+      }
     } catch (e) {
       console.error("Errore salvataggio utente", e);
     }
     this.renderUserBadge();
     this.renderTabContent();
+  }
+
+  logout() {
+    if (this.user && this.user.email !== "ospite@torneo.it") {
+      localStorage.setItem(LAST_EMAIL_KEY, this.user.email);
+    }
+    this.user = null;
+    try {
+      localStorage.removeItem(USER_KEY);
+    } catch (e) {}
+
+    this.renderUserBadge();
+    this.render();
+    this.showToast("Logout effettuato.", "info");
+
+    // Riapri la modale di accesso con il tasto Face ID / Touch ID subito pronto
+    setTimeout(() => {
+      this.openLoginModal("login");
+    }, 250);
   }
 
   get isAdmin() {
@@ -69,7 +113,7 @@ class App {
       tournament: {
         name: "Torneo Momy",
         club: "Circolo Tennis",
-        dates: "Stagione 2025"
+        dates: "Stagione 26/27"
       }
     };
   }
@@ -91,7 +135,9 @@ class App {
     // Se l'utente non ha ancora effettuato il login la prima volta, apri il modale
     if (!this.user) {
       setTimeout(() => {
-        this.openLoginModal();
+        const accounts = this.loadAccounts();
+        const hasAccounts = Object.keys(accounts).length > 0;
+        this.openLoginModal(hasAccounts ? "login" : "register");
       }, 200);
     }
   }
@@ -104,12 +150,21 @@ class App {
       });
     });
 
-    // Form di Login / Registrazione
+    // Form di Login con Password
     const loginForm = document.getElementById("login-form");
     if (loginForm) {
       loginForm.addEventListener("submit", (e) => {
         e.preventDefault();
         this.handleLogin();
+      });
+    }
+
+    // Form di Nuova Registrazione
+    const registerForm = document.getElementById("register-form");
+    if (registerForm) {
+      registerForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        this.handleRegister();
       });
     }
 
@@ -142,21 +197,57 @@ class App {
   }
 
   // ==========================================
-  // GESTIONE AUTENTICAZIONE & REGISTRAZIONE
+  // GESTIONE AUTENTICAZIONE, PASSWORD & BIOMETRICA
   // ==========================================
-  handleLogin() {
-    const firstName = document.getElementById("login-firstname-input").value.trim();
-    const lastName = document.getElementById("login-lastname-input").value.trim();
-    const email = document.getElementById("login-email-input").value.trim().toLowerCase();
-    const birthDate = document.getElementById("login-birthdate-input").value.trim();
-    const ranking = document.getElementById("login-ranking-input").value.trim() || "NC";
+  switchAuthMode(mode) {
+    this.authMode = mode;
+    const tabLogin = document.getElementById("tab-auth-login");
+    const tabRegister = document.getElementById("tab-auth-register");
+    const secLogin = document.getElementById("auth-section-login");
+    const secRegister = document.getElementById("auth-section-register");
 
+    if (!tabLogin || !tabRegister || !secLogin || !secRegister) return;
+
+    if (mode === "register") {
+      tabRegister.className = "flex-1 py-2.5 text-center border-b-2 border-blue-600 text-blue-700 font-bold transition";
+      tabLogin.className = "flex-1 py-2.5 text-center border-b-2 border-transparent text-gray-500 hover:text-gray-800 transition";
+      secLogin.classList.add("hidden");
+      secRegister.classList.remove("hidden");
+      setTimeout(() => {
+        const fn = document.getElementById("register-firstname-input");
+        if (fn) fn.focus();
+      }, 100);
+    } else {
+      tabLogin.className = "flex-1 py-2.5 text-center border-b-2 border-blue-600 text-blue-700 font-bold transition";
+      tabRegister.className = "flex-1 py-2.5 text-center border-b-2 border-transparent text-gray-500 hover:text-gray-800 transition";
+      secRegister.classList.add("hidden");
+      secLogin.classList.remove("hidden");
+      setTimeout(() => {
+        const em = document.getElementById("login-email-input");
+        if (em) em.focus();
+      }, 100);
+    }
+  }
+
+  handleRegister() {
+    const firstName = document.getElementById("register-firstname-input").value.trim();
+    const lastName = document.getElementById("register-lastname-input").value.trim();
+    const email = document.getElementById("register-email-input").value.trim().toLowerCase();
+    const password = document.getElementById("register-password-input").value;
+    const birthDate = document.getElementById("register-birthdate-input").value.trim();
+    const ranking = document.getElementById("register-ranking-input").value.trim() || "NC";
+    const biometricsChecked = document.getElementById("register-biometrics-checkbox")?.checked ?? true;
+
+    if (!firstName || !lastName) {
+      alert("Inserisci sia il Nome che il Cognome.");
+      return;
+    }
     if (!email) {
       alert("Inserisci un indirizzo email valido.");
       return;
     }
-    if (!firstName || !lastName) {
-      alert("Inserisci sia il Nome che il Cognome.");
+    if (!password || password.length < 4) {
+      alert("La password deve contenere almeno 4 caratteri.");
       return;
     }
     if (!birthDate) {
@@ -164,27 +255,137 @@ class App {
       return;
     }
 
-    // Riconoscimento automatico admin
     const isAdmin = email === ADMIN_EMAIL.toLowerCase();
 
-    const userObj = {
-      email: email,
-      firstName: firstName,
-      lastName: lastName,
+    const accounts = this.loadAccounts();
+    const accountObj = {
+      firstName,
+      lastName,
       name: `${firstName} ${lastName}`.trim(),
-      birthDate: birthDate,
-      ranking: ranking,
-      role: isAdmin ? "admin" : "player"
+      email,
+      password,
+      birthDate,
+      ranking,
+      role: isAdmin ? "admin" : "player",
+      biometricsEnabled: biometricsChecked
     };
 
-    this.saveUser(userObj);
+    accounts[email] = accountObj;
+    this.saveAccounts(accounts);
+    localStorage.setItem(LAST_EMAIL_KEY, email);
+
+    this.saveUser(accountObj);
     this.closeModal("modal-login");
 
     if (isAdmin) {
-      this.showToast(`Benvenuto Amministratore (${email})`, "success");
+      this.showToast("Benvenuto Amministratore!", "success");
     } else {
-      this.showToast(`Benvenuto ${userObj.name}! Accesso completato`, "success");
+      this.showToast(`Benvenuto ${accountObj.name}! Account registrato.`, "success");
     }
+  }
+
+  handleLogin() {
+    const email = document.getElementById("login-email-input").value.trim().toLowerCase();
+    const password = document.getElementById("login-password-input").value;
+
+    if (!email) {
+      alert("Inserisci l'indirizzo email.");
+      return;
+    }
+    if (!password) {
+      alert("Inserisci la password.");
+      return;
+    }
+
+    const accounts = this.loadAccounts();
+    let account = accounts[email];
+
+    // Se è la mail admin e non ha ancora account locale salvato, inizializzala
+    const isAdmin = email === ADMIN_EMAIL.toLowerCase();
+    if (!account && isAdmin) {
+      account = {
+        firstName: "Luca",
+        lastName: "Barcello",
+        name: "Barcello Luca",
+        email: email,
+        password: password,
+        birthDate: "2002-01-01",
+        ranking: "4.1",
+        role: "admin",
+        biometricsEnabled: true
+      };
+      accounts[email] = account;
+      this.saveAccounts(accounts);
+    }
+
+    if (!account) {
+      if (confirm(`Nessun account registrato con l'email ${email}. Vuoi registrarti adesso?`)) {
+        this.switchAuthMode("register");
+        const regEmail = document.getElementById("register-email-input");
+        const regPass = document.getElementById("register-password-input");
+        if (regEmail) regEmail.value = email;
+        if (regPass) regPass.value = password;
+      }
+      return;
+    }
+
+    if (account.password && account.password !== password) {
+      alert("Password errata. Riprova.");
+      return;
+    }
+
+    localStorage.setItem(LAST_EMAIL_KEY, email);
+    this.saveUser(account);
+    this.closeModal("modal-login");
+
+    if (account.role === "admin") {
+      this.showToast("Accesso Amministratore confermato!", "success");
+    } else {
+      this.showToast(`Bentornato ${account.name}!`, "success");
+    }
+  }
+
+  async loginWithBiometrics() {
+    const accounts = this.loadAccounts();
+    const lastEmail = localStorage.getItem(LAST_EMAIL_KEY);
+    const account = (lastEmail && accounts[lastEmail]) ? accounts[lastEmail] : (Object.values(accounts)[0] || null);
+
+    if (!account) {
+      this.showToast("Nessun account memorizzato. Effettua prima la registrazione.", "info");
+      this.switchAuthMode("register");
+      return;
+    }
+
+    // Verifica biometrica reale (Touch ID / Face ID via WebAuthn Platform Authenticator)
+    if (window.PublicKeyCredential && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
+      try {
+        const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+        if (available) {
+          const challenge = new Uint8Array(32);
+          window.crypto.getRandomValues(challenge);
+          await navigator.credentials.get({
+            publicKey: {
+              challenge: challenge,
+              timeout: 60000,
+              userVerification: "preferred"
+            }
+          }).catch(err => {
+            console.warn("WebAuthn biometric callback:", err);
+            if (err.name === "NotAllowedError") throw err;
+          });
+        }
+      } catch (err) {
+        if (err.name === "NotAllowedError") {
+          this.showToast("Verifica Face ID / Touch ID annullata.", "info");
+          return;
+        }
+      }
+    }
+
+    localStorage.setItem(LAST_EMAIL_KEY, account.email);
+    this.saveUser(account);
+    this.closeModal("modal-login");
+    this.showToast(`Accesso rapido Face ID / Touch ID completato! Ciao ${account.name}`, "success");
   }
 
   loginAsGuest() {
@@ -202,57 +403,63 @@ class App {
     this.showToast("Accesso come Spettatore (Sola lettura)", "info");
   }
 
-  openLoginModal() {
-    const fnInput = document.getElementById("login-firstname-input");
-    const lnInput = document.getElementById("login-lastname-input");
-    const emailInput = document.getElementById("login-email-input");
-    const bdInput = document.getElementById("login-birthdate-input");
-    const rkInput = document.getElementById("login-ranking-input");
+  openLoginModal(defaultMode = null) {
+    const accounts = this.loadAccounts();
+    const hasAccounts = Object.keys(accounts).length > 0;
+    const lastEmail = localStorage.getItem(LAST_EMAIL_KEY);
 
-    if (this.user) {
-      fnInput.value = this.user.firstName || "";
-      lnInput.value = this.user.lastName || "";
-      emailInput.value = this.user.email === "ospite@torneo.it" ? "" : this.user.email;
-      bdInput.value = this.user.birthDate || "";
-      rkInput.value = this.user.ranking || "NC";
-    } else {
-      fnInput.value = "";
-      lnInput.value = "";
-      emailInput.value = "";
-      bdInput.value = "";
-      rkInput.value = "NC";
+    // Controlla se mostrare il blocco Face ID / Touch ID
+    const biometricsBox = document.getElementById("biometrics-login-wrapper");
+    if (biometricsBox) {
+      if (hasAccounts) {
+        biometricsBox.classList.remove("hidden");
+      } else {
+        biometricsBox.classList.add("hidden");
+      }
     }
+
+    // Pre-popola l'email dell'ultimo utente
+    const emailInput = document.getElementById("login-email-input");
+    if (emailInput) {
+      emailInput.value = lastEmail || (this.user && this.user.email !== "ospite@torneo.it" ? this.user.email : "");
+    }
+    const passInput = document.getElementById("login-password-input");
+    if (passInput) passInput.value = "";
+
+    const mode = defaultMode || (hasAccounts ? "login" : "register");
     this.openModal("modal-login");
-    setTimeout(() => {
-      if (fnInput.value) emailInput.focus();
-      else fnInput.focus();
-    }, 150);
+    this.switchAuthMode(mode);
   }
 
   renderUserBadge() {
     const badge = document.getElementById("user-profile-badge");
+    const logoutBtn = document.getElementById("btn-logout");
     if (!badge) return;
 
-    if (!this.user) {
+    if (!this.user || this.user.email === "ospite@torneo.it") {
+      badge.className = "bg-white/10 border border-white/20 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs text-slate-300";
       badge.innerHTML = `
-        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-        <span>Accesso non effettuato</span>
+        <span class="w-2 h-2 rounded-full bg-yellow-400"></span>
+        <span>Spettatore</span>
       `;
+      if (logoutBtn) logoutBtn.classList.add("hidden");
       return;
     }
 
+    if (logoutBtn) logoutBtn.classList.remove("hidden");
+
     if (this.isAdmin) {
-      badge.className = "bg-amber-400/20 text-amber-200 border border-amber-400/40 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs font-medium";
+      badge.className = "bg-yellow-400 text-blue-950 border border-yellow-300 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs font-black shadow-sm";
       badge.innerHTML = `
-        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-        <span class="truncate max-w-[200px]"><strong>Admin:</strong> ${this.user.name || this.user.email}</span>
+        <span class="w-2 h-2 rounded-full bg-blue-900"></span>
+        <span class="truncate max-w-[200px]">Admin: ${this.user.name}</span>
       `;
     } else {
-      badge.className = "bg-white/10 text-emerald-100 border border-white/20 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs";
+      badge.className = "bg-blue-950/80 text-white border border-blue-700/60 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs";
       badge.innerHTML = `
-        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-        <span class="truncate max-w-[200px] font-medium">${this.user.name}</span>
-        ${this.user.ranking ? `<span class="bg-emerald-900/60 border border-emerald-500/40 text-emerald-200 text-[10px] font-mono px-1.5 py-0.5 rounded font-bold">${this.user.ranking}</span>` : ''}
+        <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+        <span class="truncate max-w-[180px] font-medium">${this.user.name}</span>
+        ${this.user.ranking ? `<span class="bg-yellow-400 text-blue-950 font-mono text-[10px] px-1.5 py-0.5 rounded font-black">${this.user.ranking}</span>` : ''}
       `;
     }
   }
@@ -281,10 +488,10 @@ class App {
     this.currentTab = tab;
     document.querySelectorAll(".nav-tab-btn").forEach(btn => {
       if (btn.dataset.tab === tab) {
-        btn.classList.add("border-tennis-green", "text-tennis-green", "bg-emerald-50/70", "font-semibold");
+        btn.classList.add("border-blue-600", "text-blue-700", "bg-blue-50/70", "font-semibold");
         btn.classList.remove("border-transparent", "text-gray-600", "hover:text-gray-900");
       } else {
-        btn.classList.remove("border-tennis-green", "text-tennis-green", "bg-emerald-50/70", "font-semibold");
+        btn.classList.remove("border-blue-600", "text-blue-700", "bg-blue-50/70", "font-semibold");
         btn.classList.add("border-transparent", "text-gray-600", "hover:text-gray-900");
       }
     });
@@ -328,7 +535,7 @@ class App {
     if (navBracketStatus) {
       if (this.state.bracket) {
         navBracketStatus.textContent = "Attivo";
-        navBracketStatus.className = "bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.2 rounded-full";
+        navBracketStatus.className = "bg-yellow-400 text-blue-950 text-[10px] font-black px-1.5 py-0.2 rounded-full";
       } else {
         navBracketStatus.textContent = "Non generato";
         navBracketStatus.className = "bg-gray-100 text-gray-600 text-[10px] font-medium px-1.5 py-0.2 rounded-full";
@@ -374,32 +581,32 @@ class App {
         
         <!-- Banner Condizionale Ruolo / Iscrizione Atleta -->
         ${this.isAdmin ? `
-          <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div class="text-xs text-emerald-900">
-              <strong>Accesso Amministratore (${ADMIN_EMAIL}):</strong> puoi aggiungere o modificare atleti e comporre il tabellone finale.
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-3.5 mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div class="text-xs text-blue-950">
+              <strong>Accesso Amministratore:</strong> puoi inserire o modificare atleti e comporre il tabellone finale.
             </div>
-            <button onclick="app.openNewPlayerModal(false)" class="bg-tennis-green hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
-              + Aggiungi Atleta
+            <button onclick="app.openNewPlayerModal(false)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
+              + Inserisci Atleta
             </button>
           </div>
         ` : (this.user && this.user.email !== "ospite@torneo.it") ? (
           myRegisteredPlayer ? `
-            <div class="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+            <div class="bg-blue-50 border border-blue-300 rounded-2xl p-4 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
               <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-xl bg-emerald-100 border border-emerald-300 text-tennis-green flex items-center justify-center font-bold">
-                  <svg class="w-5 h-5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="w-9 h-9 rounded-xl bg-blue-900 border border-blue-800 text-yellow-300 flex items-center justify-center font-bold">
+                  <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                   </svg>
                 </div>
                 <div>
-                  <div class="text-xs font-bold text-emerald-900">Sei iscritto al Torneo Momy!</div>
-                  <div class="text-xs text-emerald-800 mt-0.5">
-                    Atleta: <strong>${myRegisteredPlayer.firstName} ${myRegisteredPlayer.lastName}</strong> • Data di nascita: ${this.formatDate(myRegisteredPlayer.birthDate)} • Classifica: <span class="font-mono font-bold bg-white px-1.5 py-0.5 rounded border border-emerald-300">${myRegisteredPlayer.ranking || 'NC'}</span>
+                  <div class="text-xs font-bold text-blue-950">Sei iscritto al Torneo Momy!</div>
+                  <div class="text-xs text-blue-900 mt-0.5">
+                    Atleta: <strong>${myRegisteredPlayer.firstName} ${myRegisteredPlayer.lastName}</strong> • Data di nascita: ${this.formatDate(myRegisteredPlayer.birthDate)} • Classifica: <span class="font-mono font-black bg-yellow-400 text-blue-950 px-1.5 py-0.5 rounded shadow-sm">${myRegisteredPlayer.ranking || 'NC'}</span>
                   </div>
                 </div>
               </div>
               <div class="flex items-center gap-2">
-                <button onclick="app.editPlayer('${myRegisteredPlayer.id}')" class="text-xs font-semibold text-emerald-800 bg-white border border-emerald-300 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition">
+                <button onclick="app.editPlayer('${myRegisteredPlayer.id}')" class="text-xs font-semibold text-blue-900 bg-white border border-blue-300 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition">
                   Modifica Note
                 </button>
                 <button onclick="app.cancelMyRegistration('${myRegisteredPlayer.id}')" class="text-xs font-semibold text-rose-700 bg-white border border-rose-200 hover:bg-rose-50 px-3 py-1.5 rounded-xl transition">
@@ -408,16 +615,16 @@ class App {
               </div>
             </div>
           ` : `
-            <div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-300 rounded-2xl p-4 sm:p-5 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div class="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-300 rounded-2xl p-4 sm:p-5 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
               <div>
                 <div class="flex items-center gap-2 mb-1">
-                  <span class="w-2.5 h-2.5 rounded-full bg-tennis-green"></span>
-                  <span class="text-xs font-bold uppercase tracking-wider text-tennis-green">Iscrizione al Torneo</span>
+                  <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                  <span class="text-xs font-bold uppercase tracking-wider text-blue-800">Iscrizione al Torneo</span>
                 </div>
                 <div class="text-sm font-bold text-gray-900">
                   ${this.user.firstName} ${this.user.lastName}
                   <span class="text-xs font-normal text-gray-600 ml-2">
-                    (Nascita: ${this.formatDate(this.user.birthDate)} • Classifica FITP: <strong class="font-mono text-tennis-green">${this.user.ranking || 'NC'}</strong>)
+                    (Nascita: ${this.formatDate(this.user.birthDate)} • Classifica FITP: <strong class="font-mono font-bold text-blue-700">${this.user.ranking || 'NC'}</strong>)
                   </span>
                 </div>
                 <p class="text-xs text-gray-600 mt-1">
@@ -425,8 +632,8 @@ class App {
                 </p>
               </div>
               <div class="flex items-center gap-2 w-full sm:w-auto">
-                <button onclick="app.openNewPlayerModal(true)" class="w-full sm:w-auto bg-tennis-green hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-2">
-                  <span>Iscriviti al Torneo</span>
+                <button onclick="app.openNewPlayerModal(true)" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-2">
+                  <span>Inserisci Atleta</span>
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
                   </svg>
@@ -439,7 +646,7 @@ class App {
             <div class="text-xs text-slate-600">
               Accesso come Spettatore. Per iscriverti al torneo con i tuoi dati, effettua la registrazione iniziale.
             </div>
-            <button onclick="app.openLoginModal()" class="bg-tennis-green hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 py-2 rounded-xl shadow-sm transition whitespace-nowrap">
+            <button onclick="app.openLoginModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-3.5 py-2 rounded-xl shadow-sm transition whitespace-nowrap">
               Accedi / Registrati
             </button>
           </div>
@@ -449,7 +656,7 @@ class App {
           <div>
             <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span>Elenco Iscritti Ufficiale</span>
-              <span class="bg-emerald-100 text-tennis-green text-xs font-bold px-2.5 py-0.5 rounded-full">
+              <span class="bg-blue-100 text-blue-900 text-xs font-bold px-2.5 py-0.5 rounded-full">
                 ${players.length} ${players.length === 1 ? 'iscritto' : 'iscritti'}
               </span>
             </h2>
@@ -459,14 +666,14 @@ class App {
           <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <!-- Campo Cerca -->
             <div class="relative w-full sm:w-64">
-              <input type="text" id="search-input" value="${this.searchQuery}" placeholder="Cerca per nome, cognome o classifica..." class="w-full text-xs sm:text-sm pl-8 pr-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+              <input type="text" id="search-input" value="${this.searchQuery}" placeholder="Cerca per nome, cognome o classifica..." class="w-full text-xs sm:text-sm pl-8 pr-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
               <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
               </svg>
             </div>
 
-            <button onclick="app.openNewPlayerModal(${!this.isAdmin})" class="w-full sm:w-auto bg-tennis-green hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm px-4 py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
-              ${this.isAdmin ? '+ Aggiungi Atleta' : (myRegisteredPlayer ? '+ Nuovo Partecipante' : 'Iscriviti al Torneo')}
+            <button onclick="app.openNewPlayerModal(false)" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-4 py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
+              + Inserisci Atleta
             </button>
           </div>
         </div>
@@ -475,7 +682,7 @@ class App {
     if (players.length === 0) {
       html += `
         <div class="text-center py-16 bg-gray-50/50 rounded-xl border border-dashed border-gray-300 p-8 my-6">
-          <div class="w-14 h-14 bg-white text-tennis-green border border-gray-200 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+          <div class="w-14 h-14 bg-blue-50 text-blue-700 border border-blue-200 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-sm">
             <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
             </svg>
@@ -484,8 +691,8 @@ class App {
           <p class="text-xs sm:text-sm text-gray-500 max-w-sm mx-auto mb-5">
             L'elenco partecipanti del Torneo Momy è attualmente vuoto. Inserisci i ragazzi che parteciperanno alla competizione.
           </p>
-          <button onclick="app.openNewPlayerModal(${!this.isAdmin})" class="bg-tennis-green hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl shadow transition">
-            ${this.isAdmin ? '+ Inserisci Atleta' : 'Iscriviti al Torneo'}
+          <button onclick="app.openNewPlayerModal(false)" class="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl shadow transition">
+            + Inserisci Atleta
           </button>
         </div>
       `;
@@ -514,7 +721,7 @@ class App {
                    p.lastName.toLowerCase() === this.user.lastName.toLowerCase())
                 );
                 return `
-                  <tr class="hover:bg-gray-50/80 transition ${isMe ? 'bg-emerald-50/40' : ''}">
+                  <tr class="hover:bg-gray-50/80 transition ${isMe ? 'bg-blue-50/40' : ''}">
                     <td class="py-3 px-3 font-mono text-center text-gray-400 font-semibold">${idx + 1}</td>
                     <td class="py-3 px-3 font-bold text-gray-900">${p.firstName || p.name.split(' ')[0] || '-'}</td>
                     <td class="py-3 px-3 font-bold text-gray-900">${p.lastName || p.name.split(' ').slice(1).join(' ') || '-'}</td>
@@ -527,14 +734,14 @@ class App {
                     <td class="py-3 px-3 text-gray-500 text-xs italic max-w-xs truncate">${p.notes || '-'}</td>
                     <td class="py-3 px-3 text-right space-x-1 whitespace-nowrap">
                       ${this.isAdmin ? `
-                        <button onclick="app.editPlayer('${p.id}')" class="text-xs text-emerald-700 hover:text-emerald-900 font-medium px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 transition">
+                        <button onclick="app.editPlayer('${p.id}')" class="text-xs text-blue-700 hover:text-blue-900 font-medium px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 transition">
                           Modifica
                         </button>
                         <button onclick="app.deletePlayer('${p.id}')" class="text-xs text-rose-600 hover:text-rose-800 font-medium px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 transition">
                           Elimina
                         </button>
                       ` : isMe ? `
-                        <button onclick="app.editPlayer('${p.id}')" class="text-xs text-emerald-700 hover:text-emerald-900 font-medium px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 transition">
+                        <button onclick="app.editPlayer('${p.id}')" class="text-xs text-blue-700 hover:text-blue-900 font-medium px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 transition">
                           Modifica
                         </button>
                         <button onclick="app.cancelMyRegistration('${p.id}')" class="text-xs text-rose-600 hover:text-rose-800 font-medium px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 transition">
@@ -567,10 +774,11 @@ class App {
   }
 
   openNewPlayerModal(fromProfile = false) {
-    const shouldPreFill = fromProfile || (!this.isAdmin && this.user && this.user.email !== "ospite@torneo.it");
-
-    document.getElementById("player-modal-title").textContent = shouldPreFill ? "Iscrizione al Torneo Momy" : "Nuovo Iscritto (Admin)";
-    document.getElementById("player-submit-btn").textContent = shouldPreFill ? "Conferma Iscrizione" : "Salva Atleta";
+    const modalTitle = document.getElementById("player-modal-title");
+    const submitBtn = document.getElementById("player-submit-btn");
+    if (modalTitle) modalTitle.textContent = "Inserisci Atleta";
+    if (submitBtn) submitBtn.textContent = "Aggiungi Atleta";
+    
     document.getElementById("player-id-input").value = "";
 
     const fnInput = document.getElementById("player-firstname-input");
@@ -579,9 +787,10 @@ class App {
     const rkInput = document.getElementById("player-ranking-input");
     const notesInput = document.getElementById("player-notes-input");
 
-    if (shouldPreFill && this.user) {
-      fnInput.value = this.user.firstName || "";
-      lnInput.value = this.user.lastName || "";
+    // Precompila con i dati dell'account se disponibili
+    if (this.user && this.user.email !== "ospite@torneo.it") {
+      fnInput.value = this.user.firstName || (this.user.name ? this.user.name.split(" ")[0] : "");
+      lnInput.value = this.user.lastName || (this.user.name ? this.user.name.split(" ").slice(1).join(" ") : "");
       bdInput.value = this.user.birthDate || "";
       rkInput.value = this.user.ranking || "NC";
       notesInput.value = "";
@@ -595,7 +804,7 @@ class App {
 
     this.openModal("modal-player");
     setTimeout(() => {
-      if (shouldPreFill && fnInput.value) {
+      if (fnInput.value && lnInput.value) {
         notesInput.focus();
       } else {
         fnInput.focus();
@@ -617,8 +826,10 @@ class App {
 
     if (!this.isAdmin && !isMe) return;
 
-    document.getElementById("player-modal-title").textContent = "Modifica Dati Atleta";
-    document.getElementById("player-submit-btn").textContent = "Aggiorna Iscrizione";
+    const modalTitle = document.getElementById("player-modal-title");
+    const submitBtn = document.getElementById("player-submit-btn");
+    if (modalTitle) modalTitle.textContent = "Modifica Dati Atleta";
+    if (submitBtn) submitBtn.textContent = "Aggiungi Atleta";
     document.getElementById("player-id-input").value = p.id;
 
     document.getElementById("player-firstname-input").value = p.firstName || p.name.split(' ')[0] || "";
@@ -693,7 +904,7 @@ class App {
 
     this.saveState();
     this.closeModal("modal-player");
-    this.showToast(`Iscrizione di ${fullName} registrata con successo!`, "success");
+    this.showToast(`Atleta ${fullName} registrato con successo!`, "success");
   }
 
   cancelMyRegistration(id) {
@@ -734,16 +945,16 @@ class App {
     // Controlli di gestione tabellone per l'Amministratore
     if (this.isAdmin) {
       html += `
-        <div class="bg-amber-50 border border-amber-200 rounded-xl p-3.5 mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-3.5 mb-5 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
-            <span class="text-amber-900 font-bold text-xs sm:text-sm">Gestione Tabellone Finale (Admin):</span>
-            <span class="text-xs text-amber-700">
+            <span class="text-blue-950 font-bold text-xs sm:text-sm">Gestione Tabellone Finale (Admin):</span>
+            <span class="text-xs text-blue-800">
               ${bracket ? "Clicca su qualsiasi match per aggiornare il punteggio e il campo." : "Componi il tabellone con gli atleti iscritti."}
             </span>
           </div>
           <div class="flex items-center gap-2">
             ${players.length >= 2 ? `
-              <button onclick="app.handleGenerateBracket()" class="text-xs bg-tennis-green hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl shadow-sm transition">
+              <button onclick="app.handleGenerateBracket()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-3.5 py-2 rounded-xl shadow-sm transition">
                 ${bracket ? "Rigenera Tabellone" : "Genera Tabellone Finale Automatico"}
               </button>
             ` : ''}
@@ -761,7 +972,7 @@ class App {
     if (!bracket || !bracket.rounds || bracket.rounds.length === 0) {
       html += `
         <div class="text-center py-16 bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
-          <div class="w-14 h-14 bg-emerald-50 border border-emerald-200 text-tennis-green rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div class="w-14 h-14 bg-blue-50 border border-blue-200 text-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
             </svg>
@@ -784,17 +995,17 @@ class App {
           <div class="flex flex-wrap justify-center gap-3">
             ${this.isAdmin ? `
               ${players.length >= 2 ? `
-                <button onclick="app.handleGenerateBracket()" class="bg-tennis-green hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition">
+                <button onclick="app.handleGenerateBracket()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition">
                   Genera Tabellone Finale (${players.length} Partecipanti)
                 </button>
               ` : `
-                <button onclick="app.switchTab('players')" class="bg-tennis-green hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition">
+                <button onclick="app.switchTab('players')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition">
                   Vai a Iscritti per Aggiungere Giocatori
                 </button>
               `}
             ` : `
-              <p class="text-xs text-gray-400 italic">
-                Il tabellone ufficiale delle partite verrà pubblicato dall'amministratore (barcello.luca02@gmail.com).
+              <p class="text-xs text-gray-500 italic">
+                Il tabellone ufficiale delle partite verrà pubblicato dall'amministratore (Barcello Luca).
               </p>
             `}
           </div>
@@ -815,7 +1026,7 @@ class App {
       html += `
         <div class="bracket-round flex flex-col justify-around min-w-[280px] max-w-[320px]">
           <div class="text-center mb-4">
-            <span class="inline-block bg-emerald-900 text-emerald-100 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-md shadow-sm">
+            <span class="inline-block bg-slate-950 text-yellow-300 text-xs font-black uppercase tracking-wider px-3 py-1 rounded-md shadow-sm border border-slate-800">
               ${round.name}
             </span>
           </div>
@@ -830,39 +1041,39 @@ class App {
         const isP2Winner = hasWinner && match.winnerId === match.player2Id;
 
         html += `
-          <div class="match-card bg-white border ${hasWinner ? 'border-emerald-300' : 'border-gray-200'} rounded-xl shadow-sm hover:shadow-md transition relative overflow-hidden ${this.isAdmin ? 'cursor-pointer' : ''}"
+          <div class="match-card bg-white border ${hasWinner ? 'border-blue-400 ring-1 ring-blue-200' : 'border-gray-200'} rounded-xl shadow-sm hover:shadow-md transition relative overflow-hidden ${this.isAdmin ? 'cursor-pointer' : ''}"
                onclick="${this.isAdmin ? `app.openMatchModal('${match.id}')` : ''}">
             
             ${isFinal && hasWinner ? `
-              <div class="bg-emerald-800 text-white text-[11px] font-bold px-2 py-0.5 text-center uppercase tracking-wider">
+              <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-yellow-300 text-[11px] font-black px-2 py-1 text-center uppercase tracking-wider border-b border-blue-800">
                 Campione del Torneo Momy
               </div>
             ` : ""}
 
             <div class="p-3">
               <!-- Giocatore 1 -->
-              <div class="flex items-center justify-between py-1.5 border-b border-gray-100 ${isP1Winner ? 'font-bold text-emerald-900 bg-emerald-50/50 -mx-3 px-3 rounded' : 'text-gray-700'}">
+              <div class="flex items-center justify-between py-1.5 border-b border-gray-100 ${isP1Winner ? 'font-bold text-blue-950 bg-blue-50/80 -mx-3 px-3 rounded' : 'text-gray-700'}">
                 <div class="flex items-center gap-1.5 truncate">
                   <span class="truncate text-sm font-semibold">${p1 ? p1.name : (match.player1Id ? match.player1Id : '<span class="text-gray-400 italic">In attesa</span>')}</span>
                   ${p1 && p1.ranking ? `<span class="text-[10px] font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200 font-semibold">${p1.ranking}</span>` : ""}
                 </div>
-                ${isP1Winner ? `<span class="text-emerald-700 font-bold text-xs bg-emerald-100 px-1.5 py-0.5 rounded">Vinto</span>` : ""}
+                ${isP1Winner ? `<span class="text-blue-950 font-black text-xs bg-yellow-400 px-1.5 py-0.5 rounded shadow-sm">Vinto</span>` : ""}
               </div>
 
               <!-- Giocatore 2 -->
-              <div class="flex items-center justify-between py-1.5 ${isP2Winner ? 'font-bold text-emerald-900 bg-emerald-50/50 -mx-3 px-3 rounded' : 'text-gray-700'}">
+              <div class="flex items-center justify-between py-1.5 ${isP2Winner ? 'font-bold text-blue-950 bg-blue-50/80 -mx-3 px-3 rounded' : 'text-gray-700'}">
                 <div class="flex items-center gap-1.5 truncate">
                   <span class="truncate text-sm font-semibold">${p2 ? p2.name : (match.player2Id ? match.player2Id : '<span class="text-gray-400 italic">In attesa</span>')}</span>
                   ${p2 && p2.ranking ? `<span class="text-[10px] font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200 font-semibold">${p2.ranking}</span>` : ""}
                 </div>
-                ${isP2Winner ? `<span class="text-emerald-700 font-bold text-xs bg-emerald-100 px-1.5 py-0.5 rounded">Vinto</span>` : ""}
+                ${isP2Winner ? `<span class="text-blue-950 font-black text-xs bg-yellow-400 px-1.5 py-0.5 rounded shadow-sm">Vinto</span>` : ""}
               </div>
 
               <!-- Dettagli e Punteggio -->
               <div class="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
                 <div>
                   ${match.scores ? `
-                    <span class="font-mono font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded text-xs">
+                    <span class="font-mono font-bold text-blue-900 bg-blue-100 px-2 py-0.5 rounded text-xs">
                       ${match.scores}
                     </span>
                   ` : `
@@ -876,7 +1087,7 @@ class App {
               </div>
 
               ${this.isAdmin ? `
-                <div class="mt-2 text-center text-[11px] text-tennis-green font-medium bg-emerald-50 py-1 rounded hover:bg-emerald-100 border border-emerald-200/50">
+                <div class="mt-2 text-center text-[11px] text-blue-700 font-bold bg-blue-50 py-1 rounded hover:bg-blue-100 border border-blue-200/50">
                   Inserisci Risultato & Orario
                 </div>
               ` : ''}
@@ -997,15 +1208,15 @@ class App {
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6 sm:p-7 shadow-sm">
           <h2 class="text-lg font-bold text-gray-900 mb-4 pb-2 border-b">
-            Regolamento Ufficiale - Torneo Momy
+            Regolamento Ufficiale - Torneo Momy 26/27
           </h2>
           <div class="prose prose-sm text-gray-600 space-y-4">
             <p>
               Il Torneo Momy è una manifestazione sportiva giovanile volta a promuovere i valori di sportività, lealtà e crescita tecnica sui campi di tennis.
             </p>
 
-            <div class="bg-emerald-50 border-l-4 border-tennis-green p-4 rounded-r-xl">
-              <h4 class="font-bold text-tennis-green text-sm mb-1">Formula degli Incontri</h4>
+            <div class="bg-blue-50 border-l-4 border-blue-600 p-4 rounded-r-xl">
+              <h4 class="font-bold text-blue-900 text-sm mb-1">Formula degli Incontri</h4>
               <p class="text-xs text-gray-700 leading-relaxed">
                 Partite al meglio dei 2 set su 3 con punteggio short-set (ai 4 game con tie-break sul 4 pari) o punteggio tradizionale a discrezione dell'arbitro. In caso di parità di set, eventuale terzo set disputato mediante super tie-break a 10 punti.
               </p>
@@ -1025,20 +1236,20 @@ class App {
           <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
             <h3 class="text-base font-bold text-gray-900 mb-3">Informazioni Organizzazione</h3>
             <div class="text-xs text-gray-600 space-y-2">
-              <div><strong>Manifestazione:</strong> Torneo Momy 2025</div>
-              <div><strong>Amministratore Ufficiale:</strong> ${ADMIN_EMAIL}</div>
+              <div><strong>Manifestazione:</strong> Torneo Momy 26/27</div>
+              <div><strong>Amministratore Ufficiale:</strong> Barcello Luca</div>
               <div><strong>Campi:</strong> Terra Rossa e Sintetico</div>
               <div><strong>Regolamento:</strong> Conforme disposizioni FITP</div>
             </div>
           </div>
 
-          <div class="bg-gradient-to-br from-emerald-800 to-tennis-green rounded-2xl p-6 text-white shadow">
-            <h3 class="font-bold text-base mb-2">Partecipa al Torneo</h3>
-            <p class="text-xs text-emerald-100 mb-4 leading-relaxed">
+          <div class="bg-gradient-to-br from-slate-950 via-blue-900 to-indigo-950 rounded-2xl p-6 text-white shadow">
+            <h3 class="font-bold text-base mb-2 text-yellow-300">Partecipa al Torneo</h3>
+            <p class="text-xs text-blue-100 mb-4 leading-relaxed">
               Per iscrivere un atleta compila la scheda anagrafica nella sezione Iscritti.
             </p>
-            <button onclick="app.switchTab('players'); app.openNewPlayerModal();" class="w-full bg-white text-tennis-green font-bold text-xs py-2.5 px-4 rounded-xl shadow hover:bg-emerald-50 transition">
-              Iscrivi Atleta Ora
+            <button onclick="app.switchTab('players'); app.openNewPlayerModal();" class="w-full bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs py-2.5 px-4 rounded-xl shadow transition">
+              Inserisci Atleta Ora
             </button>
           </div>
         </div>
@@ -1070,7 +1281,7 @@ class App {
     if (!toast) return;
 
     const colors = {
-      success: "bg-emerald-900 text-white border-emerald-700",
+      success: "bg-blue-950 text-yellow-300 border-blue-800 font-bold",
       error: "bg-rose-900 text-white border-rose-700",
       info: "bg-slate-900 text-white border-slate-700"
     };

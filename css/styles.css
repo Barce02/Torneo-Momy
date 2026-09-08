@@ -1,11 +1,11 @@
-/* Custom CSS per Torneo Tennis Ragazzi */
+/* Custom CSS per Torneo Momy 26/27 (Tema Blu e Giallo) */
 
 :root {
-  --tennis-green: #065f46;
-  --tennis-court: #047857;
-  --tennis-ball: #ccff00;
-  --tennis-clay: #c2410c;
-  --tennis-dark: #0f172a;
+  --momy-blue: #1e40af;
+  --momy-blue-light: #3b82f6;
+  --momy-navy: #0f172a;
+  --momy-yellow: #facc15;
+  --momy-yellow-dark: #ca8a04;
 }
 
 /* Custom Scrollbars per i tabelloni orizzontali */
