@@ -1,15 +1,15 @@
 // Gestione Principale dell'Applicazione Torneo Momy
 
-// Chiave LocalStorage
-const STORAGE_KEY = "torneo_tennis_ragazzi_v1";
+// Chiave LocalStorage aggiornata per partire puliti senza dati vecchi
+const STORAGE_KEY = "torneo_momy_v3";
 
 class App {
   constructor() {
     this.state = this.loadState();
     this.tournamentManager = new TournamentManager(this.state);
     this.isAdmin = false;
-    this.currentTab = "bracket";
-    this.selectedCategory = this.state.tournament.categories[1] || this.state.tournament.categories[0];
+    this.currentTab = "players"; // Inizia dalla lista iscritti così l'admin vede subito dove inserire i giocatori
+    this.selectedCategory = this.state.tournament.categories[0] || "Under 12 Maschile";
     this.currentEditingMatch = null;
 
     this.init();
@@ -126,12 +126,12 @@ class App {
     const resetDemoBtn = document.getElementById("reset-demo-btn");
     if (resetDemoBtn) {
       resetDemoBtn.addEventListener("click", () => {
-        if (confirm("Vuoi reimpostare la struttura del torneo ai dati iniziali?")) {
+        if (confirm("Vuoi azzerare il torneo e iniziare da capo?")) {
           this.state = JSON.parse(JSON.stringify(INITIAL_DATA));
           this.tournamentManager = new TournamentManager(this.state);
           this.saveState();
           this.renderAll();
-          this.showToast("Dati del torneo ripristinati con successo", "success");
+          this.showToast("Torneo azzerato con successo", "success");
         }
       });
     }
@@ -170,6 +170,7 @@ class App {
       document.body.classList.remove("is-admin");
     }
 
+    this.renderCategorySelector();
     this.renderTabContent();
   }
 
@@ -202,13 +203,15 @@ class App {
     container.innerHTML = "";
     this.state.tournament.categories.forEach(cat => {
       const isSelected = cat === this.selectedCategory;
+      const count = this.state.players.filter(p => p.category === cat && p.status === "confermato").length;
+
       const btn = document.createElement("button");
-      btn.className = `px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-150 ${
+      btn.className = `px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-150 flex items-center gap-1.5 ${
         isSelected
           ? "bg-tennis-green text-white shadow-sm ring-2 ring-emerald-500/30"
           : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
       }`;
-      btn.textContent = cat;
+      btn.innerHTML = `<span>${cat}</span><span class="${isSelected ? 'bg-emerald-800 text-white' : 'bg-gray-100 text-gray-600'} text-[10px] px-1.5 py-0.2 rounded-full">${count}</span>`;
       btn.addEventListener("click", () => {
         this.selectedCategory = cat;
         this.renderCategorySelector();
@@ -216,6 +219,31 @@ class App {
       });
       container.appendChild(btn);
     });
+
+    // Se l'admin è attivo, permette di aggiungere una nuova categoria
+    if (this.isAdmin) {
+      const addCatBtn = document.createElement("button");
+      addCatBtn.className = "px-2.5 py-1.5 rounded-lg text-xs font-semibold text-emerald-200 hover:text-white border border-dashed border-emerald-600/70 hover:border-emerald-400 transition";
+      addCatBtn.textContent = "+ Nuova Categoria";
+      addCatBtn.addEventListener("click", () => this.handleAddNewCategory());
+      container.appendChild(addCatBtn);
+    }
+  }
+
+  handleAddNewCategory() {
+    const newCat = prompt("Inserisci il nome della nuova categoria (es: Under 16 Maschile, Doppio Misto):");
+    if (!newCat || !newCat.trim()) return;
+    const cleanCat = newCat.trim();
+    if (!this.state.tournament.categories.includes(cleanCat)) {
+      this.state.tournament.categories.push(cleanCat);
+      this.selectedCategory = cleanCat;
+      this.saveState();
+      this.renderCategorySelector();
+      this.renderTabContent();
+      this.showToast(`Categoria "${cleanCat}" aggiunta!`, "success");
+    } else {
+      alert("Questa categoria esiste già.");
+    }
   }
 
   renderTabContent() {
@@ -268,6 +296,7 @@ class App {
 
     const cat = this.selectedCategory;
     const bracket = this.state.brackets ? this.state.brackets[cat] : null;
+    const categoryPlayers = this.state.players.filter(p => p.category === cat && p.status === "confermato");
 
     let html = "";
 
@@ -276,15 +305,20 @@ class App {
       <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5 flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-2">
           <span class="text-amber-800 font-semibold text-sm">Gestione Tabellone [${cat}]:</span>
-          <span class="text-xs text-amber-700">Seleziona una partita per inserire punteggio, campo e orario.</span>
+          <span class="text-xs text-amber-700">${bracket ? "Seleziona una partita per inserire punteggio, campo e orario." : "Componi il tabellone con i giocatori iscritti."}</span>
         </div>
         <div class="flex gap-2">
-          <button onclick="app.handleGenerateBracket('${cat}')" class="text-xs bg-tennis-green hover:bg-emerald-700 text-white font-medium px-3 py-1.5 rounded-lg shadow-sm">
-            ${bracket ? "Rigenera Tabellone" : "Genera Tabellone"}
+          <button onclick="app.openNewPlayerModal('${cat}')" class="text-xs bg-white hover:bg-gray-100 text-gray-800 border border-gray-300 font-medium px-3 py-1.5 rounded-lg shadow-sm">
+            + Aggiungi Giocatore
           </button>
+          ${categoryPlayers.length >= 2 ? `
+            <button onclick="app.handleGenerateBracket('${cat}')" class="text-xs bg-tennis-green hover:bg-emerald-700 text-white font-medium px-3 py-1.5 rounded-lg shadow-sm">
+              ${bracket ? "Rigenera Tabellone" : "Genera Tabellone Automatico"}
+            </button>
+          ` : ''}
           ${bracket ? `
             <button onclick="app.handleResetBracket('${cat}')" class="text-xs bg-rose-600 hover:bg-rose-700 text-white font-medium px-3 py-1.5 rounded-lg">
-              Azzera Risultati
+              Azzera Tabellone
             </button>
           ` : ""}
         </div>
@@ -293,6 +327,7 @@ class App {
 
     html += adminControls;
 
+    // Se non c'è ancora un tabellone generato
     if (!bracket || !bracket.rounds || bracket.rounds.length === 0) {
       html += `
         <div class="text-center py-16 bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
@@ -301,17 +336,37 @@ class App {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
             </svg>
           </div>
-          <h3 class="text-lg font-bold text-gray-800 mb-1">Nessun tabellone generato per ${cat}</h3>
-          <p class="text-sm text-gray-500 max-w-md mx-auto mb-6">
-            ${this.isAdmin 
-              ? "Accesso arbitro attivo: genera il tabellone automaticamente con le teste di serie." 
-              : "Il tabellone definitivo per questa categoria non è ancora stato pubblicato."}
-          </p>
-          ${this.isAdmin ? `
-            <button onclick="app.handleGenerateBracket('${cat}')" class="bg-tennis-green hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-xl shadow transition">
-              Crea Tabellone (${cat})
-            </button>
-          ` : ""}
+          <h3 class="text-lg font-bold text-gray-800 mb-1">Tabellone non ancora generato per ${cat}</h3>
+          
+          <div class="max-w-md mx-auto mb-6">
+            <p class="text-sm text-gray-500 mb-3">
+              ${categoryPlayers.length === 0
+                ? "Nessun giocatore attualmente iscritto a questa categoria."
+                : `Attualmente ci sono <strong>${categoryPlayers.length}</strong> giocatori iscritti (${categoryPlayers.map(p => p.name).join(", ")}).`}
+            </p>
+            ${categoryPlayers.length > 0 && categoryPlayers.length < 2 ? `
+              <p class="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200 mb-4">
+                Servono almeno 2 giocatori per poter generare il tabellone ad eliminazione diretta.
+              </p>
+            ` : ''}
+          </div>
+
+          <div class="flex flex-wrap justify-center gap-3">
+            ${this.isAdmin ? `
+              <button onclick="app.openNewPlayerModal('${cat}')" class="bg-tennis-green hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow transition">
+                + Aggiungi Giocatore a ${cat}
+              </button>
+              ${categoryPlayers.length >= 2 ? `
+                <button onclick="app.handleGenerateBracket('${cat}')" class="bg-emerald-800 hover:bg-emerald-900 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition">
+                  Genera Tabellone (${categoryPlayers.length} Giocatori)
+                </button>
+              ` : ''}
+            ` : `
+              <button onclick="app.openModal('modal-public-reg')" class="bg-tennis-green hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition">
+                Iscrivi Atleta Online
+              </button>
+            `}
+          </div>
         </div>
       `;
       container.innerHTML = html;
@@ -427,8 +482,13 @@ class App {
   }
 
   handleResetBracket(category) {
-    if (confirm(`Sei sicuro di voler azzerare tutti i risultati del tabellone ${category}?`)) {
-      this.handleGenerateBracket(category);
+    if (confirm(`Sei sicuro di voler azzerare il tabellone di ${category}?`)) {
+      if (this.state.brackets && this.state.brackets[category]) {
+        delete this.state.brackets[category];
+        this.saveState();
+        this.renderBracketView();
+        this.showToast(`Tabellone azzerato per ${category}`, "info");
+      }
     }
   }
 
@@ -441,6 +501,7 @@ class App {
 
     const cat = this.selectedCategory;
     const catGroups = this.state.groups ? this.state.groups[cat] || [] : [];
+    const categoryPlayers = this.state.players.filter(p => p.category === cat && p.status === "confermato");
 
     let html = "";
 
@@ -449,9 +510,14 @@ class App {
         <div class="text-sm font-semibold text-amber-900">
           Gestione Gironi (${cat})
         </div>
-        <button onclick="app.openNewGroupModal('${cat}')" class="text-xs bg-tennis-green hover:bg-emerald-700 text-white font-medium px-3 py-1.5 rounded-lg shadow-sm">
-          + Nuovo Girone
-        </button>
+        <div class="flex gap-2">
+          <button onclick="app.openNewPlayerModal('${cat}')" class="text-xs bg-white hover:bg-gray-100 text-gray-800 border border-gray-300 font-medium px-3 py-1.5 rounded-lg shadow-sm">
+            + Aggiungi Giocatore
+          </button>
+          <button onclick="app.openNewGroupModal('${cat}')" class="text-xs bg-tennis-green hover:bg-emerald-700 text-white font-medium px-3 py-1.5 rounded-lg shadow-sm">
+            + Crea Girone
+          </button>
+        </div>
       </div>
     ` : "";
 
@@ -467,12 +533,21 @@ class App {
           </div>
           <h3 class="text-lg font-bold text-gray-800 mb-1">Nessun girone configurato per ${cat}</h3>
           <p class="text-sm text-gray-500 max-w-md mx-auto mb-6">
-            La formula a gironi (Round Robin) consente a ogni partecipante di disputare più incontri.
+            ${categoryPlayers.length === 0 
+              ? "Aggiungi prima i giocatori alla categoria per poter creare un girone all'italiana." 
+              : `Ci sono attualmente ${categoryPlayers.length} giocatori iscritti a questa categoria.`}
           </p>
           ${this.isAdmin ? `
-            <button onclick="app.openNewGroupModal('${cat}')" class="bg-tennis-green hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-xl shadow transition">
-              Crea Girone (${cat})
-            </button>
+            <div class="flex justify-center gap-3">
+              <button onclick="app.openNewPlayerModal('${cat}')" class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-800 font-semibold px-4 py-2.5 rounded-xl shadow-sm transition text-xs sm:text-sm">
+                + Aggiungi Giocatore
+              </button>
+              ${categoryPlayers.length >= 2 ? `
+                <button onclick="app.openNewGroupModal('${cat}')" class="bg-tennis-green hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-xl shadow transition text-xs sm:text-sm">
+                  Crea Girone con gli Iscritti (${categoryPlayers.length})
+                </button>
+              ` : ''}
+            </div>
           ` : ""}
         </div>
       `;
@@ -592,12 +667,12 @@ class App {
 
   openNewGroupModal(category) {
     const confirmedPlayers = this.state.players.filter(p => p.category === category && p.status === "confermato");
-    if (confirmedPlayers.length < 3) {
-      alert(`Servono almeno 3 giocatori confermati nella categoria ${category} per formare un girone.`);
+    if (confirmedPlayers.length < 2) {
+      alert(`Servono almeno 2 giocatori registrati nella categoria ${category} per creare un girone.`);
       return;
     }
 
-    const groupName = prompt(`Inserisci il nome del nuovo girone (es: Girone A):`, `Girone ${String.fromCharCode(65 + (this.state.groups && this.state.groups[category] ? this.state.groups[category].length : 0))}`);
+    const groupName = prompt(`Inserisci il nome del girone:`, `Girone ${String.fromCharCode(65 + (this.state.groups && this.state.groups[category] ? this.state.groups[category].length : 0))}`);
     if (!groupName) return;
 
     const playerIds = confirmedPlayers.map(p => p.id);
@@ -625,7 +700,7 @@ class App {
             </svg>
           </div>
           <h3 class="text-lg font-bold text-gray-800 mb-1">Nessun incontro programmato</h3>
-          <p class="text-sm text-gray-500">I match appariranno qui con orari e campi assegnati.</p>
+          <p class="text-sm text-gray-500">Gli incontri appariranno qui man mano che verranno generati i tabelloni e fissati gli orari di gioco.</p>
         </div>
       `;
       return;
@@ -738,22 +813,61 @@ class App {
 
     let html = `
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+        <!-- Banner Modalità per Admin -->
+        ${!this.isAdmin ? `
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div class="text-xs text-slate-600">
+              <strong class="text-slate-800 font-semibold">Sei l'organizzatore?</strong>
+              Sblocca la modalità Giudice Arbitro per inserire i giocatori direttamente, assegnare le teste di serie e generare i tabelloni.
+            </div>
+            <button onclick="app.openModal('modal-pin')" class="bg-tennis-green hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition whitespace-nowrap shadow-sm">
+              Sblocca Admin (PIN: 1234)
+            </button>
+          </div>
+        ` : `
+          <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div class="text-xs text-emerald-800">
+              <strong class="font-bold">Modalità Organizzatore Attiva:</strong> Puoi aggiungere atleti, assegnare le teste di serie da 1 a 16 e comporre i tabelloni.
+            </div>
+            <button onclick="app.openNewPlayerModal('${cat}')" class="bg-tennis-green hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
+              <span>+</span> Aggiungi Giocatore a ${cat}
+            </button>
+          </div>
+        `}
+
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
           <div>
             <h3 class="text-lg font-bold text-gray-900">Elenco Iscritti - ${cat}</h3>
             <p class="text-xs text-gray-500">${filtered.length} atleti registrati in questa categoria</p>
           </div>
-          ${this.isAdmin ? `
-            <button onclick="app.openNewPlayerModal()" class="bg-tennis-green hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition">
-              + Aggiungi Atleta
+          <div class="flex items-center gap-2">
+            <button onclick="app.openNewPlayerModal('${cat}')" class="bg-tennis-green hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
+              <span>+</span> Aggiungi Giocatore
             </button>
-          ` : `
-            <button onclick="app.openModal('modal-public-reg')" class="bg-tennis-green hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition">
-              Invia Iscrizione Online
+            <button onclick="app.openModal('modal-public-reg')" class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs sm:text-sm font-medium px-3.5 py-2 rounded-xl shadow-sm transition">
+              Modulo Iscrizione Genitori
             </button>
-          `}
+          </div>
         </div>
+    `;
 
+    if (filtered.length === 0) {
+      html += `
+        <div class="text-center py-16 bg-gray-50/50 rounded-xl border border-dashed border-gray-300 p-8 my-4">
+          <div class="w-12 h-12 bg-white text-tennis-green border border-gray-200 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+            </svg>
+          </div>
+          <h4 class="font-bold text-base text-gray-800 mb-1">Nessun giocatore iscritto in ${cat}</h4>
+          <p class="text-xs text-gray-500 max-w-sm mx-auto mb-5">Inizia ad aggiungere i partecipanti per questa categoria inserendo nome, anno di nascita e circolo.</p>
+          <button onclick="app.openNewPlayerModal('${cat}')" class="bg-tennis-green hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl shadow transition">
+            + Inserisci il Primo Giocatore
+          </button>
+        </div>
+      `;
+    } else {
+      html += `
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs sm:text-sm border-collapse">
             <thead>
@@ -765,7 +879,7 @@ class App {
                 <th class="py-3 px-3">Class.</th>
                 ${this.isAdmin ? '<th class="py-3 px-3">Genitore / Tel</th>' : ''}
                 <th class="py-3 px-3">Stato</th>
-                ${this.isAdmin ? '<th class="py-3 px-3 text-right">Azioni</th>' : ''}
+                <th class="py-3 px-3 text-right">Azioni</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -788,20 +902,21 @@ class App {
                       Confermato
                     </span>
                   </td>
-                  ${this.isAdmin ? `
-                    <td class="py-2.5 px-3 text-right space-x-1">
-                      <button onclick="app.editPlayer('${p.id}')" class="text-xs text-emerald-700 hover:text-emerald-900 font-medium px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100">Modifica</button>
+                  <td class="py-2.5 px-3 text-right space-x-1">
+                    <button onclick="app.editPlayer('${p.id}')" class="text-xs text-emerald-700 hover:text-emerald-900 font-medium px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100">Modifica</button>
+                    ${this.isAdmin ? `
                       <button onclick="app.deletePlayer('${p.id}')" class="text-xs text-rose-600 hover:text-rose-800 font-medium px-2 py-1 rounded bg-rose-50 hover:bg-rose-100">Elimina</button>
-                    </td>
-                  ` : ''}
+                    ` : ''}
+                  </td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
         </div>
-      </div>
-    `;
+      `;
+    }
 
+    html += `</div>`;
     container.innerHTML = html;
   }
 
@@ -908,8 +1023,8 @@ class App {
               <ul class="list-disc pl-5 text-xs text-gray-600 space-y-1.5">
                 <li>I giocatori devono presentarsi alla segreteria del circolo almeno 20 minuti prima dell'orario stabilito.</li>
                 <li>Riscaldamento preliminare in campo limitato a 5 minuti.</li>
-                <li>Chiamate di palla autonoma da parte dei giocatori con spirito di massima correttezza.</li>
-                <li>Pallette ufficiali fornite dall'organizzazione per ciascun match.</li>
+                <li>Chiamate di palla autonome da parte dei giocatori con spirito di massima correttezza.</li>
+                <li>Palle ufficiali fornite dall'organizzazione per ciascun match.</li>
               </ul>
             </div>
           </div>
@@ -1074,12 +1189,22 @@ class App {
   // ==========================================
   // GESTIONE GIOCATORI
   // ==========================================
-  openNewPlayerModal() {
-    document.getElementById("player-modal-title").textContent = "Nuovo Iscritto";
+  openNewPlayerModal(targetCategory) {
+    const cat = targetCategory || this.selectedCategory;
+
+    // Aggiorna le opzioni del select categoria nel modale
+    const catSelect = document.getElementById("player-category-select");
+    if (catSelect) {
+      catSelect.innerHTML = this.state.tournament.categories.map(c => `
+        <option value="${c}" ${c === cat ? 'selected' : ''}>${c}</option>
+      `).join('');
+    }
+
+    document.getElementById("player-modal-title").textContent = `Nuovo Iscritto (${cat})`;
     document.getElementById("player-id-input").value = "";
     document.getElementById("player-name-input").value = "";
     document.getElementById("player-year-input").value = "2013";
-    document.getElementById("player-category-select").value = this.selectedCategory;
+    document.getElementById("player-category-select").value = cat;
     document.getElementById("player-club-input").value = "";
     document.getElementById("player-ranking-input").value = "NC";
     document.getElementById("player-seed-input").value = "";
@@ -1087,11 +1212,21 @@ class App {
     document.getElementById("player-phone-input").value = "";
 
     this.openModal("modal-player");
+    setTimeout(() => {
+      document.getElementById("player-name-input").focus();
+    }, 100);
   }
 
   editPlayer(id) {
     const p = this.tournamentManager.getPlayer(id);
     if (!p) return;
+
+    const catSelect = document.getElementById("player-category-select");
+    if (catSelect) {
+      catSelect.innerHTML = this.state.tournament.categories.map(c => `
+        <option value="${c}" ${c === p.category ? 'selected' : ''}>${c}</option>
+      `).join('');
+    }
 
     document.getElementById("player-modal-title").textContent = "Modifica Giocatore";
     document.getElementById("player-id-input").value = p.id;
@@ -1143,16 +1278,19 @@ class App {
       this.state.players.push(newPlayer);
     }
 
+    this.selectedCategory = category;
     this.saveState();
     this.closeModal("modal-player");
+    this.renderCategorySelector();
     this.renderPlayersView();
-    this.showToast("Dati del giocatore salvati", "success");
+    this.showToast(`Giocatore ${name} salvato!`, "success");
   }
 
   deletePlayer(id) {
     if (confirm("Sei sicuro di voler eliminare questo giocatore dalla lista?")) {
       this.state.players = this.state.players.filter(p => p.id !== id);
       this.saveState();
+      this.renderCategorySelector();
       this.renderPlayersView();
       this.showToast("Giocatore rimosso", "info");
     }
@@ -1217,6 +1355,7 @@ class App {
     this.state.registrations = this.state.registrations.filter(r => r.id !== regId);
 
     this.saveState();
+    this.renderCategorySelector();
     this.renderPendingView();
     this.renderPlayersView();
     this.showToast(`Iscrizione di ${reg.name} confermata`, "success");
