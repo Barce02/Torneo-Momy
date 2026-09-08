@@ -1,0 +1,97 @@
+/* Custom CSS per Torneo Tennis Ragazzi */
+
+:root {
+  --tennis-green: #065f46;
+  --tennis-court: #047857;
+  --tennis-ball: #ccff00;
+  --tennis-clay: #c2410c;
+  --tennis-dark: #0f172a;
+}
+
+/* Custom Scrollbars per i tabelloni orizzontali */
+.bracket-tree::-webkit-scrollbar,
+.overflow-x-auto::-webkit-scrollbar {
+  height: 8px;
+}
+
+.bracket-tree::-webkit-scrollbar-track,
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 9999px;
+}
+
+.bracket-tree::-webkit-scrollbar-thumb,
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+.bracket-tree::-webkit-scrollbar-thumb:hover,
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Bracket connectors & hover effects */
+.match-card {
+  position: relative;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.match-card:hover {
+  transform: translateY(-2px);
+}
+
+/* Modal Backdrop Animations */
+.modal-backdrop {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* STILI PER LA STAMPA SU CARTA A4 (TABELLONE BACHECA CIRCOLO) */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+  }
+
+  /* Nascondi elementi di navigazione e bottoni per la stampa */
+  header,
+  nav,
+  #admin-toggle-btn,
+  #admin-badge,
+  .no-print,
+  button,
+  .modal,
+  #toast-notification,
+  footer {
+    display: none !important;
+  }
+
+  /* Rendi visibile a tutta pagina il contenuto */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .bracket-tree {
+    min-width: 100% !important;
+    overflow: visible !important;
+  }
+
+  .match-card {
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+
+  /* Stampa del titolo torneo */
+  .print-header {
+    display: block !important;
+    text-align: center;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #000;
+    padding-bottom: 10px;
+  }
+}
