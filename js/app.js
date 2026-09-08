@@ -1,4 +1,4 @@
-// Gestione Principale dell'Applicazione Torneo Tennis
+// Gestione Principale dell'Applicazione Torneo Momy
 
 // Chiave LocalStorage
 const STORAGE_KEY = "torneo_tennis_ragazzi_v1";
@@ -15,7 +15,7 @@ class App {
     this.init();
   }
 
-  // Caricamento dello stato da LocalStorage o dai dati demo
+  // Caricamento dello stato da LocalStorage o dai dati di base
   loadState() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -23,7 +23,7 @@ class App {
         return JSON.parse(saved);
       }
     } catch (e) {
-      console.warn("Impossibile caricare dati da localStorage, uso dati demo", e);
+      console.warn("Impossibile caricare dati da localStorage, uso configurazione iniziale", e);
     }
     return JSON.parse(JSON.stringify(INITIAL_DATA));
   }
@@ -76,9 +76,9 @@ class App {
         if (pin === this.state.tournament.adminPin || pin === "1234") {
           this.setAdminMode(true);
           this.closeModal("modal-pin");
-          this.showToast("Accesso Giudice Arbitro / Admin sbloccato!", "success");
+          this.showToast("Accesso Giudice Arbitro abilitato", "success");
         } else {
-          this.showToast("PIN errato! Riprova.", "error");
+          this.showToast("PIN errato. Riprova.", "error");
         }
       });
     }
@@ -122,16 +122,16 @@ class App {
       importInput.addEventListener("change", (e) => this.importBackup(e));
     }
 
-    // Reset ai Dati Demo
+    // Reset ai Dati Iniziali
     const resetDemoBtn = document.getElementById("reset-demo-btn");
     if (resetDemoBtn) {
       resetDemoBtn.addEventListener("click", () => {
-        if (confirm("Vuoi reimpostare il torneo ai dati dimostrativi completi?")) {
+        if (confirm("Vuoi reimpostare la struttura del torneo ai dati iniziali?")) {
           this.state = JSON.parse(JSON.stringify(INITIAL_DATA));
           this.tournamentManager = new TournamentManager(this.state);
           this.saveState();
           this.renderAll();
-          this.showToast("Dati dimostrativi ripristinati con successo!", "success");
+          this.showToast("Dati del torneo ripristinati con successo", "success");
         }
       });
     }
@@ -149,23 +149,23 @@ class App {
     const toggleBtn = document.getElementById("admin-toggle-btn");
 
     if (this.isAdmin) {
-      badge.textContent = "Modalità Organizzatore / Giudice Arbitro (Attiva)";
-      badge.className = "bg-amber-100 text-amber-800 border border-amber-300 text-xs px-2.5 py-1 rounded-full font-medium inline-flex items-center gap-1.5";
+      badge.textContent = "Modalità Giudice Arbitro (Attiva)";
+      badge.className = "bg-amber-100 text-amber-800 border border-amber-300 text-xs px-2.5 py-1 rounded-lg font-medium inline-flex items-center gap-1.5";
       toggleBtn.innerHTML = `
-        <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path>
         </svg>
         <span>Esci da Admin</span>
       `;
       document.body.classList.add("is-admin");
     } else {
-      badge.textContent = "Vista Pubblica (Famiglie & Atleti)";
-      badge.className = "bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs px-2.5 py-1 rounded-full font-medium inline-flex items-center gap-1.5";
+      badge.textContent = "Vista Pubblica";
+      badge.className = "bg-emerald-800/80 text-emerald-100 border border-emerald-700 text-xs px-2.5 py-1 rounded-lg font-medium inline-flex items-center gap-1.5";
       toggleBtn.innerHTML = `
-        <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path>
         </svg>
-        <span>Accedi come Admin</span>
+        <span>Accesso Organizzatore</span>
       `;
       document.body.classList.remove("is-admin");
     }
@@ -192,7 +192,7 @@ class App {
     const t = this.state.tournament;
     document.getElementById("tournament-title").textContent = t.name;
     document.getElementById("tournament-club").textContent = `${t.club} • ${t.address}`;
-    document.getElementById("tournament-dates").textContent = `📅 ${t.dates}`;
+    document.getElementById("tournament-dates").textContent = t.dates;
   }
 
   renderCategorySelector() {
@@ -203,7 +203,7 @@ class App {
     this.state.tournament.categories.forEach(cat => {
       const isSelected = cat === this.selectedCategory;
       const btn = document.createElement("button");
-      btn.className = `px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all duration-150 ${
+      btn.className = `px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-150 ${
         isSelected
           ? "bg-tennis-green text-white shadow-sm ring-2 ring-emerald-500/30"
           : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
@@ -275,8 +275,8 @@ class App {
     const adminControls = this.isAdmin ? `
       <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5 flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-2">
-          <span class="text-amber-800 font-semibold text-sm">🛠️ Gestione Tabellone [${cat}]:</span>
-          <span class="text-xs text-amber-700">Clicca su una partita per inserire punteggio, campo e orario.</span>
+          <span class="text-amber-800 font-semibold text-sm">Gestione Tabellone [${cat}]:</span>
+          <span class="text-xs text-amber-700">Seleziona una partita per inserire punteggio, campo e orario.</span>
         </div>
         <div class="flex gap-2">
           <button onclick="app.handleGenerateBracket('${cat}')" class="text-xs bg-tennis-green hover:bg-emerald-700 text-white font-medium px-3 py-1.5 rounded-lg shadow-sm">
@@ -296,18 +296,20 @@ class App {
     if (!bracket || !bracket.rounds || bracket.rounds.length === 0) {
       html += `
         <div class="text-center py-16 bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
-          <div class="w-16 h-16 bg-emerald-100 text-tennis-green rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
-            🎾
+          <div class="w-12 h-12 bg-emerald-50 border border-emerald-200 text-tennis-green rounded-xl flex items-center justify-center mx-auto mb-4">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
           </div>
           <h3 class="text-lg font-bold text-gray-800 mb-1">Nessun tabellone generato per ${cat}</h3>
           <p class="text-sm text-gray-500 max-w-md mx-auto mb-6">
             ${this.isAdmin 
-              ? "Hai abilitato la modalità organizzatore: clicca sul pulsante qui sotto per comporre il tabellone automaticamente con le teste di serie." 
-              : "Il giudice arbitro non ha ancora pubblicato il tabellone definitivo per questa categoria."}
+              ? "Accesso arbitro attivo: genera il tabellone automaticamente con le teste di serie." 
+              : "Il tabellone definitivo per questa categoria non è ancora stato pubblicato."}
           </p>
           ${this.isAdmin ? `
             <button onclick="app.handleGenerateBracket('${cat}')" class="bg-tennis-green hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-xl shadow transition">
-              Crea Tabellone Automatico (${cat})
+              Crea Tabellone (${cat})
             </button>
           ` : ""}
         </div>
@@ -327,7 +329,7 @@ class App {
       html += `
         <div class="bracket-round flex flex-col justify-around min-w-[280px] max-w-[320px]">
           <div class="text-center mb-4">
-            <span class="inline-block bg-emerald-900 text-emerald-100 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full shadow-sm">
+            <span class="inline-block bg-emerald-900 text-emerald-100 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-md shadow-sm">
               ${round.name}
             </span>
           </div>
@@ -346,8 +348,8 @@ class App {
                onclick="${this.isAdmin ? `app.openMatchModal('${cat}', '${match.id}')` : ''}">
             
             ${isFinal && hasWinner ? `
-              <div class="bg-gradient-to-r from-amber-400 to-yellow-500 text-white text-[11px] font-bold px-2 py-0.5 text-center uppercase tracking-wider flex items-center justify-center gap-1">
-                🏆 Campione del Torneo
+              <div class="bg-emerald-800 text-white text-[11px] font-bold px-2 py-0.5 text-center uppercase tracking-wider">
+                Vincitore del Torneo
               </div>
             ` : ""}
 
@@ -359,7 +361,7 @@ class App {
                   <span class="truncate text-sm">${p1 ? p1.name : (match.player1Id ? match.player1Id : '<span class="text-gray-400 italic">In attesa</span>')}</span>
                   ${p1 && p1.club ? `<span class="text-[11px] text-gray-400">(${p1.club})</span>` : ""}
                 </div>
-                ${isP1Winner ? `<span class="text-emerald-600 font-extrabold text-sm ml-2">✓</span>` : ""}
+                ${isP1Winner ? `<span class="text-emerald-700 font-bold text-xs bg-emerald-100 px-1.5 py-0.5 rounded">Vinto</span>` : ""}
               </div>
 
               <!-- Giocatore 2 -->
@@ -369,7 +371,7 @@ class App {
                   <span class="truncate text-sm">${p2 ? p2.name : (match.player2Id ? match.player2Id : '<span class="text-gray-400 italic">In attesa</span>')}</span>
                   ${p2 && p2.club ? `<span class="text-[11px] text-gray-400">(${p2.club})</span>` : ""}
                 </div>
-                ${isP2Winner ? `<span class="text-emerald-600 font-extrabold text-sm ml-2">✓</span>` : ""}
+                ${isP2Winner ? `<span class="text-emerald-700 font-bold text-xs bg-emerald-100 px-1.5 py-0.5 rounded">Vinto</span>` : ""}
               </div>
 
               <!-- Risultato e Dettagli Match -->
@@ -380,7 +382,7 @@ class App {
                       ${match.scores}
                     </span>
                   ` : `
-                    <span class="text-gray-400 text-[11px]">${match.status === 'in_corso' ? '🟡 In corso...' : 'Da disputare'}</span>
+                    <span class="text-gray-400 text-[11px]">${match.status === 'in_corso' ? 'In corso (Live)' : 'Da disputare'}</span>
                   `}
                 </div>
                 <div class="text-right text-[11px] text-gray-500">
@@ -390,8 +392,8 @@ class App {
               </div>
 
               ${this.isAdmin ? `
-                <div class="mt-2 text-center text-[10px] text-tennis-green font-semibold bg-emerald-50 py-1 rounded hover:bg-emerald-100">
-                  ✏️ Modifica Risultato & Orario
+                <div class="mt-2 text-center text-[11px] text-tennis-green font-medium bg-emerald-50 py-1 rounded hover:bg-emerald-100 border border-emerald-200/50">
+                  Modifica Risultato & Orario
                 </div>
               ` : ''}
             </div>
@@ -418,7 +420,7 @@ class App {
       this.tournamentManager.generateBracket(category);
       this.saveState();
       this.renderBracketView();
-      this.showToast(`Tabellone generato con successo per ${category}!`, "success");
+      this.showToast(`Tabellone generato per ${category}`, "success");
     } catch (e) {
       alert(e.message);
     }
@@ -445,10 +447,10 @@ class App {
     const adminHeader = this.isAdmin ? `
       <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5 flex flex-wrap items-center justify-between gap-3">
         <div class="text-sm font-semibold text-amber-900">
-          🛠️ Gestione Gironi per ${cat}
+          Gestione Gironi (${cat})
         </div>
         <button onclick="app.openNewGroupModal('${cat}')" class="text-xs bg-tennis-green hover:bg-emerald-700 text-white font-medium px-3 py-1.5 rounded-lg shadow-sm">
-          + Crea Nuovo Girone
+          + Nuovo Girone
         </button>
       </div>
     ` : "";
@@ -458,16 +460,18 @@ class App {
     if (catGroups.length === 0) {
       html += `
         <div class="text-center py-16 bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
-          <div class="w-16 h-16 bg-emerald-100 text-tennis-green rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
-            🔄
+          <div class="w-12 h-12 bg-emerald-50 border border-emerald-200 text-tennis-green rounded-xl flex items-center justify-center mx-auto mb-4">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+            </svg>
           </div>
           <h3 class="text-lg font-bold text-gray-800 mb-1">Nessun girone configurato per ${cat}</h3>
           <p class="text-sm text-gray-500 max-w-md mx-auto mb-6">
-            La formula a gironi (Round Robin) è ideale per le categorie Under 10 e Under 12 per garantire più incontri a ciascun ragazzo.
+            La formula a gironi (Round Robin) consente a ogni partecipante di disputare più incontri.
           </p>
           ${this.isAdmin ? `
             <button onclick="app.openNewGroupModal('${cat}')" class="bg-tennis-green hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-xl shadow transition">
-              Crea Girone per ${cat}
+              Crea Girone (${cat})
             </button>
           ` : ""}
         </div>
@@ -483,17 +487,17 @@ class App {
         <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-8">
           <div class="bg-emerald-800 text-white px-5 py-3.5 flex items-center justify-between">
             <h3 class="font-bold text-base flex items-center gap-2">
-              <span>🎾</span> ${group.name} (${cat})
+              <span>${group.name} (${cat})</span>
             </h3>
-            <span class="text-xs bg-emerald-950/60 text-emerald-200 px-3 py-1 rounded-full font-mono">
+            <span class="text-xs bg-emerald-950/60 text-emerald-200 px-3 py-1 rounded-md font-mono">
               ${group.playerIds.length} Atleti • ${group.matches.length} Partite
             </span>
           </div>
 
           <div class="p-5">
             <!-- Tabella Classifica -->
-            <h4 class="font-bold text-sm text-gray-700 mb-2.5 flex items-center gap-1.5">
-              <span>📊</span> Classifica Girone
+            <h4 class="font-bold text-sm text-gray-700 mb-2.5">
+              Classifica Girone
             </h4>
             <div class="overflow-x-auto mb-6">
               <table class="w-full text-xs sm:text-sm text-left border-collapse">
@@ -513,8 +517,8 @@ class App {
                 <tbody class="divide-y divide-gray-100">
                   ${standings.map((st, pos) => `
                     <tr class="hover:bg-gray-50/70 transition ${pos < 2 ? 'bg-emerald-50/30 font-medium' : ''}">
-                      <td class="py-2 px-3 font-bold ${pos === 0 ? 'text-amber-500' : pos === 1 ? 'text-gray-400' : 'text-gray-600'}">
-                        ${pos + 1}° ${pos === 0 ? '🥇' : pos === 1 ? '🥈' : ''}
+                      <td class="py-2 px-3 font-bold ${pos === 0 ? 'text-emerald-700' : 'text-gray-600'}">
+                        ${pos + 1}°
                       </td>
                       <td class="py-2 px-3 text-gray-900">${st.name}</td>
                       <td class="py-2 px-3 text-gray-500 text-xs">${st.club || '-'}</td>
@@ -531,8 +535,8 @@ class App {
             </div>
 
             <!-- Calendario Incontri del Girone -->
-            <h4 class="font-bold text-sm text-gray-700 mb-2.5 flex items-center gap-1.5">
-              <span>📅</span> Partite del Girone
+            <h4 class="font-bold text-sm text-gray-700 mb-2.5">
+              Calendario Incontri
             </h4>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               ${group.matches.map(m => {
@@ -552,10 +556,10 @@ class App {
                     <div class="flex items-center justify-between">
                       <div class="space-y-1">
                         <div class="text-sm ${isP1Win ? 'font-bold text-emerald-800' : 'text-gray-800'}">
-                          ${p1 ? p1.name : 'TBD'} ${isP1Win ? '✓' : ''}
+                          ${p1 ? p1.name : 'TBD'} ${isP1Win ? '<span class="text-xs text-emerald-700 font-semibold ml-1">(V)</span>' : ''}
                         </div>
                         <div class="text-sm ${isP2Win ? 'font-bold text-emerald-800' : 'text-gray-800'}">
-                          ${p2 ? p2.name : 'TBD'} ${isP2Win ? '✓' : ''}
+                          ${p2 ? p2.name : 'TBD'} ${isP2Win ? '<span class="text-xs text-emerald-700 font-semibold ml-1">(V)</span>' : ''}
                         </div>
                       </div>
                       <div>
@@ -571,7 +575,7 @@ class App {
 
                     ${this.isAdmin ? `
                       <div class="mt-2 text-right">
-                        <span class="text-[10px] text-tennis-green font-semibold">✏️ Modifica</span>
+                        <span class="text-[11px] text-tennis-green font-medium hover:underline">Modifica</span>
                       </div>
                     ` : ''}
                   </div>
@@ -593,15 +597,14 @@ class App {
       return;
     }
 
-    const groupName = prompt(`Inserisci il nome del nuovo girone (es: Girone A, Girone Rosso):`, `Girone ${String.fromCharCode(65 + (this.state.groups && this.state.groups[category] ? this.state.groups[category].length : 0))}`);
+    const groupName = prompt(`Inserisci il nome del nuovo girone (es: Girone A):`, `Girone ${String.fromCharCode(65 + (this.state.groups && this.state.groups[category] ? this.state.groups[category].length : 0))}`);
     if (!groupName) return;
 
-    // Assegna tutti i giocatori disponibili non ancora in un girone oppure chiedi
     const playerIds = confirmedPlayers.map(p => p.id);
     this.tournamentManager.createGroup(category, groupName, playerIds);
     this.saveState();
     this.renderGroupsView();
-    this.showToast(`Girone "${groupName}" creato con successo!`, "success");
+    this.showToast(`Girone "${groupName}" creato con successo`, "success");
   }
 
   // ==========================================
@@ -616,11 +619,13 @@ class App {
     if (allMatches.length === 0) {
       container.innerHTML = `
         <div class="text-center py-16 bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
-          <div class="w-16 h-16 bg-emerald-100 text-tennis-green rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
-            📅
+          <div class="w-12 h-12 bg-emerald-50 border border-emerald-200 text-tennis-green rounded-xl flex items-center justify-center mx-auto mb-4">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
           </div>
           <h3 class="text-lg font-bold text-gray-800 mb-1">Nessun incontro programmato</h3>
-          <p class="text-sm text-gray-500">I match appariranno qui man mano che verranno fissati orari e campi.</p>
+          <p class="text-sm text-gray-500">I match appariranno qui con orari e campi assegnati.</p>
         </div>
       `;
       return;
@@ -630,13 +635,13 @@ class App {
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h3 class="text-lg font-bold text-gray-900">Programma Ufficiale di Gioco</h3>
-          <p class="text-xs text-gray-500">Orari indicativi degli incontri su tutti i campi del circolo</p>
+          <p class="text-xs text-gray-500">Orari e campi degli incontri per tutte le categorie</p>
         </div>
         <div class="flex items-center gap-2">
-          <button onclick="app.filterSchedule('all')" class="schedule-filter-btn px-3 py-1 rounded-full text-xs font-semibold bg-tennis-green text-white" data-filter="all">Tutti</button>
-          <button onclick="app.filterSchedule('in_corso')" class="schedule-filter-btn px-3 py-1 rounded-full text-xs font-medium bg-white text-gray-700 border hover:bg-gray-100" data-filter="in_corso">In Corso</button>
-          <button onclick="app.filterSchedule('in_programma')" class="schedule-filter-btn px-3 py-1 rounded-full text-xs font-medium bg-white text-gray-700 border hover:bg-gray-100" data-filter="in_programma">Da Giocare</button>
-          <button onclick="app.filterSchedule('completato')" class="schedule-filter-btn px-3 py-1 rounded-full text-xs font-medium bg-white text-gray-700 border hover:bg-gray-100" data-filter="completato">Terminati</button>
+          <button onclick="app.filterSchedule('all')" class="schedule-filter-btn px-3 py-1 rounded-lg text-xs font-semibold bg-tennis-green text-white" data-filter="all">Tutti</button>
+          <button onclick="app.filterSchedule('in_corso')" class="schedule-filter-btn px-3 py-1 rounded-lg text-xs font-medium bg-white text-gray-700 border hover:bg-gray-100" data-filter="in_corso">In Corso</button>
+          <button onclick="app.filterSchedule('in_programma')" class="schedule-filter-btn px-3 py-1 rounded-lg text-xs font-medium bg-white text-gray-700 border hover:bg-gray-100" data-filter="in_programma">Da Giocare</button>
+          <button onclick="app.filterSchedule('completato')" class="schedule-filter-btn px-3 py-1 rounded-lg text-xs font-medium bg-white text-gray-700 border hover:bg-gray-100" data-filter="completato">Terminati</button>
         </div>
       </div>
 
@@ -660,18 +665,18 @@ class App {
           <div class="space-y-1.5 mb-3">
             <div class="text-sm font-semibold flex items-center justify-between text-gray-800">
               <span class="truncate">${p1 ? p1.name : 'Da definire'}</span>
-              ${m.winnerId && p1 && m.winnerId === p1.id ? '<span class="text-emerald-600 font-bold">✓</span>' : ''}
+              ${m.winnerId && p1 && m.winnerId === p1.id ? '<span class="text-emerald-700 font-bold text-xs bg-emerald-100 px-1.5 py-0.5 rounded">Vinto</span>' : ''}
             </div>
-            <div class="text-xs text-gray-400 font-bold uppercase text-center">- VS -</div>
+            <div class="text-xs text-gray-400 font-semibold uppercase text-center">- VS -</div>
             <div class="text-sm font-semibold flex items-center justify-between text-gray-800">
               <span class="truncate">${p2 ? p2.name : 'Da definire'}</span>
-              ${m.winnerId && p2 && m.winnerId === p2.id ? '<span class="text-emerald-600 font-bold">✓</span>' : ''}
+              ${m.winnerId && p2 && m.winnerId === p2.id ? '<span class="text-emerald-700 font-bold text-xs bg-emerald-100 px-1.5 py-0.5 rounded">Vinto</span>' : ''}
             </div>
           </div>
 
           <div class="pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs">
-            <div class="text-gray-600 font-medium flex items-center gap-1">
-              <span>🏟️</span> ${m.court || 'Campo TBD'}
+            <div class="text-gray-600 font-medium">
+              ${m.court || 'Campo da definire'}
             </div>
             <div class="font-semibold text-tennis-green">
               ${m.dateTime ? this.formatShortDate(m.dateTime) : 'Orario da fissare'}
@@ -694,9 +699,9 @@ class App {
   filterSchedule(status) {
     document.querySelectorAll(".schedule-filter-btn").forEach(b => {
       if (b.dataset.filter === status) {
-        b.className = "schedule-filter-btn px-3 py-1 rounded-full text-xs font-semibold bg-tennis-green text-white";
+        b.className = "schedule-filter-btn px-3 py-1 rounded-lg text-xs font-semibold bg-tennis-green text-white";
       } else {
-        b.className = "schedule-filter-btn px-3 py-1 rounded-full text-xs font-medium bg-white text-gray-700 border hover:bg-gray-100";
+        b.className = "schedule-filter-btn px-3 py-1 rounded-lg text-xs font-medium bg-white text-gray-700 border hover:bg-gray-100";
       }
     });
 
@@ -712,7 +717,7 @@ class App {
   getStatusBadge(status) {
     switch (status) {
       case "in_corso":
-        return `<span class="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">● LIVE</span>`;
+        return `<span class="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full">In corso</span>`;
       case "completato":
         return `<span class="bg-gray-100 text-gray-600 text-[10px] font-medium px-2 py-0.5 rounded-full">Terminato</span>`;
       default:
@@ -739,12 +744,12 @@ class App {
             <p class="text-xs text-gray-500">${filtered.length} atleti registrati in questa categoria</p>
           </div>
           ${this.isAdmin ? `
-            <button onclick="app.openNewPlayerModal()" class="bg-tennis-green hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
-              <span>+</span> Aggiungi Ragazzo/a
+            <button onclick="app.openNewPlayerModal()" class="bg-tennis-green hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition">
+              + Aggiungi Atleta
             </button>
           ` : `
-            <button onclick="app.openModal('modal-public-reg')" class="bg-tennis-green hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
-              <span>📝</span> Iscrivi Tuo Figlio Online
+            <button onclick="app.openModal('modal-public-reg')" class="bg-tennis-green hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition">
+              Invia Iscrizione Online
             </button>
           `}
         </div>
@@ -767,7 +772,7 @@ class App {
               ${filtered.map(p => `
                 <tr class="hover:bg-gray-50 transition">
                   <td class="py-2.5 px-3">
-                    ${p.seed ? `<span class="bg-tennis-green text-white font-bold text-xs px-2 py-0.5 rounded-full">[${p.seed}]</span>` : '<span class="text-gray-300">-</span>'}
+                    ${p.seed ? `<span class="bg-tennis-green text-white font-bold text-xs px-2 py-0.5 rounded">[${p.seed}]</span>` : '<span class="text-gray-300">-</span>'}
                   </td>
                   <td class="py-2.5 px-3 font-semibold text-gray-900">${p.name}</td>
                   <td class="py-2.5 px-3 text-gray-600">${p.birthYear || '-'}</td>
@@ -775,18 +780,18 @@ class App {
                   <td class="py-2.5 px-3 font-mono text-gray-700">${p.ranking || 'NC'}</td>
                   ${this.isAdmin ? `
                     <td class="py-2.5 px-3 text-gray-500 text-xs">
-                      ${p.parentName || ''} ${p.parentPhone ? `(${p.parentPhone})` : ''}
+                      ${p.parentName || '-'} ${p.parentPhone ? `(${p.parentPhone})` : ''}
                     </td>
                   ` : ''}
                   <td class="py-2.5 px-3">
-                    <span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    <span class="bg-emerald-100 text-emerald-800 text-[10px] font-semibold px-2 py-0.5 rounded">
                       Confermato
                     </span>
                   </td>
                   ${this.isAdmin ? `
                     <td class="py-2.5 px-3 text-right space-x-1">
-                      <button onclick="app.editPlayer('${p.id}')" class="text-gray-500 hover:text-emerald-700 p-1 text-xs">✏️</button>
-                      <button onclick="app.deletePlayer('${p.id}')" class="text-gray-500 hover:text-rose-600 p-1 text-xs">🗑️</button>
+                      <button onclick="app.editPlayer('${p.id}')" class="text-xs text-emerald-700 hover:text-emerald-900 font-medium px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100">Modifica</button>
+                      <button onclick="app.deletePlayer('${p.id}')" class="text-xs text-rose-600 hover:text-rose-800 font-medium px-2 py-1 rounded bg-rose-50 hover:bg-rose-100">Elimina</button>
                     </td>
                   ` : ''}
                 </tr>
@@ -813,8 +818,8 @@ class App {
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
         <div class="flex justify-between items-center mb-5">
           <div>
-            <h3 class="text-lg font-bold text-gray-900">Richieste di Iscrizione Online</h3>
-            <p class="text-xs text-gray-500">Istanze inviate dalle famiglie in attesa di approvazione del comitato organizzatore</p>
+            <h3 class="text-lg font-bold text-gray-900">Richieste di Iscrizione Ricevute</h3>
+            <p class="text-xs text-gray-500">Istanze trasmesse online in attesa di conferma del comitato organizzatore</p>
           </div>
           <button onclick="app.openModal('modal-public-reg')" class="bg-tennis-green text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm">
             + Compila Nuova Richiesta
@@ -836,7 +841,7 @@ class App {
               <div>
                 <div class="flex justify-between items-start mb-2">
                   <h4 class="font-bold text-base text-gray-900">${reg.name}</h4>
-                  <span class="text-xs font-semibold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">
+                  <span class="text-xs font-semibold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-md">
                     In attesa
                   </span>
                 </div>
@@ -844,7 +849,7 @@ class App {
                   <div><strong>Categoria:</strong> ${reg.category}</div>
                   <div><strong>Anno di nascita:</strong> ${reg.birthYear} • <strong>Classifica:</strong> ${reg.ranking}</div>
                   <div><strong>Circolo:</strong> ${reg.club}</div>
-                  <div><strong>Genitore:</strong> ${reg.parentName} (${reg.parentPhone})</div>
+                  ${reg.parentName ? `<div><strong>Genitore:</strong> ${reg.parentName} ${reg.parentPhone ? `(${reg.parentPhone})` : ''}</div>` : ''}
                   ${reg.notes ? `<div class="bg-white p-2 rounded border text-gray-500 italic mt-1">"${reg.notes}"</div>` : ''}
                 </div>
               </div>
@@ -855,7 +860,7 @@ class App {
                     Rifiuta
                   </button>
                   <button onclick="app.approveRegistration('${reg.id}')" class="text-xs bg-tennis-green hover:bg-emerald-700 text-white font-semibold px-4 py-1.5 rounded-lg shadow-sm">
-                    Accetta & Aggiungi al Torneo
+                    Accetta & Inserisci
                   </button>
                 </div>
               ` : `
@@ -886,25 +891,25 @@ class App {
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 space-y-6">
           <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-            <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <span>📋</span> Regolamento Ufficiale del Torneo Giovanile
+            <h3 class="text-lg font-bold text-gray-900 mb-4">
+              Regolamento Ufficiale del Torneo
             </h3>
             <div class="prose prose-sm text-gray-600 space-y-4">
               <p>
-                Il presente torneo è riservato alle categorie giovanili con l'obiettivo prioritario di promuovere i valori di <strong>fair play</strong>, sportività e divertimento sul campo da tennis.
+                Il torneo è riservato alle categorie giovanili con l'obiettivo di promuovere i valori di sportività, lealtà e crescita tecnica sui campi di gioco.
               </p>
 
               <div class="bg-emerald-50 border-l-4 border-tennis-green p-4 rounded-r-xl">
-                <h4 class="font-bold text-tennis-green text-sm mb-1">Formula dei Punteggi</h4>
+                <h4 class="font-bold text-tennis-green text-sm mb-1">Formula di Gioco</h4>
                 <p class="text-xs text-gray-700 leading-relaxed">${t.rules}</p>
               </div>
 
-              <h4 class="font-bold text-gray-800 text-sm">Codice di Condotta per Ragazzi e Genitori</h4>
+              <h4 class="font-bold text-gray-800 text-sm">Disposizioni Generali</h4>
               <ul class="list-disc pl-5 text-xs text-gray-600 space-y-1.5">
-                <li>I ragazzi chiamano autonomamente le palle fuori nel proprio campo; in caso di dubbio si rigioca il punto con fair play.</li>
-                <li>I genitori sono pregati di sostenere calorosamente tutti i partecipanti senza intervenire nelle decisioni di campo.</li>
-                <li>Si richiede la presentazione al circolo 20 minuti prima dell'orario fissato per l'incontro.</li>
-                <li>Riscaldamento massimo consentito prima del match: 5 minuti.</li>
+                <li>I giocatori devono presentarsi alla segreteria del circolo almeno 20 minuti prima dell'orario stabilito.</li>
+                <li>Riscaldamento preliminare in campo limitato a 5 minuti.</li>
+                <li>Chiamate di palla autonoma da parte dei giocatori con spirito di massima correttezza.</li>
+                <li>Pallette ufficiali fornite dall'organizzazione per ciascun match.</li>
               </ul>
             </div>
           </div>
@@ -912,32 +917,32 @@ class App {
 
         <div class="space-y-6">
           <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-            <h3 class="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
-              <span>🏟️</span> Circolo Ospitante
+            <h3 class="text-base font-bold text-gray-900 mb-3">
+              Circolo Ospitante
             </h3>
             <div class="text-xs text-gray-600 space-y-2">
-              <div><strong>Circolo:</strong> ${t.club}</div>
+              <div><strong>Sede:</strong> ${t.club}</div>
               <div><strong>Indirizzo:</strong> ${t.address}</div>
               <div><strong>Date di svolgimento:</strong> ${t.dates}</div>
-              <div><strong>Direttore Torneo:</strong> ${t.director}</div>
+              <div><strong>Direzione Torneo:</strong> ${t.director}</div>
               <div><strong>Ufficiale di Gara:</strong> ${t.referee}</div>
             </div>
 
             <div class="mt-4 pt-4 border-t border-gray-100">
-              <h4 class="font-bold text-xs text-gray-800 mb-2">Campi Disponibili</h4>
+              <h4 class="font-bold text-xs text-gray-800 mb-2">Campi da Gioco</h4>
               <ul class="text-xs text-gray-600 space-y-1">
-                ${t.courts.map(c => `<li class="flex items-center gap-1.5"><span>🎾</span> ${c}</li>`).join('')}
+                ${t.courts.map(c => `<li class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-tennis-green inline-block"></span> ${c}</li>`).join('')}
               </ul>
             </div>
           </div>
 
           <div class="bg-gradient-to-br from-emerald-800 to-tennis-green rounded-2xl p-6 text-white shadow">
-            <h3 class="font-bold text-base mb-2">Sei un genitore?</h3>
+            <h3 class="font-bold text-base mb-2">Iscrizione Atleti</h3>
             <p class="text-xs text-emerald-100 mb-4 leading-relaxed">
-              Puoi inviare la richiesta di iscrizione di tuo figlio/a direttamente online senza dover telefonare o recarti in segreteria.
+              È possibile inviare la candidatura per il torneo tramite il modulo telematico dedicato.
             </p>
             <button onclick="app.openModal('modal-public-reg')" class="w-full bg-white text-tennis-green font-bold text-xs py-2.5 px-4 rounded-xl shadow hover:bg-emerald-50 transition">
-              Iscrivi Ora Tuo Figlio
+              Invia Richiesta Iscrizione
             </button>
           </div>
         </div>
@@ -1031,7 +1036,7 @@ class App {
       );
 
       if (res && res.isChampionDecided) {
-        this.triggerCelebration(res.winner ? res.winner.name : "Nuovo Campione");
+        this.triggerCelebration(res.winner ? res.winner.name : "Campione");
       }
     } else if (this.currentEditingMatch.type === 'group') {
       const group = this.state.groups[this.currentEditingMatch.category][this.currentEditingMatch.groupIndex];
@@ -1044,40 +1049,26 @@ class App {
     this.saveState();
     this.closeModal("modal-match-score");
     this.renderTabContent();
-    this.showToast("Risultato salvato con successo!", "success");
+    this.showToast("Risultato salvato con successo", "success");
   }
 
-  // Quick buttons punteggio (es: "6-3 6-4" o "4-1 4-2")
+  // Quick buttons punteggio
   setQuickScore(score) {
     document.getElementById("score-input").value = score;
   }
 
   // ==========================================
-  // EFFETTO CORIANDOLI (CELEBRATION)
+  // CELEBRAZIONE FINALE
   // ==========================================
   triggerCelebration(championName) {
     if (typeof confetti === 'function') {
       confetti({
-        particleCount: 120,
+        particleCount: 100,
         spread: 70,
         origin: { y: 0.6 }
       });
-      setTimeout(() => {
-        confetti({
-          particleCount: 80,
-          angle: 60,
-          spread: 55,
-          origin: { x: 0 }
-        });
-        confetti({
-          particleCount: 80,
-          angle: 120,
-          spread: 55,
-          origin: { x: 1 }
-        });
-      }, 300);
     }
-    this.showToast(`🎉 COMPLIMENTI A ${championName.toUpperCase()}, CAMPIONE DEL TORNEO! 🏆`, "success", 6000);
+    this.showToast(`Incontro finale concluso. Vincitore del torneo: ${championName}.`, "success", 5000);
   }
 
   // ==========================================
@@ -1089,7 +1080,7 @@ class App {
     document.getElementById("player-name-input").value = "";
     document.getElementById("player-year-input").value = "2013";
     document.getElementById("player-category-select").value = this.selectedCategory;
-    document.getElementById("player-club-input").value = this.state.tournament.club;
+    document.getElementById("player-club-input").value = "";
     document.getElementById("player-ranking-input").value = "NC";
     document.getElementById("player-seed-input").value = "";
     document.getElementById("player-parent-input").value = "";
@@ -1155,15 +1146,15 @@ class App {
     this.saveState();
     this.closeModal("modal-player");
     this.renderPlayersView();
-    this.showToast("Dati del giocatore salvati!", "success");
+    this.showToast("Dati del giocatore salvati", "success");
   }
 
   deletePlayer(id) {
-    if (confirm("Sei sicuro di voler eliminare questo giocatore dalla lista degli iscritti?")) {
+    if (confirm("Sei sicuro di voler eliminare questo giocatore dalla lista?")) {
       this.state.players = this.state.players.filter(p => p.id !== id);
       this.saveState();
       this.renderPlayersView();
-      this.showToast("Giocatore rimosso.", "info");
+      this.showToast("Giocatore rimosso", "info");
     }
   }
 
@@ -1200,7 +1191,7 @@ class App {
     this.closeModal("modal-public-reg");
     document.getElementById("public-reg-form").reset();
 
-    alert("Grazie! Richiesta inviata con successo. La segreteria e il Giudice Arbitro confermeranno l'iscrizione a breve.");
+    alert("Richiesta inviata con successo. La segreteria e il Giudice Arbitro confermeranno l'iscrizione a breve.");
     this.renderPendingView();
   }
 
@@ -1228,15 +1219,15 @@ class App {
     this.saveState();
     this.renderPendingView();
     this.renderPlayersView();
-    this.showToast(`Iscrizione di ${reg.name} confermata con successo!`, "success");
+    this.showToast(`Iscrizione di ${reg.name} confermata`, "success");
   }
 
   rejectRegistration(regId) {
-    if (confirm("Sei sicuro di voler respingere questa richiesta di iscrizione?")) {
+    if (confirm("Sei sicuro di voler respingere questa richiesta?")) {
       this.state.registrations = this.state.registrations.filter(r => r.id !== regId);
       this.saveState();
       this.renderPendingView();
-      this.showToast("Richiesta respinta.", "info");
+      this.showToast("Richiesta respinta", "info");
     }
   }
 
@@ -1247,11 +1238,11 @@ class App {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.state, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `torneo-tennis-${new Date().toISOString().slice(0, 10)}.json`);
+    downloadAnchor.setAttribute("download", `torneo-momy-${new Date().toISOString().slice(0, 10)}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
-    this.showToast("Backup scaricato!", "success");
+    this.showToast("Backup scaricato", "success");
   }
 
   importBackup(event) {
@@ -1267,7 +1258,7 @@ class App {
           this.tournamentManager = new TournamentManager(this.state);
           this.saveState();
           this.renderAll();
-          this.showToast("Dati del torneo ripristinati con successo!", "success");
+          this.showToast("Dati del torneo ripristinati", "success");
         } else {
           alert("File JSON non valido: mancano le strutture dati del torneo.");
         }
@@ -1303,9 +1294,9 @@ class App {
     if (!toast) return;
 
     const colors = {
-      success: "bg-emerald-800 text-white border-emerald-600",
-      error: "bg-rose-800 text-white border-rose-600",
-      info: "bg-slate-800 text-white border-slate-600"
+      success: "bg-emerald-900 text-white border-emerald-700",
+      error: "bg-rose-900 text-white border-rose-700",
+      info: "bg-slate-900 text-white border-slate-700"
     };
 
     toast.className = `fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl border shadow-xl transition-all duration-300 transform translate-y-0 text-xs sm:text-sm font-medium flex items-center gap-2 ${colors[type] || colors.info}`;
