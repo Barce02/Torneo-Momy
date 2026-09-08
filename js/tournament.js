@@ -113,7 +113,7 @@ class TournamentManager {
         player2Id: p2 === "BYE" ? null : p2,
         scores: scores,
         winnerId: winnerId,
-        court: "Campo 1 (Centrale)",
+        court: (i / 2) % 2 === 0 ? "Campo 0 (Terra)" : "Campo 1 (Terra)",
         dateTime: "",
         status: status
       });
@@ -143,7 +143,7 @@ class TournamentManager {
           player2Id: p2,
           scores: "",
           winnerId: null,
-          court: "Campo 1 (Centrale)",
+          court: "Campo 0 (Terra)",
           dateTime: "",
           status: "in_programma"
         });
@@ -324,7 +324,7 @@ class TournamentManager {
             scores: "",
             winnerId: null,
             isDraw: false,
-            court: groupKey === "sinner" ? "Campo 1 (Centrale)" : "Campo 2",
+            court: groupKey === "sinner" ? "Campo 0 (Terra)" : "Campo 1 (Terra)",
             dateTime: "",
             status: "in_programma"
           });
@@ -379,6 +379,19 @@ class TournamentManager {
     return true;
   }
 
+  // Verifica il vincitore dello scontro diretto tra due atleti nel girone
+  getHeadToHeadWinner(matches, p1Id, p2Id) {
+    if (!matches || matches.length === 0) return null;
+    const m = matches.find(match =>
+      match.status === "completato" &&
+      ((match.player1Id === p1Id && match.player2Id === p2Id) ||
+       (match.player1Id === p2Id && match.player2Id === p1Id))
+    );
+    if (!m) return null;
+    if (m.isDraw || m.games1 === m.games2) return "DRAW";
+    return m.winnerId || null;
+  }
+
   getGroupStandings(groupKey) {
     this.ensureGroups();
     const group = this.state.groups[groupKey];
@@ -394,11 +407,11 @@ class TournamentManager {
           played: 0,
           won: 0,
           drawn: 0,
-          lost: 0,
-          gamesFor: 0,
-          gamesAgainst: 0,
-          diff: 0,
-          points: 0
+          lost: 0,          // Set Persi (ogni match è 1 set continuo)
+          gamesFor: 0,      // Game Vinti
+          gamesAgainst: 0,  // Game Persi
+          diff: 0,          // Differenza Game Vinti/Persi
+          points: 0         // Punti (V: 3, P: 1, S: 0)
         };
       }
     });
@@ -439,15 +452,58 @@ class TournamentManager {
       s.diff = s.gamesFor - s.gamesAgainst;
     });
 
-    // Criteri ordinamento: Punti, Differenza Game, Game Fatti, Ranking
-    standings.sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      if (b.diff !== a.diff) return b.diff - a.diff;
-      if (b.gamesFor !== a.gamesFor) return b.gamesFor - a.gamesFor;
-      return (this.getRankingWeight(b.player.ranking) - this.getRankingWeight(a.player.ranking));
+    // Criteri di ordinamento ufficiali Torneo Momy:
+    // 1. Punti
+    // 2. Scontro diretto (se sono in due a pari punti)
+    // 3. Differenza game vinti/persi
+    // 4. Numero di game vinti
+    const pointsMap = {};
+    standings.forEach(s => {
+      const pt = s.points;
+      if (!pointsMap[pt]) pointsMap[pt] = [];
+      pointsMap[pt].push(s);
     });
 
-    return standings;
+    const sortedPoints = Object.keys(pointsMap).map(Number).sort((a, b) => b - a);
+    const sortedStandings = [];
+
+    sortedPoints.forEach(pt => {
+      const cluster = pointsMap[pt];
+      if (cluster.length === 1) {
+        sortedStandings.push(cluster[0]);
+      } else if (cluster.length === 2) {
+        // Se sono in due: scontro diretto tra i due
+        const p1 = cluster[0];
+        const p2 = cluster[1];
+        const h2h = this.getHeadToHeadWinner(group.matches || [], p1.player.id, p2.player.id);
+        if (h2h === p1.player.id) {
+          sortedStandings.push(p1, p2);
+        } else if (h2h === p2.player.id) {
+          sortedStandings.push(p2, p1);
+        } else {
+          // Scontro diretto in parità o non ancora giocato: differenza game vinti/persi, poi game vinti
+          cluster.sort((a, b) => {
+            if (b.diff !== a.diff) return b.diff - a.diff;
+            if (b.gamesFor !== a.gamesFor) return b.gamesFor - a.gamesFor;
+            return this.getRankingWeight(b.player.ranking) - this.getRankingWeight(a.player.ranking);
+          });
+          sortedStandings.push(...cluster);
+        }
+      } else {
+        // Se sono più di due: differenza game vinti/persi, poi numero di game vinti
+        cluster.sort((a, b) => {
+          if (b.diff !== a.diff) return b.diff - a.diff;
+          if (b.gamesFor !== a.gamesFor) return b.gamesFor - a.gamesFor;
+          const h2h = this.getHeadToHeadWinner(group.matches || [], a.player.id, b.player.id);
+          if (h2h === a.player.id) return -1;
+          if (h2h === b.player.id) return 1;
+          return this.getRankingWeight(b.player.ranking) - this.getRankingWeight(a.player.ranking);
+        });
+        sortedStandings.push(...cluster);
+      }
+    });
+
+    return sortedStandings;
   }
 
   // Schema standard per accoppiamenti incrociati Girone Sinner (semi dispari) vs Girone Alcaraz (semi pari)
@@ -568,7 +624,7 @@ class TournamentManager {
         player2Id: p2 === "BYE" ? null : p2,
         scores: scores,
         winnerId: winnerId,
-        court: (i / 2) % 2 === 0 ? "Campo 1 (Centrale)" : "Campo 2 (Terra)",
+        court: (i / 2) % 2 === 0 ? "Campo 0 (Terra)" : "Campo 1 (Terra)",
         dateTime: "",
         status: status
       });
@@ -598,7 +654,7 @@ class TournamentManager {
           player2Id: p2,
           scores: "",
           winnerId: null,
-          court: "Campo 1 (Centrale)",
+          court: "Campo 0 (Terra)",
           dateTime: "",
           status: "in_programma"
         });

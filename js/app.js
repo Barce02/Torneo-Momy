@@ -952,9 +952,9 @@ class App {
       return;
     }
 
-    // Griglia dei 2 Gironi
+    // Griglia dei 2 Gironi affiancati
     html += `
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
         ${this.renderSingleGroupCard("sinner", "Girone Sinner", sinnerStandings, sinnerGroup.matches || [])}
         ${this.renderSingleGroupCard("alcaraz", "Girone Alcaraz", alcarazStandings, alcarazGroup.matches || [])}
       </div>
@@ -992,24 +992,19 @@ class App {
         <div class="p-4 sm:p-5 flex-grow space-y-6">
           <!-- Classifica Girone -->
           <div>
-            <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+            <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2.5 flex items-center justify-between">
               <span>Classifica Ufficiale</span>
-              <span class="text-[10px] text-gray-400 font-normal">(V: 3pt • P: 1pt • S: 0pt)</span>
+              <span class="text-[10px] text-gray-400 font-normal">V: 3pt • P: 1pt • S: 0pt</span>
             </h4>
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto rounded-xl border border-gray-100 shadow-2xs">
               <table class="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr class="bg-slate-50 text-gray-600 uppercase text-[10px] font-semibold border-b">
-                    <th class="py-2 px-2 text-center w-8">#</th>
-                    <th class="py-2 px-2">Atleta</th>
-                    <th class="py-2 px-1 text-center" title="Giocate">G</th>
-                    <th class="py-2 px-1 text-center" title="Vinte">V</th>
-                    <th class="py-2 px-1 text-center" title="Pareggiate">P</th>
-                    <th class="py-2 px-1 text-center" title="Perse">S</th>
-                    <th class="py-2 px-1 text-center" title="Game Fatti">GF</th>
-                    <th class="py-2 px-1 text-center" title="Game Subiti">GS</th>
-                    <th class="py-2 px-1 text-center" title="Diff. Game">DG</th>
-                    <th class="py-2 px-2 text-center font-black text-blue-950" title="Punti Totali">PT</th>
+                  <tr class="bg-slate-50 text-gray-600 uppercase text-[10px] font-bold border-b border-gray-200">
+                    <th class="py-2.5 px-2 text-center w-7">#</th>
+                    <th class="py-2.5 px-2.5">Nome e Cognome</th>
+                    <th class="py-2.5 px-2 text-center font-black text-blue-950" title="Punti Totali">Punti</th>
+                    <th class="py-2.5 px-2 text-center text-gray-700" title="Game Vinti">Game Vinti</th>
+                    <th class="py-2.5 px-2 text-center text-rose-700" title="Set Persi">Set Persi</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -1021,31 +1016,31 @@ class App {
                         <td class="py-2.5 px-2 text-center font-mono font-bold ${isTop2 ? 'text-yellow-600' : 'text-gray-400'}">
                           ${idx + 1}
                         </td>
-                        <td class="py-2.5 px-2 font-bold text-gray-900">
-                          <div class="flex items-center gap-1.5 truncate max-w-[140px]">
+                        <td class="py-2.5 px-2.5 font-bold text-gray-900">
+                          <div class="flex items-center gap-1.5 truncate">
                             <span class="truncate">${s.player.name}</span>
                             ${s.player.ranking ? `<span class="text-[9px] font-mono bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-semibold">${s.player.ranking}</span>` : ''}
                           </div>
                         </td>
-                        <td class="py-2.5 px-1 text-center font-mono text-gray-600">${s.played}</td>
-                        <td class="py-2.5 px-1 text-center font-mono text-emerald-700 font-bold">${s.won}</td>
-                        <td class="py-2.5 px-1 text-center font-mono text-amber-700 font-bold">${s.drawn}</td>
-                        <td class="py-2.5 px-1 text-center font-mono text-rose-700">${s.lost}</td>
-                        <td class="py-2.5 px-1 text-center font-mono text-gray-600">${s.gamesFor}</td>
-                        <td class="py-2.5 px-1 text-center font-mono text-gray-600">${s.gamesAgainst}</td>
-                        <td class="py-2.5 px-1 text-center font-mono ${s.diff > 0 ? 'text-emerald-700 font-bold' : (s.diff < 0 ? 'text-rose-600' : 'text-gray-500')}">
-                          ${s.diff > 0 ? `+${s.diff}` : s.diff}
-                        </td>
                         <td class="py-2.5 px-2 text-center">
-                          <span class="bg-yellow-400 text-blue-950 font-black text-xs px-2 py-0.5 rounded-md shadow-sm">
+                          <span class="bg-yellow-400 text-blue-950 font-black text-xs px-2.5 py-0.5 rounded-md shadow-sm">
                             ${s.points}
                           </span>
+                        </td>
+                        <td class="py-2.5 px-2 text-center font-mono font-semibold text-gray-800">
+                          ${s.gamesFor}
+                        </td>
+                        <td class="py-2.5 px-2 text-center font-mono font-semibold text-rose-700">
+                          ${s.lost}
                         </td>
                       </tr>
                     `;
                   }).join('')}
                 </tbody>
               </table>
+            </div>
+            <div class="mt-2 text-[10px] text-gray-500 bg-slate-50 rounded-lg p-2 border border-slate-200">
+              <span class="font-bold text-gray-700">Criteri classifica:</span> 1° Punti • 2° Scontro diretto (se in 2 a pari punti) • 3° Diff. game • 4° Game vinti
             </div>
           </div>
 
@@ -1160,7 +1155,7 @@ class App {
 
     document.getElementById("group-match-score1").value = match.games1 !== null ? match.games1 : "";
     document.getElementById("group-match-score2").value = match.games2 !== null ? match.games2 : "";
-    document.getElementById("group-match-court").value = match.court || "Campo 1 (Centrale)";
+    document.getElementById("group-match-court").value = match.court || "Campo 0 (Terra)";
     document.getElementById("group-match-datetime").value = match.dateTime || "";
     document.getElementById("group-match-status").value = match.status || "in_programma";
 
@@ -1696,9 +1691,14 @@ class App {
               <label class="font-bold text-gray-600">Campo:</label>
               <select onchange="app.setScheduleFilter('court', this.value)" class="text-xs border rounded-lg px-2.5 py-1 bg-white font-medium">
                 <option value="all" ${this.scheduleCourtFilter === 'all' ? 'selected' : ''}>Tutti i campi</option>
-                <option value="Campo 1" ${this.scheduleCourtFilter === 'Campo 1' ? 'selected' : ''}>Campo 1 (Centrale)</option>
+                <option value="Campo 0" ${this.scheduleCourtFilter === 'Campo 0' ? 'selected' : ''}>Campo 0 (Terra)</option>
+                <option value="Campo 1" ${this.scheduleCourtFilter === 'Campo 1' ? 'selected' : ''}>Campo 1 (Terra)</option>
                 <option value="Campo 2" ${this.scheduleCourtFilter === 'Campo 2' ? 'selected' : ''}>Campo 2 (Terra)</option>
-                <option value="Campo 3" ${this.scheduleCourtFilter === 'Campo 3' ? 'selected' : ''}>Campo 3 (Sintetico)</option>
+                <option value="Campo 3" ${this.scheduleCourtFilter === 'Campo 3' ? 'selected' : ''}>Campo 3 (Greenset)</option>
+                <option value="Campo 4" ${this.scheduleCourtFilter === 'Campo 4' ? 'selected' : ''}>Campo 4 (Greenset)</option>
+                <option value="Campo 5" ${this.scheduleCourtFilter === 'Campo 5' ? 'selected' : ''}>Campo 5 (Terra)</option>
+                <option value="Campo 6" ${this.scheduleCourtFilter === 'Campo 6' ? 'selected' : ''}>Campo 6 (Terra)</option>
+                <option value="Campo 7" ${this.scheduleCourtFilter === 'Campo 7' ? 'selected' : ''}>Campo 7 (Terra)</option>
               </select>
             </div>
 
@@ -1973,7 +1973,7 @@ class App {
     document.getElementById("schedule-match-p2-name").textContent = p2 ? p2.name : "In attesa";
 
     document.getElementById("schedule-match-datetime").value = targetMatch.dateTime || "";
-    document.getElementById("schedule-match-court").value = targetMatch.court || "Campo 1 (Centrale)";
+    document.getElementById("schedule-match-court").value = targetMatch.court || "Campo 0 (Terra)";
     document.getElementById("schedule-match-status").value = targetMatch.status || "in_programma";
 
     this.openModal("modal-schedule-match");
@@ -2239,7 +2239,7 @@ class App {
     `;
 
     document.getElementById("score-input").value = targetMatch.scores || "";
-    document.getElementById("score-court-select").value = targetMatch.court || "Campo 1 (Centrale)";
+    document.getElementById("score-court-select").value = targetMatch.court || "Campo 0 (Terra)";
     document.getElementById("score-datetime-input").value = targetMatch.dateTime || "";
     document.getElementById("score-status-select").value = targetMatch.status || "in_programma";
 
@@ -2334,6 +2334,23 @@ class App {
             </p>
           </div>
 
+          <!-- Criteri Classifica Gironi -->
+          <div class="bg-slate-50 border border-slate-200 p-4 sm:p-5 rounded-2xl">
+            <h4 class="font-bold text-gray-900 text-xs sm:text-sm mb-1.5 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+              <span>Criteri di Classifica nei Gironi</span>
+            </h4>
+            <p class="text-xs text-gray-700 leading-relaxed mb-2">
+              L'ordine di posizionamento nella classifica dei gironi è stabilito applicando i seguenti criteri:
+            </p>
+            <ol class="list-decimal list-inside text-xs text-gray-700 space-y-1 pl-1">
+              <li><strong>Punti</strong> (Vittoria: 3 pt • Pareggio: 1 pt • Sconfitta: 0 pt)</li>
+              <li><strong>Scontro diretto</strong> (se esattamente due atleti sono a pari punti)</li>
+              <li><strong>Differenza game</strong> (vinti meno persi)</li>
+              <li><strong>Numero di game vinti</strong></li>
+            </ol>
+          </div>
+
           <!-- Ruolo Esclusivo Amministratore -->
           <div class="bg-blue-50/60 border border-blue-200 p-4 rounded-2xl">
             <h4 class="font-bold text-blue-950 text-xs sm:text-sm mb-1 flex items-center gap-2">
@@ -2355,7 +2372,7 @@ class App {
               <div><strong>Gironi:</strong> Girone Sinner • Girone Alcaraz</div>
               <div><strong>Fase Finale:</strong> Tutti qualificati al Tabellone</div>
               <div><strong>Durata Match:</strong> 1 ora fino alla campana</div>
-              <div><strong>Campi:</strong> Centrale (1), Terra (2), Sintetico (3)</div>
+              <div><strong>Campi:</strong> Da 0 a 2 (Terra), 3 e 4 (Greenset), da 5 a 7 (Terra)</div>
             </div>
           </div>
 

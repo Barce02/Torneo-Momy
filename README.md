@@ -19,7 +19,7 @@ Progettata per essere gestita con **GitHub Desktop** e pubblicata gratuitamente 
    - **Classifica in tempo reale** calcolata automaticamente: partite giocate, vinte, perse, differenza set, differenza game e punti (2 per vittoria).
 
 3. **Programma Campi & Orari (Order of Play)**:
-   - Vista centralizzata di tutti gli incontri programmati per campo (Campo 1 Centrale, Campo 2 Terra, Campo 3) e orario.
+   - Vista centralizzata di tutti gli incontri programmati per campo (Campi 0-2 Terra, 3-4 Greenset, 5-7 Terra) e orario.
    - Badge di stato: *In Programma*, *In Corso*, *Terminato*.
    - Filtro rapido per data e stato per le famiglie a bordo campo.
 
