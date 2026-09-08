@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Torneo Momy - Tennis Giovanile | Tabelloni & Risultati</title>
+  <title>Torneo Momy - Gestione Iscritti</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23047857' stroke-width='2'><circle cx='12' cy='12' r='10'/><path d='M4.93 4.93a10 10 0 0 1 14.14 0'/><path d='M4.93 19.07a10 10 0 0 0 14.14 0'/></svg>">
 
-  <!-- Tailwind CSS via CDN -->
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -31,19 +31,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
-  <!-- Canvas Confetti per festeggiamento finale -->
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-
-  <!-- Custom CSS -->
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col">
 
   <!-- HEADER PRINCIPALE -->
   <header class="bg-gradient-to-r from-emerald-950 via-tennis-green to-emerald-900 text-white shadow-lg sticky top-0 z-40">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <!-- Logo e Titoli -->
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <!-- Titolo Torneo -->
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 bg-emerald-800 border border-emerald-600/50 rounded-xl flex items-center justify-center text-white shadow-sm">
             <svg class="w-5 h-5 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -53,313 +49,139 @@
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <h1 id="tournament-title" class="text-lg sm:text-xl font-extrabold tracking-tight">Torneo Momy</h1>
-              <span class="hidden sm:inline-block bg-emerald-800 text-emerald-200 border border-emerald-700 text-[10px] font-semibold uppercase px-2 py-0.5 rounded tracking-wider">
-                Torneo Giovanile
+              <h1 class="text-xl font-extrabold tracking-tight">Torneo Momy</h1>
+              <span class="bg-emerald-800 text-emerald-200 border border-emerald-700 text-[10px] font-semibold uppercase px-2 py-0.5 rounded tracking-wider">
+                Elenco Iscritti Ufficiale
               </span>
             </div>
-            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-emerald-200/90 mt-0.5">
-              <span id="tournament-club">Circolo Tennis</span>
-              <span class="text-emerald-400">•</span>
-              <span id="tournament-dates">Date del Torneo</span>
-            </div>
+            <p class="text-xs text-emerald-200/80 mt-0.5">Gestione partecipanti al torneo di tennis</p>
           </div>
         </div>
 
-        <!-- Barra Strumenti / Modalità Admin -->
-        <div class="flex flex-wrap items-center gap-2">
-          <!-- Badge Stato -->
-          <span id="admin-badge" class="bg-emerald-800/80 text-emerald-100 border border-emerald-700 text-xs px-2.5 py-1 rounded-lg font-medium inline-flex items-center gap-1.5">
-            Vista Pubblica
-          </span>
-
-          <!-- Tasto Admin -->
-          <button id="admin-toggle-btn" class="bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-white/20 transition flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+        <!-- Azioni Rapide Header -->
+        <div class="flex items-center gap-2">
+          <button onclick="app.openNewPlayerModal()" class="bg-white text-tennis-green hover:bg-emerald-50 font-bold text-xs sm:text-sm px-4 py-2 rounded-xl shadow transition flex items-center gap-1.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
             </svg>
-            <span>Accesso Organizzatore</span>
+            <span>Aggiungi Iscritto</span>
           </button>
 
-          <!-- Tasto Backup / Dati -->
-          <button onclick="app.openModal('modal-backup')" title="Backup e Ripristino Dati" class="bg-white/10 hover:bg-white/20 text-white text-xs p-2 rounded-lg border border-white/20 transition flex items-center">
-            <svg class="w-4 h-4 text-emerald-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-            </svg>
-          </button>
-
-          <!-- Tasto Stampa -->
-          <button id="print-bracket-btn" title="Stampa per Bacheca Circolo" class="bg-white/10 hover:bg-white/20 text-white text-xs p-2 rounded-lg border border-white/20 transition flex items-center">
+          <button onclick="window.print()" title="Stampa Elenco Partecipanti" class="bg-white/10 hover:bg-white/20 text-white p-2 rounded-xl border border-white/20 transition flex items-center">
             <svg class="w-4 h-4 text-emerald-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
             </svg>
           </button>
-        </div>
-      </div>
-    </div>
 
-    <!-- SELETTORE CATEGORIA -->
-    <div class="bg-emerald-950/70 border-t border-emerald-800/60 px-4 sm:px-6 lg:px-8 py-2">
-      <div class="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
-        <div class="flex items-center gap-2">
-          <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-300">Categoria:</span>
-          <div id="category-selector" class="flex flex-wrap items-center gap-1.5">
-            <!-- Popolato via JS -->
-          </div>
-        </div>
-        <div class="text-[11px] text-emerald-300/80 hidden lg:block">
-          PIN Amministratore: <code class="bg-emerald-900 px-1.5 py-0.5 rounded text-white font-mono">1234</code>
+          <button onclick="app.exportCSV()" title="Scarica Elenco in Excel/CSV" class="bg-white/10 hover:bg-white/20 text-white p-2 rounded-xl border border-white/20 transition flex items-center">
+            <svg class="w-4 h-4 text-emerald-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
   </header>
 
-  <!-- BARRA DI NAVIGAZIONE TAB -->
-  <nav class="bg-white border-b border-gray-200 shadow-sm sticky top-[102px] z-30">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex space-x-1 sm:space-x-3 overflow-x-auto py-1">
-        <button class="nav-tab-btn py-2.5 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold border-b-2 border-tennis-green text-tennis-green bg-emerald-50/70 flex items-center gap-2 whitespace-nowrap transition" data-tab="bracket">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-          </svg>
-          <span>Tabellone</span>
-        </button>
-        <button class="nav-tab-btn py-2.5 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 whitespace-nowrap transition" data-tab="groups">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
-          </svg>
-          <span>Gironi</span>
-        </button>
-        <button class="nav-tab-btn py-2.5 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 whitespace-nowrap transition" data-tab="schedule">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-          </svg>
-          <span>Programma Campi</span>
-        </button>
-        <button class="nav-tab-btn py-2.5 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 whitespace-nowrap transition" data-tab="players">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
-          </svg>
-          <span>Iscritti</span>
-        </button>
-        <button class="nav-tab-btn py-2.5 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 whitespace-nowrap transition" data-tab="pending">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-          </svg>
-          <span>Richieste Iscrizione</span>
-        </button>
-        <button class="nav-tab-btn py-2.5 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 whitespace-nowrap transition" data-tab="rules">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-          <span>Regolamento & Info</span>
-        </button>
-      </div>
-    </div>
-  </nav>
-
   <!-- CONTENUTO PRINCIPALE -->
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full">
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
     
-    <!-- Tab 1: Tabellone a eliminazione diretta -->
-    <div id="tab-panel-bracket">
-      <div id="bracket-container"></div>
-    </div>
+    <!-- CARD PRINCIPALE ISCRITTI -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
+      
+      <!-- Barra di Ricerca e Conteggio -->
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-5 border-b border-gray-100">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <span>Partecipanti Registrati</span>
+            <span id="players-count-badge" class="bg-emerald-100 text-tennis-green text-xs font-bold px-2.5 py-0.5 rounded-full">
+              0 iscritti
+            </span>
+          </h2>
+          <p class="text-xs text-gray-500 mt-0.5">Elenco ufficiale degli atleti iscritti al Torneo Momy</p>
+        </div>
 
-    <!-- Tab 2: Fase a Gironi -->
-    <div id="tab-panel-groups" class="hidden">
-      <div id="groups-container"></div>
-    </div>
+        <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <!-- Campo Cerca -->
+          <div class="relative w-full sm:w-64">
+            <input type="text" id="search-input" placeholder="Cerca per nome o circolo..." class="w-full text-xs sm:text-sm pl-8 pr-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+          </div>
 
-    <!-- Tab 3: Programma Campi (Order of Play) -->
-    <div id="tab-panel-schedule" class="hidden">
-      <div id="schedule-container"></div>
-    </div>
+          <button onclick="app.openNewPlayerModal()" class="w-full sm:w-auto bg-tennis-green hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm px-4 py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            <span>Nuovo Atleta</span>
+          </button>
+        </div>
+      </div>
 
-    <!-- Tab 4: Iscritti e Giocatori -->
-    <div id="tab-panel-players" class="hidden">
-      <div id="players-container"></div>
-    </div>
+      <!-- Contenitore Tabella o Stato Vuoto -->
+      <div id="players-table-container" class="mt-6">
+        <!-- Renderizzato via JavaScript -->
+      </div>
 
-    <!-- Tab 5: Pre-Iscrizioni Genitori -->
-    <div id="tab-panel-pending" class="hidden">
-      <div id="pending-container"></div>
-    </div>
-
-    <!-- Tab 6: Info & Regolamento -->
-    <div id="tab-panel-rules" class="hidden">
-      <div id="rules-container"></div>
     </div>
 
   </main>
 
   <!-- FOOTER -->
   <footer class="bg-white border-t border-gray-200 mt-12 py-6 text-center text-xs text-gray-500">
-    <div class="max-w-7xl mx-auto px-4">
-      <p class="font-medium text-gray-700">Torneo Momy • Gestione Ufficiale Incontri & Risultati</p>
-      <p class="mt-1 text-gray-400">Piattaforma conforme ai regolamenti FITP giovanili</p>
+    <div class="max-w-6xl mx-auto px-4">
+      <p class="font-medium text-gray-700">Torneo Momy • Gestione Ufficiale Iscritti</p>
+      <p class="mt-1 text-gray-400">Piattaforma pronta per la composizione dei tabelloni</p>
     </div>
   </footer>
 
   <!-- ======================================================== -->
-  <!-- MODALI DI GESTIONE -->
+  <!-- MODALE: AGGIUNGI / MODIFICA GIOCATORE -->
   <!-- ======================================================== -->
-
-  <!-- Modale PIN Admin -->
-  <div id="modal-pin" class="fixed inset-0 bg-slate-900/60 modal-backdrop z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-200 transform transition-all">
-      <div class="text-center mb-4">
-        <div class="w-12 h-12 bg-emerald-50 text-tennis-green rounded-xl flex items-center justify-center mx-auto mb-3 border border-emerald-200">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
-          </svg>
-        </div>
-        <h3 class="text-base font-bold text-gray-900">Accesso Giudice Arbitro</h3>
-        <p class="text-xs text-gray-500 mt-1">Inserisci il PIN per gestire i risultati e i tabelloni del torneo.</p>
-      </div>
-      <form id="pin-form" class="space-y-4">
-        <div>
-          <label class="block text-xs font-semibold text-gray-700 mb-1">Codice PIN (Predefinito: 1234)</label>
-          <input type="password" id="pin-input" placeholder="••••" maxlength="8" class="w-full text-center text-2xl tracking-widest px-4 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none" required>
-        </div>
-        <div class="flex gap-2">
-          <button type="button" onclick="app.closeModal('modal-pin')" class="w-1/2 py-2 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl">Annulla</button>
-          <button type="submit" class="w-1/2 py-2 text-xs font-bold text-white bg-tennis-green hover:bg-emerald-700 rounded-xl shadow">Conferma</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Modale Inserisci Risultato Match -->
-  <div id="modal-match-score" class="fixed inset-0 bg-slate-900/60 modal-backdrop z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-200">
-      <div class="flex justify-between items-center pb-3 mb-4 border-b">
-        <h3 class="font-bold text-base text-gray-900">Aggiorna Incontro</h3>
-        <button type="button" onclick="app.closeModal('modal-match-score')" class="text-gray-400 hover:text-gray-600 text-sm font-bold">Chiudi</button>
-      </div>
-      <form id="match-score-form" class="space-y-4">
-        <!-- Nomi Atleti -->
-        <div class="bg-emerald-50/70 p-3 rounded-xl border border-emerald-100 text-center">
-          <div class="text-xs text-emerald-800 font-semibold uppercase tracking-wider">Incontro</div>
-          <div class="text-sm font-bold text-gray-800 mt-1">
-            <span id="score-p1-name">Giocatore 1</span>
-            <span class="text-emerald-600 mx-2">vs</span>
-            <span id="score-p2-name">Giocatore 2</span>
-          </div>
-        </div>
-
-        <!-- Seleziona Vincitore -->
-        <div>
-          <label class="block text-xs font-semibold text-gray-700 mb-1">Vincitore dell'incontro</label>
-          <select id="score-winner-select" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-            <!-- Popolato via JS -->
-          </select>
-        </div>
-
-        <!-- Punteggio (Score) -->
-        <div>
-          <label class="block text-xs font-semibold text-gray-700 mb-1">Punteggio (Set e Game)</label>
-          <input type="text" id="score-input" placeholder="es. 6-3 6-4 oppure 4-1 4-2" class="w-full text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono">
-          <!-- Quick buttons -->
-          <div class="flex flex-wrap gap-1.5 mt-2">
-            <span class="text-[11px] text-gray-400 self-center mr-1">Predefiniti:</span>
-            <button type="button" onclick="app.setQuickScore('4-1 4-2')" class="text-[11px] bg-gray-100 hover:bg-gray-200 px-2 py-0.5 rounded border">4-1 4-2</button>
-            <button type="button" onclick="app.setQuickScore('4-2 2-4 [10-6]')" class="text-[11px] bg-gray-100 hover:bg-gray-200 px-2 py-0.5 rounded border">4-2 2-4 [10-6]</button>
-            <button type="button" onclick="app.setQuickScore('6-3 6-4')" class="text-[11px] bg-gray-100 hover:bg-gray-200 px-2 py-0.5 rounded border">6-3 6-4</button>
-            <button type="button" onclick="app.setQuickScore('6-4 4-6 6-3')" class="text-[11px] bg-gray-100 hover:bg-gray-200 px-2 py-0.5 rounded border">6-4 4-6 6-3</button>
-          </div>
-        </div>
-
-        <!-- Campo & Orario -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-gray-700 mb-1">Campo Assegnato</label>
-            <select id="score-court-select" class="w-full text-xs px-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-              <option value="Campo 1 (Centrale - Terra Rossa)">Campo 1 (Centrale)</option>
-              <option value="Campo 2 (Terra Rossa)">Campo 2 (Terra)</option>
-              <option value="Campo 3 (Sintetico)">Campo 3 (Sintetico)</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-700 mb-1">Data & Ora</label>
-            <input type="datetime-local" id="score-datetime-input" class="w-full text-xs px-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-          </div>
-        </div>
-
-        <!-- Stato Match -->
-        <div>
-          <label class="block text-xs font-semibold text-gray-700 mb-1">Stato dell'incontro</label>
-          <select id="score-status-select" class="w-full text-xs px-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-            <option value="in_programma">In programma</option>
-            <option value="in_corso">In corso</option>
-            <option value="completato">Completato</option>
-          </select>
-        </div>
-
-        <div class="flex gap-2 pt-2 border-t">
-          <button type="button" onclick="app.closeModal('modal-match-score')" class="w-1/2 py-2 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl">Annulla</button>
-          <button type="submit" class="w-1/2 py-2 text-xs font-bold text-white bg-tennis-green hover:bg-emerald-700 rounded-xl shadow">Salva Risultato</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Modale Giocatore (Nuovo / Modifica) -->
   <div id="modal-player" class="fixed inset-0 bg-slate-900/60 modal-backdrop z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-200">
       <div class="flex justify-between items-center pb-3 mb-4 border-b">
-        <h3 id="player-modal-title" class="font-bold text-base text-gray-900">Nuovo Giocatore</h3>
+        <h3 id="player-modal-title" class="font-bold text-base text-gray-900">Nuovo Atleta</h3>
         <button type="button" onclick="app.closeModal('modal-player')" class="text-gray-400 hover:text-gray-600 text-sm font-bold">Chiudi</button>
       </div>
+
       <form id="player-form" class="space-y-3">
         <input type="hidden" id="player-id-input">
 
         <div>
           <label class="block text-xs font-semibold text-gray-700 mb-1">Nome e Cognome Atleta *</label>
-          <input type="text" id="player-name-input" placeholder="Nome Cognome" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none" required>
+          <input type="text" id="player-name-input" placeholder="es. Marco Rossi" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none" required>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-semibold text-gray-700 mb-1">Anno di Nascita</label>
-            <input type="number" id="player-year-input" min="2008" max="2018" value="2013" class="w-full text-xs px-3 py-2 border rounded-xl">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-700 mb-1">Categoria</label>
-            <select id="player-category-select" class="w-full text-xs px-3 py-2 border rounded-xl">
-              <option value="Under 10 Misto">Under 10 Misto</option>
-              <option value="Under 12 Maschile">Under 12 Maschile</option>
-              <option value="Under 14 Maschile">Under 14 Maschile</option>
-              <option value="Under 14 Femminile">Under 14 Femminile</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-gray-700 mb-1">Circolo Tennis</label>
-            <input type="text" id="player-club-input" placeholder="Circolo di appartenenza" class="w-full text-xs px-3 py-2 border rounded-xl">
+            <input type="number" id="player-year-input" min="2005" max="2020" placeholder="es. 2013" class="w-full text-xs px-3 py-2 border rounded-xl">
           </div>
           <div>
             <label class="block text-xs font-semibold text-gray-700 mb-1">Classifica FITP / Livello</label>
-            <input type="text" id="player-ranking-input" placeholder="NC, 4.5, 4.3..." class="w-full text-xs px-3 py-2 border rounded-xl">
+            <input type="text" id="player-ranking-input" placeholder="es. NC, 4.5, 4.3..." class="w-full text-xs px-3 py-2 border rounded-xl">
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-gray-700 mb-1">Testa di Serie (Opzionale)</label>
-          <input type="number" id="player-seed-input" min="1" max="16" placeholder="Nessuna" class="w-full text-xs px-3 py-2 border rounded-xl">
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Circolo Tennis di Appartenenza</label>
+          <input type="text" id="player-club-input" placeholder="es. TC Primavera" class="w-full text-xs px-3 py-2 border rounded-xl">
         </div>
 
         <div class="pt-2 border-t">
-          <div class="text-[11px] font-bold text-gray-500 uppercase mb-2">Contatti Genitore (Privato)</div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="text-[11px] font-bold text-gray-500 uppercase mb-2">Recapiti Genitore / Note</div>
+          <div class="grid grid-cols-2 gap-3 mb-2">
             <div>
               <input type="text" id="player-parent-input" placeholder="Nome genitore" class="w-full text-xs px-3 py-2 border rounded-xl">
             </div>
             <div>
-              <input type="tel" id="player-phone-input" placeholder="Recapito telefonico" class="w-full text-xs px-3 py-2 border rounded-xl">
+              <input type="tel" id="player-phone-input" placeholder="Telefono cellulare" class="w-full text-xs px-3 py-2 border rounded-xl">
             </div>
+          </div>
+          <div>
+            <textarea id="player-notes-input" rows="2" placeholder="Note facoltative (orari, disponibilità...)" class="w-full text-xs px-3 py-2 border rounded-xl"></textarea>
           </div>
         </div>
 
@@ -371,116 +193,10 @@
     </div>
   </div>
 
-  <!-- Modale Modulo Iscrizione Pubblica (Genitori) -->
-  <div id="modal-public-reg" class="fixed inset-0 bg-slate-900/60 modal-backdrop z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-200 max-h-[90vh] overflow-y-auto">
-      <div class="flex justify-between items-center pb-3 mb-4 border-b">
-        <div>
-          <h3 class="font-bold text-base text-gray-900">Modulo Iscrizione Ragazzo/a</h3>
-          <p class="text-xs text-gray-500">Invia la richiesta di partecipazione al comitato organizzatore</p>
-        </div>
-        <button type="button" onclick="app.closeModal('modal-public-reg')" class="text-gray-400 hover:text-gray-600 text-sm font-bold">Chiudi</button>
-      </div>
-
-      <form id="public-reg-form" class="space-y-3">
-        <div>
-          <label class="block text-xs font-semibold text-gray-700 mb-1">Nome e Cognome Atleta *</label>
-          <input type="text" id="reg-name" placeholder="Nome Cognome" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500" required>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-gray-700 mb-1">Anno di Nascita *</label>
-            <input type="number" id="reg-year" min="2008" max="2018" value="2013" class="w-full text-xs px-3 py-2 border rounded-xl" required>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-700 mb-1">Categoria *</label>
-            <select id="reg-category" class="w-full text-xs px-3 py-2 border rounded-xl">
-              <option value="Under 10 Misto">Under 10 Misto</option>
-              <option value="Under 12 Maschile">Under 12 Maschile</option>
-              <option value="Under 14 Maschile">Under 14 Maschile</option>
-              <option value="Under 14 Femminile">Under 14 Femminile</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-gray-700 mb-1">Circolo di Appartenenza</label>
-            <input type="text" id="reg-club" placeholder="Nome circolo" class="w-full text-xs px-3 py-2 border rounded-xl">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-700 mb-1">Classifica FITP (se posseduta)</label>
-            <input type="text" id="reg-ranking" placeholder="es. NC, 4.5" class="w-full text-xs px-3 py-2 border rounded-xl">
-          </div>
-        </div>
-
-        <div class="pt-2 border-t">
-          <div class="text-[11px] font-bold text-gray-500 uppercase mb-2">Dati Genitore / Tutore</div>
-          <div class="space-y-2">
-            <div>
-              <label class="block text-xs font-semibold text-gray-700 mb-1">Nome e Cognome Genitore *</label>
-              <input type="text" id="reg-parent-name" placeholder="Nome genitore" class="w-full text-xs px-3 py-2 border rounded-xl" required>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-700 mb-1">Numero di Telefono *</label>
-              <input type="tel" id="reg-parent-phone" placeholder="Numero cellulare" class="w-full text-xs px-3 py-2 border rounded-xl" required>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-700 mb-1">Note o Preferenze Orari (facoltativo)</label>
-              <textarea id="reg-notes" rows="2" placeholder="Eventuali disponibilità o note..." class="w-full text-xs px-3 py-2 border rounded-xl"></textarea>
-            </div>
-          </div>
-        </div>
-
-        <div class="flex gap-2 pt-3 border-t">
-          <button type="button" onclick="app.closeModal('modal-public-reg')" class="w-1/2 py-2 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl">Annulla</button>
-          <button type="submit" class="w-1/2 py-2 text-xs font-bold text-white bg-tennis-green hover:bg-emerald-700 rounded-xl shadow">Invia Iscrizione</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Modale Backup e Dati -->
-  <div id="modal-backup" class="fixed inset-0 bg-slate-900/60 modal-backdrop z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-200">
-      <div class="flex justify-between items-center pb-3 mb-4 border-b">
-        <h3 class="font-bold text-base text-gray-900">Backup & Gestione Dati</h3>
-        <button type="button" onclick="app.closeModal('modal-backup')" class="text-gray-400 hover:text-gray-600 text-sm font-bold">Chiudi</button>
-      </div>
-
-      <div class="space-y-4 text-xs text-gray-600">
-        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
-          <h4 class="font-bold text-gray-800 mb-1">Esporta Dati Torneo</h4>
-          <p class="mb-2">Scarica l'intero stato del torneo (iscritti, tabelloni, risultati, gironi) come file JSON.</p>
-          <button id="export-btn" class="w-full py-2 bg-tennis-green text-white font-bold rounded-xl shadow hover:bg-emerald-700">
-            Scarica File Backup (.json)
-          </button>
-        </div>
-
-        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
-          <h4 class="font-bold text-gray-800 mb-1">Ripristina da Backup</h4>
-          <p class="mb-2">Carica un file JSON precedentemente scaricato per ripristinare i dati.</p>
-          <input type="file" id="import-file-input" accept=".json" class="w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-tennis-green hover:file:bg-emerald-100">
-        </div>
-
-        <div class="bg-amber-50 p-3 rounded-xl border border-amber-200">
-          <h4 class="font-bold text-amber-900 mb-1">Ripristina Dati Iniziali</h4>
-          <p class="text-amber-800 mb-2">Reimposta la struttura del torneo ai valori iniziali di esempio.</p>
-          <button id="reset-demo-btn" class="w-full py-2 bg-amber-600 text-white font-bold rounded-xl shadow hover:bg-amber-700">
-            Reimposta Dati Iniziali
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- Toast Notifiche -->
   <div id="toast-notification" class="fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl border shadow-xl transition-all duration-300 hidden text-xs sm:text-sm font-medium"></div>
 
   <!-- Script Applicazione -->
-  <script src="js/mock-data.js"></script>
-  <script src="js/tournament.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
