@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Torneo Momy 26/27 - Tennis Giovanile</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'><circle cx='12' cy='12' r='10' stroke='%23facc15' stroke-width='2' fill='%231e3a8a'/><path d='M4.93 4.93a10 10 0 0 1 14.14 0' stroke='%23facc15' stroke-width='2'/><path d='M4.93 19.07a10 10 0 0 0 14.14 0' stroke='%23facc15' stroke-width='2'/></svg>">
+  <link rel="icon" type="image/jpeg" href="assets/logo.jpg">
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -44,12 +44,9 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <!-- Logo e Titolo -->
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 bg-blue-950 border border-yellow-400/50 rounded-xl flex items-center justify-center text-yellow-300 shadow-sm">
-            <svg class="w-5 h-5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10" stroke-width="2"/>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.93 4.93a10 10 0 0 1 14.14 0M4.93 19.07a10 10 0 0 0 14.14 0"/>
-            </svg>
+        <div class="flex items-center gap-3.5">
+          <div class="h-12 bg-white rounded-xl p-1.5 flex items-center justify-center shadow-md border border-yellow-400/40 flex-shrink-0">
+            <img src="assets/logo.jpg" alt="Momy Sport Village" class="h-full w-auto max-h-9 object-contain rounded-lg">
           </div>
           <div>
             <div class="flex items-center gap-2">
@@ -58,7 +55,7 @@
                 Tennis Giovanile
               </span>
             </div>
-            <p class="text-xs text-yellow-300/90 mt-0.5 font-medium">Circolo Tennis • Stagione 26/27</p>
+            <p class="text-xs text-yellow-300/90 mt-0.5 font-medium">Momy Sport Village • Stagione 26/27</p>
           </div>
         </div>
 
@@ -182,9 +179,10 @@
 
   <!-- FOOTER -->
   <footer class="bg-white border-t border-gray-200 mt-12 py-6 text-center text-xs text-gray-500">
-    <div class="max-w-7xl mx-auto px-4">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col items-center justify-center gap-2">
+      <img src="assets/logo.jpg" alt="Momy Sport Village" class="h-9 w-auto object-contain opacity-90 hover:opacity-100 transition">
       <p class="font-medium text-gray-700">Torneo Momy • Gestione Ufficiale Iscritti & Tabellone Finale</p>
-      <p class="mt-1 text-gray-400">Piattaforma sportiva conforme alle disposizioni giovanili FITP</p>
+      <p class="text-gray-400">Momy Sport Village • Piattaforma conforme alle disposizioni giovanili FITP</p>
     </div>
   </footer>
 
@@ -197,11 +195,8 @@
   <div id="modal-login" class="fixed inset-0 bg-slate-950/75 modal-backdrop z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-gray-200 transform transition-all">
       <div class="text-center mb-4">
-        <div class="w-12 h-12 bg-blue-50 text-tennis-blue rounded-xl flex items-center justify-center mx-auto mb-2.5 border border-blue-200 shadow-sm">
-          <svg class="w-6 h-6 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10" stroke-width="2"/>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.93 4.93a10 10 0 0 1 14.14 0M4.93 19.07a10 10 0 0 0 14.14 0"/>
-          </svg>
+        <div class="h-16 flex items-center justify-center mx-auto mb-2">
+          <img src="assets/logo.jpg" alt="Momy Sport Village" class="h-full w-auto object-contain">
         </div>
         <h2 class="text-lg font-bold text-gray-900">Torneo Momy 26/27</h2>
         <p class="text-xs text-gray-500 mt-0.5">Accedi al tuo profilo per iscriverti e seguire il torneo</p>
