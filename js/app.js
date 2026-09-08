@@ -177,12 +177,39 @@ class App {
       });
     }
 
-    // Form Risultato Partita
+    // Form Risultato Partita Tabellone
     const matchScoreForm = document.getElementById("match-score-form");
     if (matchScoreForm) {
       matchScoreForm.addEventListener("submit", (e) => {
         e.preventDefault();
         this.handleSaveMatchScore();
+      });
+    }
+
+    // Form Risultato Partita Girone
+    const groupMatchForm = document.getElementById("group-match-form");
+    if (groupMatchForm) {
+      groupMatchForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        this.handleSaveGroupMatchScore();
+      });
+    }
+
+    // Form Recupera Password
+    const forgotForm = document.getElementById("forgot-form");
+    if (forgotForm) {
+      forgotForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        this.handleResetPassword();
+      });
+    }
+
+    // Form Personalizzazione Profilo Account
+    const accountForm = document.getElementById("account-profile-form");
+    if (accountForm) {
+      accountForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        this.handleSaveAccountProfile();
       });
     }
 
@@ -205,6 +232,7 @@ class App {
     const tabRegister = document.getElementById("tab-auth-register");
     const secLogin = document.getElementById("auth-section-login");
     const secRegister = document.getElementById("auth-section-register");
+    const secForgot = document.getElementById("auth-section-forgot");
 
     if (!tabLogin || !tabRegister || !secLogin || !secRegister) return;
 
@@ -212,21 +240,68 @@ class App {
       tabRegister.className = "flex-1 py-2.5 text-center border-b-2 border-blue-600 text-blue-700 font-bold transition";
       tabLogin.className = "flex-1 py-2.5 text-center border-b-2 border-transparent text-gray-500 hover:text-gray-800 transition";
       secLogin.classList.add("hidden");
+      if (secForgot) secForgot.classList.add("hidden");
       secRegister.classList.remove("hidden");
       setTimeout(() => {
         const fn = document.getElementById("register-firstname-input");
         if (fn) fn.focus();
       }, 100);
+    } else if (mode === "forgot") {
+      tabLogin.className = "flex-1 py-2.5 text-center border-b-2 border-transparent text-gray-500 hover:text-gray-800 transition";
+      tabRegister.className = "flex-1 py-2.5 text-center border-b-2 border-transparent text-gray-500 hover:text-gray-800 transition";
+      secLogin.classList.add("hidden");
+      secRegister.classList.add("hidden");
+      if (secForgot) secForgot.classList.remove("hidden");
+      setTimeout(() => {
+        const em = document.getElementById("forgot-email-input");
+        if (em) em.focus();
+      }, 100);
     } else {
       tabLogin.className = "flex-1 py-2.5 text-center border-b-2 border-blue-600 text-blue-700 font-bold transition";
       tabRegister.className = "flex-1 py-2.5 text-center border-b-2 border-transparent text-gray-500 hover:text-gray-800 transition";
       secRegister.classList.add("hidden");
+      if (secForgot) secForgot.classList.add("hidden");
       secLogin.classList.remove("hidden");
       setTimeout(() => {
         const em = document.getElementById("login-email-input");
         if (em) em.focus();
       }, 100);
     }
+  }
+
+  handleResetPassword() {
+    const email = document.getElementById("forgot-email-input").value.trim().toLowerCase();
+    const newPassword = document.getElementById("forgot-new-password-input").value;
+    const confirmPassword = document.getElementById("forgot-confirm-password-input").value;
+
+    if (!email) {
+      alert("Inserisci l'indirizzo email del tuo account.");
+      return;
+    }
+    if (!newPassword || newPassword.length < 4) {
+      alert("La nuova password deve contenere almeno 4 caratteri.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      alert("Le due password inserite non coincidono.");
+      return;
+    }
+
+    const accounts = this.loadAccounts();
+    const account = accounts[email];
+
+    if (!account) {
+      alert(`Nessun account registrato con l'indirizzo ${email}.`);
+      return;
+    }
+
+    account.password = newPassword;
+    accounts[email] = account;
+    this.saveAccounts(accounts);
+
+    this.saveUser(account);
+    this.closeModal("modal-login");
+    this.showToast("Password reimpostata con successo! Sei autenticato.", "success");
   }
 
   handleRegister() {
@@ -434,34 +509,235 @@ class App {
   renderUserBadge() {
     const badge = document.getElementById("user-profile-badge");
     const logoutBtn = document.getElementById("btn-logout");
+    const headerAvatar = document.getElementById("header-avatar-circle");
     if (!badge) return;
 
     if (!this.user || this.user.email === "ospite@torneo.it") {
-      badge.className = "bg-white/10 border border-white/20 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs text-slate-300";
+      badge.className = "bg-white/10 border border-white/20 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs text-slate-300 cursor-pointer hover:bg-white/20 transition";
+      badge.onclick = () => this.openLoginModal("login");
       badge.innerHTML = `
         <span class="w-2 h-2 rounded-full bg-yellow-400"></span>
         <span>Spettatore</span>
       `;
+      if (headerAvatar) {
+        headerAvatar.innerHTML = `
+          <svg class="w-3.5 h-3.5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+          </svg>
+        `;
+      }
       if (logoutBtn) logoutBtn.classList.add("hidden");
       return;
     }
 
     if (logoutBtn) logoutBtn.classList.remove("hidden");
 
+    // Rendi il badge cliccabile per personalizzare il profilo
+    badge.onclick = () => this.openAccountModal();
+    badge.title = "Clicca per personalizzare il tuo account e foto profilo";
+
+    const avatarHtml = this.getAvatarMarkup(this.user, "w-5 h-5", "text-[10px]");
+
+    if (headerAvatar) {
+      headerAvatar.innerHTML = avatarHtml;
+    }
+
     if (this.isAdmin) {
-      badge.className = "bg-yellow-400 text-blue-950 border border-yellow-300 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs font-black shadow-sm";
+      badge.className = "bg-yellow-400 text-blue-950 border border-yellow-300 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs font-black shadow-sm cursor-pointer hover:bg-yellow-300 transition";
       badge.innerHTML = `
-        <span class="w-2 h-2 rounded-full bg-blue-900"></span>
-        <span class="truncate max-w-[200px]">Admin: ${this.user.name}</span>
+        <div class="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-blue-900 text-yellow-300">
+          ${avatarHtml}
+        </div>
+        <span class="truncate max-w-[170px]">Admin: ${this.user.name}</span>
       `;
     } else {
-      badge.className = "bg-blue-950/80 text-white border border-blue-700/60 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs";
+      badge.className = "bg-blue-950/80 text-white border border-blue-700/60 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs cursor-pointer hover:bg-blue-900 transition";
       badge.innerHTML = `
-        <span class="w-2 h-2 rounded-full bg-blue-400"></span>
-        <span class="truncate max-w-[180px] font-medium">${this.user.name}</span>
+        <div class="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-blue-800 text-yellow-300">
+          ${avatarHtml}
+        </div>
+        <span class="truncate max-w-[150px] font-medium">${this.user.name}</span>
         ${this.user.ranking ? `<span class="bg-yellow-400 text-blue-950 font-mono text-[10px] px-1.5 py-0.5 rounded font-black">${this.user.ranking}</span>` : ''}
       `;
     }
+  }
+
+  getAvatarMarkup(user, sizeClass = "w-6 h-6", textClass = "text-xs") {
+    if (!user) return "";
+    if (user.photoUrl) {
+      return `<img src="${user.photoUrl}" alt="Avatar" class="${sizeClass} rounded-full object-cover">`;
+    }
+    if (user.presetAvatar === "racket") {
+      return `<svg class="w-3.5 h-3.5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="9" r="6" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 13.5L21 21"/></svg>`;
+    }
+    if (user.presetAvatar === "trophy") {
+      return `<svg class="w-3.5 h-3.5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 21h8m-4-4v4M5 4h14v4a7 7 0 01-14 0V4z"/></svg>`;
+    }
+    if (user.presetAvatar === "star") {
+      return `<svg class="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>`;
+    }
+    if (user.presetAvatar === "shield") {
+      return `<svg class="w-3.5 h-3.5 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>`;
+    }
+    const initials = (user.firstName ? user.firstName[0] : "") + (user.lastName ? user.lastName[0] : (user.name ? user.name[0] : "U"));
+    return `<span class="${textClass} font-black uppercase text-blue-950">${initials || 'U'}</span>`;
+  }
+
+  // ==========================================
+  // GESTIONE PROFILO ACCOUNT
+  // ==========================================
+  openAccountModal() {
+    if (!this.user || this.user.email === "ospite@torneo.it") {
+      this.openLoginModal("login");
+      return;
+    }
+
+    const fnInput = document.getElementById("account-firstname-input");
+    const lnInput = document.getElementById("account-lastname-input");
+    const bdInput = document.getElementById("account-birthdate-input");
+    const rkInput = document.getElementById("account-ranking-input");
+    const emInput = document.getElementById("account-email-input");
+    const npInput = document.getElementById("account-newpassword-input");
+    const cpInput = document.getElementById("account-confirmpassword-input");
+    const bioToggle = document.getElementById("account-biometrics-toggle");
+
+    if (fnInput) fnInput.value = this.user.firstName || "";
+    if (lnInput) lnInput.value = this.user.lastName || "";
+    if (bdInput) bdInput.value = this.user.birthDate || "";
+    if (rkInput) rkInput.value = this.user.ranking || "NC";
+    if (emInput) emInput.value = this.user.email || "";
+    if (npInput) npInput.value = "";
+    if (cpInput) cpInput.value = "";
+    if (bioToggle) bioToggle.checked = !!this.user.biometricsEnabled;
+
+    this.renderAccountAvatarPreview();
+    this.openModal("modal-account");
+  }
+
+  renderAccountAvatarPreview() {
+    const container = document.getElementById("account-avatar-preview");
+    if (!container || !this.user) return;
+
+    if (this.user.photoUrl) {
+      container.innerHTML = `<img src="${this.user.photoUrl}" alt="Avatar" class="w-full h-full object-cover rounded-2xl">`;
+    } else if (this.user.presetAvatar) {
+      container.innerHTML = this.getAvatarMarkup(this.user, "w-10 h-10", "text-xl");
+    } else {
+      const initials = (this.user.firstName ? this.user.firstName[0] : "") + (this.user.lastName ? this.user.lastName[0] : (this.user.name ? this.user.name[0] : "U"));
+      container.innerHTML = `<span class="text-2xl font-black uppercase text-yellow-300">${initials || 'U'}</span>`;
+    }
+  }
+
+  handlePhotoUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Seleziona un file immagine valido.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (!this.user) return;
+      this.user.photoUrl = e.target.result;
+      delete this.user.presetAvatar;
+      this.renderAccountAvatarPreview();
+      this.renderUserBadge();
+      this.showToast("Foto caricata! Clicca 'Salva Modifiche' per confermare.", "info");
+    };
+    reader.readAsDataURL(file);
+  }
+
+  selectPresetAvatar(type) {
+    if (!this.user) return;
+    delete this.user.photoUrl;
+    this.user.presetAvatar = type;
+    this.renderAccountAvatarPreview();
+    this.renderUserBadge();
+  }
+
+  removeAccountPhoto() {
+    if (!this.user) return;
+    delete this.user.photoUrl;
+    delete this.user.presetAvatar;
+    this.renderAccountAvatarPreview();
+    this.renderUserBadge();
+    this.showToast("Foto rimossa.", "info");
+  }
+
+  handleSaveAccountProfile() {
+    if (!this.user) return;
+
+    const firstName = document.getElementById("account-firstname-input").value.trim();
+    const lastName = document.getElementById("account-lastname-input").value.trim();
+    const birthDate = document.getElementById("account-birthdate-input").value.trim();
+    const ranking = document.getElementById("account-ranking-input").value.trim() || "NC";
+    const newPassword = document.getElementById("account-newpassword-input").value;
+    const confirmPassword = document.getElementById("account-confirmpassword-input").value;
+    const biometricsEnabled = document.getElementById("account-biometrics-toggle")?.checked ?? true;
+
+    if (!firstName || !lastName) {
+      alert("Inserisci sia il Nome che il Cognome.");
+      return;
+    }
+    if (!birthDate) {
+      alert("Inserisci la Data di Nascita.");
+      return;
+    }
+
+    if (newPassword) {
+      if (newPassword.length < 4) {
+        alert("La nuova password deve contenere almeno 4 caratteri.");
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        alert("Le due password non corrispondono.");
+        return;
+      }
+    }
+
+    const fullName = `${firstName} ${lastName}`.trim();
+
+    this.user.firstName = firstName;
+    this.user.lastName = lastName;
+    this.user.name = fullName;
+    this.user.birthDate = birthDate;
+    this.user.ranking = ranking;
+    this.user.biometricsEnabled = biometricsEnabled;
+    if (newPassword) {
+      this.user.password = newPassword;
+    }
+
+    // Aggiorna accounts
+    const accounts = this.loadAccounts();
+    const emailKey = this.user.email.toLowerCase();
+    accounts[emailKey] = {
+      ...(accounts[emailKey] || {}),
+      ...this.user
+    };
+    this.saveAccounts(accounts);
+    this.saveUser(this.user);
+
+    // Sincronizza nell'elenco iscritti
+    const playerIdx = this.state.players.findIndex(p =>
+      (p.userId && p.userId === this.user.email) ||
+      (p.email && p.email.toLowerCase() === emailKey)
+    );
+    if (playerIdx !== -1) {
+      this.state.players[playerIdx].firstName = firstName;
+      this.state.players[playerIdx].lastName = lastName;
+      this.state.players[playerIdx].name = fullName;
+      this.state.players[playerIdx].birthDate = birthDate;
+      this.state.players[playerIdx].ranking = ranking;
+      if (this.user.photoUrl) this.state.players[playerIdx].photoUrl = this.user.photoUrl;
+      this.saveState();
+    }
+
+    this.closeModal("modal-account");
+    this.renderUserBadge();
+    this.render();
+    this.showToast("Profilo aggiornato con successo!", "success");
   }
 
   formatDate(dateStr) {
@@ -482,7 +758,7 @@ class App {
   }
 
   // ==========================================
-  // NAVIGAZIONE TAB
+  // NAVIGAZIONE TAB (ISCRITTI, GIRONI, TABELLONE, REGOLAMENTO)
   // ==========================================
   switchTab(tab) {
     this.currentTab = tab;
@@ -500,7 +776,7 @@ class App {
   }
 
   renderTabContent() {
-    const tabPanels = ["players", "bracket", "rules"];
+    const tabPanels = ["players", "groups", "bracket", "rules"];
     tabPanels.forEach(tp => {
       const el = document.getElementById(`tab-panel-${tp}`);
       if (el) {
@@ -516,6 +792,9 @@ class App {
       case "players":
         this.renderPlayersView();
         break;
+      case "groups":
+        this.renderGroupsView();
+        break;
       case "bracket":
         this.renderBracketView();
         break;
@@ -526,11 +805,28 @@ class App {
   }
 
   render() {
+    this.tournamentManager.ensureGroups();
+
     // Aggiorna contatori header nav
     const playersCount = this.state.players.length;
     const navCount = document.getElementById("nav-players-count");
     if (navCount) navCount.textContent = playersCount;
 
+    // Aggiorna indicatore gironi
+    const navGroups = document.getElementById("nav-groups-status");
+    if (navGroups && this.state.groups) {
+      const sCount = (this.state.groups.sinner?.playerIds || []).length;
+      const aCount = (this.state.groups.alcaraz?.playerIds || []).length;
+      if (sCount > 0 || aCount > 0) {
+        navGroups.textContent = `${sCount + aCount} atleti (${sCount}+${aCount})`;
+        navGroups.className = "bg-yellow-400 text-blue-950 text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-sm";
+      } else {
+        navGroups.textContent = "Sinner & Alcaraz";
+        navGroups.className = "bg-blue-100 text-blue-900 text-[10px] font-bold px-1.5 py-0.2 rounded-full";
+      }
+    }
+
+    // Aggiorna indicatore tabellone
     const navBracketStatus = document.getElementById("nav-bracket-status");
     if (navBracketStatus) {
       if (this.state.bracket) {
@@ -543,6 +839,324 @@ class App {
     }
 
     this.renderTabContent();
+  }
+
+  // ==========================================
+  // SEZIONE FASE A GIRONI (SINNER & ALCARAZ)
+  // ==========================================
+  renderGroupsView() {
+    const container = document.getElementById("groups-container");
+    if (!container) return;
+
+    this.tournamentManager.ensureGroups();
+    const sinnerStandings = this.tournamentManager.getGroupStandings("sinner");
+    const alcarazStandings = this.tournamentManager.getGroupStandings("alcaraz");
+    const sinnerGroup = this.state.groups.sinner;
+    const alcarazGroup = this.state.groups.alcaraz;
+
+    const totalInGroups = (sinnerGroup.playerIds || []).length + (alcarazGroup.playerIds || []).length;
+    const totalPlayers = this.state.players.length;
+
+    let html = `
+      <div class="space-y-6">
+        
+        <!-- Banner Intestazione & Regolamento Gironi -->
+        <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 rounded-2xl p-5 sm:p-6 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
+              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Fase a Gironi • Torneo Momy 26/27</span>
+            </div>
+            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Girone Sinner & Girone Alcaraz</h2>
+            <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
+              Partite da <strong>1 ora</strong> continua fino al suono della campana. Se in parità al suono della campana, <strong>rimane il pareggio (1 punto ciascuno)</strong>. Vittoria: 3 pt • Pareggio: 1 pt • Sconfitta: 0 pt.
+            </p>
+          </div>
+
+          ${this.isAdmin ? `
+            <div class="flex flex-wrap gap-2 w-full md:w-auto">
+              <button onclick="app.handleAutoAssignGroups()" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-1.5">
+                + Distribuisci Atleti nei 2 Gironi
+              </button>
+              ${totalInGroups >= 4 ? `
+                <button onclick="app.handleGenerateBracketFromGroups(2)" class="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl border border-white/30 transition flex items-center justify-center gap-1.5">
+                  Qualifica al Tabellone (Top 2)
+                </button>
+              ` : ''}
+            </div>
+          ` : ''}
+        </div>
+    `;
+
+    if (totalInGroups === 0) {
+      html += `
+        <div class="text-center py-16 bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+          <div class="w-14 h-14 bg-blue-50 border border-blue-200 text-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+            </svg>
+          </div>
+          <h3 class="text-lg font-bold text-gray-800 mb-1">Gironi Sinner e Alcaraz non ancora composti</h3>
+          <p class="text-xs sm:text-sm text-gray-500 max-w-md mx-auto mb-6">
+            ${totalPlayers === 0
+              ? "Nessun atleta è ancora registrato al torneo. Inserisci gli iscritti nella prima sezione per formare i gironi."
+              : `Ci sono attualmente <strong>${totalPlayers}</strong> atleti iscritti. L'amministratore può suddividere gli atleti nei due gironi con criterio bilanciato.`}
+          </p>
+          ${this.isAdmin && totalPlayers >= 2 ? `
+            <button onclick="app.handleAutoAssignGroups()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition">
+              Componi Gironi Automaticamente (${totalPlayers} Partecipanti)
+            </button>
+          ` : `
+            <button onclick="app.switchTab('players')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition">
+              Vai alla sezione Iscritti
+            </button>
+          `}
+        </div>
+      </div>
+      `;
+      container.innerHTML = html;
+      return;
+    }
+
+    // Griglia dei 2 Gironi
+    html += `
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        ${this.renderSingleGroupCard("sinner", "Girone Sinner", sinnerStandings, sinnerGroup.matches || [])}
+        ${this.renderSingleGroupCard("alcaraz", "Girone Alcaraz", alcarazStandings, alcarazGroup.matches || [])}
+      </div>
+    </div>
+    `;
+
+    container.innerHTML = html;
+  }
+
+  renderSingleGroupCard(groupKey, title, standings, matches) {
+    const isSinner = groupKey === "sinner";
+    const accentBorder = isSinner ? "border-blue-300" : "border-indigo-300";
+    const headerBg = isSinner
+      ? "bg-gradient-to-r from-blue-900 to-blue-950 text-white"
+      : "bg-gradient-to-r from-indigo-950 to-slate-950 text-white";
+
+    let html = `
+      <div class="bg-white rounded-2xl border ${accentBorder} shadow-sm overflow-hidden flex flex-col">
+        <!-- Header Girone -->
+        <div class="${headerBg} p-4 sm:p-5 flex items-center justify-between border-b border-blue-900/60">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-yellow-400 text-blue-950 flex items-center justify-center font-black text-sm shadow-sm flex-shrink-0">
+              ${isSinner ? 'S' : 'A'}
+            </div>
+            <div>
+              <h3 class="text-base sm:text-lg font-black tracking-tight">${title}</h3>
+              <p class="text-[11px] text-blue-200">${standings.length} ${standings.length === 1 ? 'atleta' : 'atleti'} • ${matches.length} incontri</p>
+            </div>
+          </div>
+          <span class="bg-yellow-400 text-blue-950 text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-sm">
+            ${isSinner ? 'Fase 1' : 'Fase 1'}
+          </span>
+        </div>
+
+        <div class="p-4 sm:p-5 flex-grow space-y-6">
+          <!-- Classifica Girone -->
+          <div>
+            <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <span>Classifica Ufficiale</span>
+              <span class="text-[10px] text-gray-400 font-normal">(V: 3pt • P: 1pt • S: 0pt)</span>
+            </h4>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="bg-slate-50 text-gray-600 uppercase text-[10px] font-semibold border-b">
+                    <th class="py-2 px-2 text-center w-8">#</th>
+                    <th class="py-2 px-2">Atleta</th>
+                    <th class="py-2 px-1 text-center" title="Giocate">G</th>
+                    <th class="py-2 px-1 text-center" title="Vinte">V</th>
+                    <th class="py-2 px-1 text-center" title="Pareggiate">P</th>
+                    <th class="py-2 px-1 text-center" title="Perse">S</th>
+                    <th class="py-2 px-1 text-center" title="Game Fatti">GF</th>
+                    <th class="py-2 px-1 text-center" title="Game Subiti">GS</th>
+                    <th class="py-2 px-1 text-center" title="Diff. Game">DG</th>
+                    <th class="py-2 px-2 text-center font-black text-blue-950" title="Punti Totali">PT</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  ${standings.map((s, idx) => {
+                    const isMe = this.user && s.player.email && this.user.email && (s.player.email.toLowerCase() === this.user.email.toLowerCase());
+                    const isTop2 = idx < 2;
+                    return `
+                      <tr class="hover:bg-blue-50/50 transition ${isMe ? 'bg-blue-50/60 font-semibold' : ''}">
+                        <td class="py-2.5 px-2 text-center font-mono font-bold ${isTop2 ? 'text-yellow-600' : 'text-gray-400'}">
+                          ${idx + 1}
+                        </td>
+                        <td class="py-2.5 px-2 font-bold text-gray-900">
+                          <div class="flex items-center gap-1.5 truncate max-w-[140px]">
+                            <span class="truncate">${s.player.name}</span>
+                            ${s.player.ranking ? `<span class="text-[9px] font-mono bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-semibold">${s.player.ranking}</span>` : ''}
+                          </div>
+                        </td>
+                        <td class="py-2.5 px-1 text-center font-mono text-gray-600">${s.played}</td>
+                        <td class="py-2.5 px-1 text-center font-mono text-emerald-700 font-bold">${s.won}</td>
+                        <td class="py-2.5 px-1 text-center font-mono text-amber-700 font-bold">${s.drawn}</td>
+                        <td class="py-2.5 px-1 text-center font-mono text-rose-700">${s.lost}</td>
+                        <td class="py-2.5 px-1 text-center font-mono text-gray-600">${s.gamesFor}</td>
+                        <td class="py-2.5 px-1 text-center font-mono text-gray-600">${s.gamesAgainst}</td>
+                        <td class="py-2.5 px-1 text-center font-mono ${s.diff > 0 ? 'text-emerald-700 font-bold' : (s.diff < 0 ? 'text-rose-600' : 'text-gray-500')}">
+                          ${s.diff > 0 ? `+${s.diff}` : s.diff}
+                        </td>
+                        <td class="py-2.5 px-2 text-center">
+                          <span class="bg-yellow-400 text-blue-950 font-black text-xs px-2 py-0.5 rounded-md shadow-sm">
+                            ${s.points}
+                          </span>
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Partite del Girone -->
+          <div>
+            <div class="flex items-center justify-between mb-2.5">
+              <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                Partite & Risultati
+              </h4>
+              ${this.isAdmin ? `
+                <span class="text-[10px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                  Clicca sul match per modificare
+                </span>
+              ` : ''}
+            </div>
+
+            <div class="space-y-2.5">
+              ${matches.map(m => {
+                const p1 = this.tournamentManager.getPlayer(m.player1Id);
+                const p2 = this.tournamentManager.getPlayer(m.player2Id);
+                const isCompleted = m.status === "completato";
+                const isDraw = m.isDraw || (isCompleted && m.games1 !== null && m.games1 === m.games2);
+
+                return `
+                  <div class="bg-white border ${isCompleted ? (isDraw ? 'border-amber-300 bg-amber-50/20' : 'border-blue-300') : 'border-gray-200'} rounded-xl p-3 shadow-sm hover:shadow transition relative ${this.isAdmin ? 'cursor-pointer hover:border-blue-500' : ''}"
+                       onclick="${this.isAdmin ? `app.openGroupMatchModal('${groupKey}', '${m.id}')` : ''}">
+                    
+                    <div class="flex items-center justify-between text-xs mb-1">
+                      <div class="flex items-center gap-1.5 font-semibold text-gray-800">
+                        <span class="${m.winnerId === m.player1Id ? 'font-bold text-blue-950' : ''}">${p1 ? p1.name : 'In attesa'}</span>
+                        <span class="text-gray-400 font-normal">vs</span>
+                        <span class="${m.winnerId === m.player2Id ? 'font-bold text-blue-950' : ''}">${p2 ? p2.name : 'In attesa'}</span>
+                      </div>
+
+                      ${isCompleted ? `
+                        <div class="flex items-center gap-1.5">
+                          <span class="font-mono font-black text-xs bg-blue-100 text-blue-900 px-2 py-0.5 rounded shadow-sm">
+                            ${m.scores || `${m.games1} - ${m.games2}`}
+                          </span>
+                          ${isDraw ? `
+                            <span class="text-[10px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.5 rounded">Pari</span>
+                          ` : ''}
+                        </div>
+                      ` : `
+                        <span class="text-[10px] text-gray-400 italic">${m.status === 'in_corso' ? 'Live in corso' : 'Da disputare'}</span>
+                      `}
+                    </div>
+
+                    <div class="flex items-center justify-between text-[11px] text-gray-500 pt-1.5 border-t border-gray-100">
+                      <span>${m.court || 'Campo da definire'}</span>
+                      <span>${m.dateTime ? this.formatShortDate(m.dateTime) : '1 ora di gioco'}</span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    return html;
+  }
+
+  handleAutoAssignGroups() {
+    if (!this.isAdmin) return;
+    if (this.state.players.length < 2) {
+      alert("Servono almeno 2 atleti iscritti per poter comporre i gironi Sinner e Alcaraz.");
+      return;
+    }
+
+    if (confirm("Vuoi distribuire automaticamente e in modo bilanciato gli iscritti tra Girone Sinner e Girone Alcaraz?")) {
+      this.tournamentManager.autoAssignGroups();
+      this.saveState();
+      this.render();
+      this.showToast("Gironi Sinner e Alcaraz composti con successo!", "success");
+    }
+  }
+
+  handleGenerateBracketFromGroups(topCount = 2) {
+    if (!this.isAdmin) return;
+    try {
+      this.tournamentManager.generateBracketFromGroups(topCount);
+      this.saveState();
+      this.switchTab("bracket");
+      this.showToast(`Tabellone Finale generato con i migliori ${topCount} di ogni girone!`, "success");
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  openGroupMatchModal(groupKey, matchId) {
+    if (!this.isAdmin) return;
+    this.tournamentManager.ensureGroups();
+    const group = this.state.groups[groupKey];
+    if (!group) return;
+
+    const match = group.matches.find(m => m.id === matchId);
+    if (!match) return;
+
+    const p1 = this.tournamentManager.getPlayer(match.player1Id);
+    const p2 = this.tournamentManager.getPlayer(match.player2Id);
+
+    document.getElementById("group-match-group-key").value = groupKey;
+    document.getElementById("group-match-id").value = matchId;
+    document.getElementById("group-match-header-label").textContent = group.name;
+
+    document.getElementById("group-match-p1-name").textContent = p1 ? p1.name : "Atleta 1";
+    document.getElementById("group-match-p2-name").textContent = p2 ? p2.name : "Atleta 2";
+    document.getElementById("group-match-p1-label").textContent = `Game ${p1 ? p1.firstName : 'Atleta 1'}`;
+    document.getElementById("group-match-p2-label").textContent = `Game ${p2 ? p2.firstName : 'Atleta 2'}`;
+
+    document.getElementById("group-match-score1").value = match.games1 !== null ? match.games1 : "";
+    document.getElementById("group-match-score2").value = match.games2 !== null ? match.games2 : "";
+    document.getElementById("group-match-court").value = match.court || "Campo 1 (Centrale)";
+    document.getElementById("group-match-datetime").value = match.dateTime || "";
+    document.getElementById("group-match-status").value = match.status || "in_programma";
+
+    this.openModal("modal-group-match");
+  }
+
+  setQuickGroupScore(g1, g2) {
+    document.getElementById("group-match-score1").value = g1;
+    document.getElementById("group-match-score2").value = g2;
+  }
+
+  handleSaveGroupMatchScore() {
+    if (!this.isAdmin) return;
+
+    const groupKey = document.getElementById("group-match-group-key").value;
+    const matchId = document.getElementById("group-match-id").value;
+    const games1 = document.getElementById("group-match-score1").value;
+    const games2 = document.getElementById("group-match-score2").value;
+    const court = document.getElementById("group-match-court").value;
+    const dateTime = document.getElementById("group-match-datetime").value;
+    const status = document.getElementById("group-match-status").value;
+
+    this.tournamentManager.updateGroupMatch(groupKey, matchId, {
+      games1, games2, court, dateTime, status
+    });
+
+    this.saveState();
+    this.closeModal("modal-group-match");
+    this.render();
+    this.showToast("Risultato del girone salvato!", "success");
   }
 
   // ==========================================
@@ -1198,7 +1812,7 @@ class App {
   }
 
   // ==========================================
-  // SEZIONE 3: REGOLAMENTO
+  // SEZIONE 4: REGOLAMENTO
   // ==========================================
   renderRulesView() {
     const container = document.getElementById("rules-container");
@@ -1206,28 +1820,59 @@ class App {
 
     container.innerHTML = `
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6 sm:p-7 shadow-sm">
-          <h2 class="text-lg font-bold text-gray-900 mb-4 pb-2 border-b">
-            Regolamento Ufficiale - Torneo Momy 26/27
-          </h2>
-          <div class="prose prose-sm text-gray-600 space-y-4">
-            <p>
-              Il Torneo Momy è una manifestazione sportiva giovanile volta a promuovere i valori di sportività, lealtà e crescita tecnica sui campi di tennis.
+        <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6 sm:p-7 shadow-sm space-y-5">
+          <div class="border-b pb-3">
+            <div class="text-xs font-bold uppercase tracking-wider text-blue-800">Regolamento Ufficiale</div>
+            <h2 class="text-xl font-extrabold text-gray-900 mt-0.5">
+              Torneo Momy 26/27 • Tennis Giovanile
+            </h2>
+          </div>
+
+          <!-- Formula Incontri a Tempo da 1 Ora -->
+          <div class="bg-blue-50 border-l-4 border-blue-600 p-4 sm:p-5 rounded-r-2xl">
+            <h4 class="font-extrabold text-blue-950 text-sm mb-1.5 flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+              <span>Formula delle Partite: 1 Ora & Suono della Campana</span>
+            </h4>
+            <p class="text-xs text-blue-900 leading-relaxed">
+              Tutte le partite del torneo hanno una durata prefissata di <strong>un'ora</strong>. Si gioca un <strong>set unico continuo che va avanti fino al suono della campana</strong>: chi è avanti nel conteggio dei game quando suona la campana vince l'incontro.
             </p>
+          </div>
 
-            <div class="bg-blue-50 border-l-4 border-blue-600 p-4 rounded-r-xl">
-              <h4 class="font-bold text-blue-900 text-sm mb-1">Formula degli Incontri</h4>
-              <p class="text-xs text-gray-700 leading-relaxed">
-                Partite al meglio dei 2 set su 3 con punteggio short-set (ai 4 game con tie-break sul 4 pari) o punteggio tradizionale a discrezione dell'arbitro. In caso di parità di set, eventuale terzo set disputato mediante super tie-break a 10 punti.
-              </p>
+          <!-- Gestione Pareggio al suono della campana -->
+          <div class="bg-amber-50 border border-amber-300 p-4 sm:p-5 rounded-2xl">
+            <h4 class="font-extrabold text-amber-950 text-sm mb-2 flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+              <span>Regola del Pareggio al Suono della Campana</span>
+            </h4>
+            <div class="space-y-2 text-xs text-amber-900 leading-relaxed">
+              <div class="bg-white/90 p-3 rounded-xl border border-amber-200 shadow-xs">
+                <strong class="text-blue-950 block mb-1">1. Durante la Fase a Gironi (Girone Sinner & Girone Alcaraz):</strong>
+                Se al suono della campana il punteggio è in parità (es. 4-4, 5-5), <strong>la partita termina con il pareggio</strong>. A ciascun atleta viene assegnato <strong>1 punto</strong> in classifica (vittoria: 3 punti, sconfitta: 0 punti).
+              </div>
+              <div class="bg-white/90 p-3 rounded-xl border border-amber-200 shadow-xs">
+                <strong class="text-blue-950 block mb-1">2. Nella Fase Finale a Eliminazione Diretta (Tabellone Finale):</strong>
+                Nel tabellone finale ad eliminazione diretta non sono ammessi pareggi: se al suono della campana si è in pareggio, si gioca immediatamente un <strong>rapido tie-break ai 5 punti</strong> per decretare il vincitore che avanza al turno successivo.
+              </div>
             </div>
+          </div>
 
-            <h4 class="font-bold text-gray-800 text-sm">Disposizioni di Gioco & Fair Play</h4>
+          <!-- Gironi Sinner e Alcaraz -->
+          <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
+            <h4 class="font-bold text-gray-900 text-xs sm:text-sm mb-1.5">Fase a Gironi: Girone Sinner e Girone Alcaraz</h4>
+            <p class="text-xs text-gray-600 leading-relaxed">
+              I partecipanti sono distribuiti nei due raggruppamenti ufficiali (Girone Sinner e Girone Alcaraz) con formula all'italiana (tutti contro tutti). I migliori atleti di ciascun girone accedono al Tabellone Finale incrociato.
+            </p>
+          </div>
+
+          <!-- Fair play -->
+          <div>
+            <h4 class="font-bold text-gray-800 text-xs uppercase tracking-wider mb-2">Disposizioni di Gioco & Fair Play</h4>
             <ul class="list-disc pl-5 text-xs text-gray-600 space-y-1.5">
-              <li>I partecipanti devono presentarsi alla segreteria almeno 20 minuti prima dell'orario stabilito.</li>
-              <li>Riscaldamento preliminare in campo limitato a 5 minuti.</li>
+              <li>I partecipanti devono presentarsi alla segreteria almeno 15 minuti prima dell'inizio del match.</li>
+              <li>Riscaldamento preliminare in campo limitato a 5 minuti per massimizzare l'ora di gioco.</li>
               <li>Chiamate di palla autonome e leali da parte dei giocatori sul proprio campo.</li>
-              <li>Le decisioni del Giudice Arbitro sono definitive ed inappellabili.</li>
+              <li>Le decisioni dell'Amministratore e Giudice Arbitro ufficiale sono definitive ed inappellabili.</li>
             </ul>
           </div>
         </div>
@@ -1235,9 +1880,11 @@ class App {
         <div class="space-y-6">
           <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
             <h3 class="text-base font-bold text-gray-900 mb-3">Informazioni Organizzazione</h3>
-            <div class="text-xs text-gray-600 space-y-2">
+            <div class="text-xs text-gray-600 space-y-2.5">
               <div><strong>Manifestazione:</strong> Torneo Momy 26/27</div>
               <div><strong>Amministratore Ufficiale:</strong> Barcello Luca</div>
+              <div><strong>Gironi:</strong> Girone Sinner • Girone Alcaraz</div>
+              <div><strong>Fase Finale:</strong> Tabellone a Eliminazione Diretta</div>
               <div><strong>Campi:</strong> Terra Rossa e Sintetico</div>
               <div><strong>Regolamento:</strong> Conforme disposizioni FITP</div>
             </div>
@@ -1246,7 +1893,7 @@ class App {
           <div class="bg-gradient-to-br from-slate-950 via-blue-900 to-indigo-950 rounded-2xl p-6 text-white shadow">
             <h3 class="font-bold text-base mb-2 text-yellow-300">Partecipa al Torneo</h3>
             <p class="text-xs text-blue-100 mb-4 leading-relaxed">
-              Per iscrivere un atleta compila la scheda anagrafica nella sezione Iscritti.
+              Per iscriverti al torneo compila la tua scheda anagrafica nella sezione Iscritti.
             </p>
             <button onclick="app.switchTab('players'); app.openNewPlayerModal();" class="w-full bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs py-2.5 px-4 rounded-xl shadow transition">
               Inserisci Atleta Ora
