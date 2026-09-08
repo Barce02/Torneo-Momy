@@ -98,7 +98,7 @@
     </div>
   </header>
 
-  <!-- BARRA DI NAVIGAZIONE TAB (LE 4 SEZIONI RICHIESTE) -->
+  <!-- BARRA DI NAVIGAZIONE TAB (LE 5 SEZIONI) -->
   <nav class="bg-white border-b border-gray-200 shadow-sm sticky top-[68px] z-30">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex space-x-2 sm:space-x-3 py-2 overflow-x-auto">
@@ -121,7 +121,16 @@
           <span id="nav-groups-status" class="bg-blue-100 text-blue-900 text-[10px] font-bold px-1.5 py-0.2 rounded-full">Sinner & Alcaraz</span>
         </button>
 
-        <!-- Tab 3: Tabellone Finale -->
+        <!-- Tab 3: Calendario Partite -->
+        <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap" data-tab="schedule">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          <span>Calendario</span>
+          <span id="nav-schedule-count" class="bg-blue-100 text-blue-900 text-[10px] font-bold px-1.5 py-0.2 rounded-full">Orari & Campi</span>
+        </button>
+
+        <!-- Tab 4: Tabellone Finale -->
         <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap" data-tab="bracket">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
@@ -130,7 +139,7 @@
           <span id="nav-bracket-status" class="bg-gray-100 text-gray-600 text-[10px] font-medium px-1.5 py-0.2 rounded-full">Non generato</span>
         </button>
 
-        <!-- Tab 4: Regolamento -->
+        <!-- Tab 5: Regolamento -->
         <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap" data-tab="rules">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -155,12 +164,17 @@
       <div id="groups-container"></div>
     </div>
 
-    <!-- SEZIONE 3: TABELLONE FINALE -->
+    <!-- SEZIONE 3: CALENDARIO PARTITE (ORARI & CAMPI) -->
+    <div id="tab-panel-schedule" class="hidden">
+      <div id="schedule-container"></div>
+    </div>
+
+    <!-- SEZIONE 4: TABELLONE FINALE -->
     <div id="tab-panel-bracket" class="hidden">
       <div id="bracket-container"></div>
     </div>
 
-    <!-- SEZIONE 4: REGOLAMENTO -->
+    <!-- SEZIONE 5: REGOLAMENTO -->
     <div id="tab-panel-rules" class="hidden">
       <div id="rules-container"></div>
     </div>
@@ -759,6 +773,68 @@
         <div class="flex gap-2 pt-2 border-t">
           <button type="button" onclick="app.closeModal('modal-group-match')" class="w-1/2 py-2 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl">Annulla</button>
           <button type="submit" class="w-1/2 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow">Salva Risultato</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALE: PROGRAMMAZIONE CALENDARIO (DATA, ORA & CAMPO) -->
+  <!-- ======================================================== -->
+  <div id="modal-schedule-match" class="fixed inset-0 bg-slate-950/65 modal-backdrop z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-200">
+      <div class="flex justify-between items-center pb-3 mb-4 border-b">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-blue-100 text-blue-900 flex items-center justify-center font-bold text-xs">
+            <svg class="w-4 h-4 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+          </div>
+          <h3 class="font-bold text-base text-gray-900">Programma Incontro</h3>
+        </div>
+        <button type="button" onclick="app.closeModal('modal-schedule-match')" class="text-gray-400 hover:text-gray-600 text-sm font-bold">Chiudi</button>
+      </div>
+
+      <form id="schedule-match-form" class="space-y-4" onsubmit="event.preventDefault(); app.handleSaveScheduleMatch();">
+        <input type="hidden" id="schedule-match-type">
+        <input type="hidden" id="schedule-match-group-or-round">
+        <input type="hidden" id="schedule-match-id">
+
+        <div class="bg-blue-50/80 p-3.5 rounded-xl border border-blue-200 text-center">
+          <div id="schedule-match-phase-label" class="text-xs text-blue-900 font-bold uppercase tracking-wider">Girone Sinner</div>
+          <div class="text-sm font-bold text-gray-900 mt-1 flex items-center justify-center gap-3">
+            <span id="schedule-match-p1-name" class="truncate max-w-[150px]">Atleta 1</span>
+            <span class="text-yellow-600 font-black text-xs">VS</span>
+            <span id="schedule-match-p2-name" class="truncate max-w-[150px]">Atleta 2</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Data & Ora Incontro *</label>
+          <input type="datetime-local" id="schedule-match-datetime" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Campo di Gioco *</label>
+          <select id="schedule-match-court" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium">
+            <option value="Campo 1 (Centrale)">Campo 1 (Centrale)</option>
+            <option value="Campo 2 (Terra)">Campo 2 (Terra)</option>
+            <option value="Campo 3 (Sintetico)">Campo 3 (Sintetico)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Stato Incontro</label>
+          <select id="schedule-match-status" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+            <option value="in_programma">In programma</option>
+            <option value="in_corso">In corso (Live)</option>
+            <option value="completato">Completato</option>
+          </select>
+        </div>
+
+        <div class="flex gap-2 pt-2 border-t">
+          <button type="button" onclick="app.closeModal('modal-schedule-match')" class="w-1/2 py-2 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl">Annulla</button>
+          <button type="submit" class="w-1/2 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow">Salva Programmazione</button>
         </div>
       </form>
     </div>

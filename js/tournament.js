@@ -450,106 +450,174 @@ class TournamentManager {
     return standings;
   }
 
-  generateBracketFromGroups(topCount = 2) {
+  // Schema standard per accoppiamenti incrociati Girone Sinner (semi dispari) vs Girone Alcaraz (semi pari)
+  getCrossGroupSeedOrder(bracketSize) {
+    if (bracketSize === 4) {
+      return [1, 4, 3, 2];
+    }
+    if (bracketSize === 8) {
+      return [1, 8, 4, 5, 3, 6, 2, 7];
+    }
+    if (bracketSize === 16) {
+      return [1, 16, 8, 9, 5, 12, 4, 13, 3, 14, 6, 11, 7, 10, 2, 15];
+    }
+    if (bracketSize === 32) {
+      const pairs = [
+        [1, 32], [16, 17], [9, 24], [8, 25],
+        [5, 28], [12, 21], [13, 20], [4, 29],
+        [3, 30], [14, 19], [11, 22], [6, 27],
+        [7, 26], [10, 23], [15, 18], [2, 31]
+      ];
+      return pairs.flat();
+    }
+    return Array.from({ length: bracketSize }, (_, i) => i + 1);
+  }
+
+  // Genera il tabellone finale qualificando TUTTI i giocatori dei gironi in base alla classifica finale
+  generateBracketFromGroups() {
     this.ensureGroups();
     const standingsSinner = this.getGroupStandings("sinner");
     const standingsAlcaraz = this.getGroupStandings("alcaraz");
 
-    if (standingsSinner.length < topCount || standingsAlcaraz.length < topCount) {
-      throw new Error(`Servono almeno ${topCount} atleti per ciascun girone per poter comporre il tabellone finale incrociato.`);
+    const totalInGroups = standingsSinner.length + standingsAlcaraz.length;
+    if (totalInGroups < 2) {
+      throw new Error("Servono almeno 2 atleti inseriti nei gironi per poter comporre il tabellone finale.");
     }
 
-    if (topCount === 2) {
-      // 4 atleti: 1° Sinner vs 2° Alcaraz, 1° Alcaraz vs 2° Sinner
-      const p1S = standingsSinner[0].player.id;
-      const p2A = standingsAlcaraz[1].player.id;
-      const p1A = standingsAlcaraz[0].player.id;
-      const p2S = standingsSinner[1].player.id;
+    // Calcolo dimensione tabellone (potenza di 2 più vicina)
+    let bracketSize = 4;
+    if (totalInGroups > 16) bracketSize = 32;
+    else if (totalInGroups > 8) bracketSize = 16;
+    else if (totalInGroups > 4) bracketSize = 8;
+    else bracketSize = 4;
 
-      const r1Matches = [
-        {
-          id: "m-r1-1",
-          player1Id: p1S,
-          player2Id: p2A,
+    // Assegnazione teste di serie incrociate:
+    // Dispari = Girone Sinner (1° Sinner -> Seed 1, 2° Sinner -> Seed 3, 3° Sinner -> Seed 5...)
+    // Pari = Girone Alcaraz (1° Alcaraz -> Seed 2, 2° Alcaraz -> Seed 4, 3° Alcaraz -> Seed 6...)
+    const seedMap = {};
+    let sIdx = 0;
+    let aIdx = 0;
+
+    for (let seed = 1; seed <= bracketSize; seed++) {
+      if (seed % 2 === 1) {
+        // Sinner slot
+        if (sIdx < standingsSinner.length) {
+          seedMap[seed] = standingsSinner[sIdx].player.id;
+          sIdx++;
+        } else if (aIdx < standingsAlcaraz.length) {
+          seedMap[seed] = standingsAlcaraz[aIdx].player.id;
+          aIdx++;
+        } else {
+          seedMap[seed] = "BYE";
+        }
+      } else {
+        // Alcaraz slot
+        if (aIdx < standingsAlcaraz.length) {
+          seedMap[seed] = standingsAlcaraz[aIdx].player.id;
+          aIdx++;
+        } else if (sIdx < standingsSinner.length) {
+          seedMap[seed] = standingsSinner[sIdx].player.id;
+          sIdx++;
+        } else {
+          seedMap[seed] = "BYE";
+        }
+      }
+    }
+
+    const seedOrder = this.getCrossGroupSeedOrder(bracketSize);
+    const slots = new Array(bracketSize).fill(null);
+    for (let i = 0; i < bracketSize; i++) {
+      const seedNum = seedOrder[i];
+      slots[i] = seedMap[seedNum] || "BYE";
+    }
+
+    const totalRounds = Math.log2(bracketSize);
+    const roundNamesMap = {
+      1: ["Finale"],
+      2: ["Semifinali", "Finale"],
+      3: ["Quarti di Finale", "Semifinali", "Finale"],
+      4: ["Ottavi di Finale", "Quarti di Finale", "Semifinali", "Finale"],
+      5: ["Sedicesimi di Finale", "Ottavi di Finale", "Quarti di Finale", "Semifinali", "Finale"]
+    };
+    const names = roundNamesMap[totalRounds] || ["Turno 1", "Turno 2", "Semifinali", "Finale"];
+
+    // Round 1
+    const r1Matches = [];
+    for (let i = 0; i < bracketSize; i += 2) {
+      const p1 = slots[i];
+      const p2 = slots[i + 1];
+      const matchId = `m-r1-${(i / 2) + 1}`;
+
+      let winnerId = null;
+      let status = "in_programma";
+      let scores = "";
+
+      if (p1 === "BYE" && p2 && p2 !== "BYE") {
+        winnerId = p2;
+        status = "completato";
+        scores = "BYE";
+      } else if (p2 === "BYE" && p1 && p1 !== "BYE") {
+        winnerId = p1;
+        status = "completato";
+        scores = "BYE";
+      }
+
+      r1Matches.push({
+        id: matchId,
+        player1Id: p1 === "BYE" ? null : p1,
+        player2Id: p2 === "BYE" ? null : p2,
+        scores: scores,
+        winnerId: winnerId,
+        court: (i / 2) % 2 === 0 ? "Campo 1 (Centrale)" : "Campo 2 (Terra)",
+        dateTime: "",
+        status: status
+      });
+    }
+
+    const rounds = [{
+      name: names[0],
+      matches: r1Matches
+    }];
+
+    // Round successivi
+    let prevMatches = r1Matches;
+    for (let r = 1; r < totalRounds; r++) {
+      const currentMatches = [];
+      const matchCount = prevMatches.length / 2;
+      for (let m = 0; m < matchCount; m++) {
+        const parent1 = prevMatches[m * 2];
+        const parent2 = prevMatches[m * 2 + 1];
+
+        const p1 = parent1.winnerId || null;
+        const p2 = parent2.winnerId || null;
+
+        const matchId = `m-r${r + 1}-${m + 1}`;
+        currentMatches.push({
+          id: matchId,
+          player1Id: p1,
+          player2Id: p2,
           scores: "",
           winnerId: null,
           court: "Campo 1 (Centrale)",
           dateTime: "",
           status: "in_programma"
-        },
-        {
-          id: "m-r1-2",
-          player1Id: p1A,
-          player2Id: p2S,
-          scores: "",
-          winnerId: null,
-          court: "Campo 2",
-          dateTime: "",
-          status: "in_programma"
-        }
-      ];
+        });
+      }
 
-      const r2Matches = [
-        {
-          id: "m-r2-1",
-          player1Id: null,
-          player2Id: null,
-          scores: "",
-          winnerId: null,
-          court: "Campo 1 (Centrale)",
-          dateTime: "",
-          status: "in_programma"
-        }
-      ];
-
-      this.state.bracket = {
-        rounds: [
-          { name: "Semifinali", matches: r1Matches },
-          { name: "Finale", matches: r2Matches }
-        ],
-        source: "groups",
-        createdAt: new Date().toISOString()
-      };
-
-      return this.state.bracket;
-    } else {
-      // Quarti di finale con 8 atleti (top 4 di entrambi i gironi)
-      const s1 = standingsSinner[0].player.id;
-      const a4 = standingsAlcaraz[3].player.id;
-      const s2 = standingsSinner[1].player.id;
-      const a3 = standingsAlcaraz[2].player.id;
-      const a1 = standingsAlcaraz[0].player.id;
-      const s4 = standingsSinner[3].player.id;
-      const a2 = standingsAlcaraz[1].player.id;
-      const s3 = standingsSinner[2].player.id;
-
-      const qfMatches = [
-        { id: "m-r1-1", player1Id: s1, player2Id: a4, scores: "", winnerId: null, court: "Campo 1 (Centrale)", dateTime: "", status: "in_programma" },
-        { id: "m-r1-2", player1Id: s2, player2Id: a3, scores: "", winnerId: null, court: "Campo 2", dateTime: "", status: "in_programma" },
-        { id: "m-r1-3", player1Id: a1, player2Id: s4, scores: "", winnerId: null, court: "Campo 1 (Centrale)", dateTime: "", status: "in_programma" },
-        { id: "m-r1-4", player1Id: a2, player2Id: s3, scores: "", winnerId: null, court: "Campo 2", dateTime: "", status: "in_programma" }
-      ];
-
-      const sfMatches = [
-        { id: "m-r2-1", player1Id: null, player2Id: null, scores: "", winnerId: null, court: "Campo 1 (Centrale)", dateTime: "", status: "in_programma" },
-        { id: "m-r2-2", player1Id: null, player2Id: null, scores: "", winnerId: null, court: "Campo 2", dateTime: "", status: "in_programma" }
-      ];
-
-      const finalMatches = [
-        { id: "m-r3-1", player1Id: null, player2Id: null, scores: "", winnerId: null, court: "Campo 1 (Centrale)", dateTime: "", status: "in_programma" }
-      ];
-
-      this.state.bracket = {
-        rounds: [
-          { name: "Quarti di Finale", matches: qfMatches },
-          { name: "Semifinali", matches: sfMatches },
-          { name: "Finale", matches: finalMatches }
-        ],
-        source: "groups",
-        createdAt: new Date().toISOString()
-      };
-
-      return this.state.bracket;
+      rounds.push({
+        name: names[r],
+        matches: currentMatches
+      });
+      prevMatches = currentMatches;
     }
+
+    const bracket = {
+      rounds: rounds,
+      source: "groups",
+      createdAt: new Date().toISOString()
+    };
+
+    this.state.bracket = bracket;
+    return bracket;
   }
 }

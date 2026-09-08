@@ -17,6 +17,12 @@ class App {
     this.searchQuery = "";
     this.currentEditingMatchId = null;
 
+    // Filtri calendario
+    this.schedulePhaseFilter = "all";
+    this.scheduleCourtFilter = "all";
+    this.scheduleStatusFilter = "all";
+    this.scheduleSearchQuery = "";
+
     this.init();
   }
 
@@ -210,6 +216,15 @@ class App {
       accountForm.addEventListener("submit", (e) => {
         e.preventDefault();
         this.handleSaveAccountProfile();
+      });
+    }
+
+    // Form Programmazione Match Calendario (Admin)
+    const scheduleMatchForm = document.getElementById("schedule-match-form");
+    if (scheduleMatchForm) {
+      scheduleMatchForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        this.handleSaveScheduleMatch();
       });
     }
 
@@ -776,7 +791,7 @@ class App {
   }
 
   renderTabContent() {
-    const tabPanels = ["players", "groups", "bracket", "rules"];
+    const tabPanels = ["players", "groups", "schedule", "bracket", "rules"];
     tabPanels.forEach(tp => {
       const el = document.getElementById(`tab-panel-${tp}`);
       if (el) {
@@ -794,6 +809,9 @@ class App {
         break;
       case "groups":
         this.renderGroupsView();
+        break;
+      case "schedule":
+        this.renderScheduleView();
         break;
       case "bracket":
         this.renderBracketView();
@@ -823,6 +841,22 @@ class App {
       } else {
         navGroups.textContent = "Sinner & Alcaraz";
         navGroups.className = "bg-blue-100 text-blue-900 text-[10px] font-bold px-1.5 py-0.2 rounded-full";
+      }
+    }
+
+    // Aggiorna indicatore calendario
+    const navScheduleCount = document.getElementById("nav-schedule-count");
+    if (navScheduleCount) {
+      const allMatches = this.getAllMatches();
+      const scheduledCount = allMatches.filter(m => m.match && m.match.dateTime).length;
+      if (allMatches.length > 0) {
+        navScheduleCount.textContent = `${scheduledCount}/${allMatches.length} fissati`;
+        navScheduleCount.className = scheduledCount > 0
+          ? "bg-yellow-400 text-blue-950 text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-sm"
+          : "bg-blue-100 text-blue-900 text-[10px] font-bold px-1.5 py-0.2 rounded-full";
+      } else {
+        navScheduleCount.textContent = "Orari & Campi";
+        navScheduleCount.className = "bg-blue-100 text-blue-900 text-[10px] font-bold px-1.5 py-0.2 rounded-full";
       }
     }
 
@@ -878,9 +912,9 @@ class App {
               <button onclick="app.handleAutoAssignGroups()" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-1.5">
                 + Distribuisci Atleti nei 2 Gironi
               </button>
-              ${totalInGroups >= 4 ? `
-                <button onclick="app.handleGenerateBracketFromGroups(2)" class="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl border border-white/30 transition flex items-center justify-center gap-1.5">
-                  Qualifica al Tabellone (Top 2)
+              ${totalInGroups >= 2 ? `
+                <button onclick="app.handleGenerateBracketFromGroups()" class="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl border border-white/30 transition flex items-center justify-center gap-1.5">
+                  Genera Tabellone Finale (Tutti Qualificati)
                 </button>
               ` : ''}
             </div>
@@ -1091,13 +1125,13 @@ class App {
     }
   }
 
-  handleGenerateBracketFromGroups(topCount = 2) {
+  handleGenerateBracketFromGroups() {
     if (!this.isAdmin) return;
     try {
-      this.tournamentManager.generateBracketFromGroups(topCount);
+      this.tournamentManager.generateBracketFromGroups();
       this.saveState();
       this.switchTab("bracket");
-      this.showToast(`Tabellone Finale generato con i migliori ${topCount} di ogni girone!`, "success");
+      this.showToast("Tabellone Finale generato con tutti i partecipanti dei gironi!", "success");
     } catch (e) {
       alert(e.message);
     }
@@ -1193,76 +1227,26 @@ class App {
     let html = `
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
         
-        <!-- Banner Condizionale Ruolo / Iscrizione Atleta -->
+        <!-- Banner Condizionale Ruolo -->
         ${this.isAdmin ? `
           <div class="bg-blue-50 border border-blue-200 rounded-xl p-3.5 mb-5 flex flex-wrap items-center justify-between gap-3">
             <div class="text-xs text-blue-950">
-              <strong>Accesso Amministratore:</strong> puoi inserire o modificare atleti e comporre il tabellone finale.
+              <strong>Accesso Amministratore (Barcello Luca):</strong> puoi inserire, modificare o eliminare atleti, gestire i gironi e comporre il tabellone finale.
             </div>
             <button onclick="app.openNewPlayerModal(false)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
               + Inserisci Atleta
             </button>
           </div>
-        ` : (this.user && this.user.email !== "ospite@torneo.it") ? (
-          myRegisteredPlayer ? `
-            <div class="bg-blue-50 border border-blue-300 rounded-2xl p-4 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
-              <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-xl bg-blue-900 border border-blue-800 text-yellow-300 flex items-center justify-center font-bold">
-                  <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                  </svg>
-                </div>
-                <div>
-                  <div class="text-xs font-bold text-blue-950">Sei iscritto al Torneo Momy!</div>
-                  <div class="text-xs text-blue-900 mt-0.5">
-                    Atleta: <strong>${myRegisteredPlayer.firstName} ${myRegisteredPlayer.lastName}</strong> • Data di nascita: ${this.formatDate(myRegisteredPlayer.birthDate)} • Classifica: <span class="font-mono font-black bg-yellow-400 text-blue-950 px-1.5 py-0.5 rounded shadow-sm">${myRegisteredPlayer.ranking || 'NC'}</span>
-                  </div>
-                </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <button onclick="app.editPlayer('${myRegisteredPlayer.id}')" class="text-xs font-semibold text-blue-900 bg-white border border-blue-300 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition">
-                  Modifica Note
-                </button>
-                <button onclick="app.cancelMyRegistration('${myRegisteredPlayer.id}')" class="text-xs font-semibold text-rose-700 bg-white border border-rose-200 hover:bg-rose-50 px-3 py-1.5 rounded-xl transition">
-                  Ritira Iscrizione
-                </button>
-              </div>
+        ` : `
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-3.5 mb-5 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-blue-900 text-yellow-400 flex items-center justify-center font-bold text-xs flex-shrink-0">
+              <svg class="w-4 h-4 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+              </svg>
             </div>
-          ` : `
-            <div class="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-300 rounded-2xl p-4 sm:p-5 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-              <div>
-                <div class="flex items-center gap-2 mb-1">
-                  <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
-                  <span class="text-xs font-bold uppercase tracking-wider text-blue-800">Iscrizione al Torneo</span>
-                </div>
-                <div class="text-sm font-bold text-gray-900">
-                  ${this.user.firstName} ${this.user.lastName}
-                  <span class="text-xs font-normal text-gray-600 ml-2">
-                    (Nascita: ${this.formatDate(this.user.birthDate)} • Classifica FITP: <strong class="font-mono font-bold text-blue-700">${this.user.ranking || 'NC'}</strong>)
-                  </span>
-                </div>
-                <p class="text-xs text-gray-600 mt-1">
-                  I tuoi dati sono precompilati in base al tuo account: clicca per inserirti nell'elenco partecipanti.
-                </p>
-              </div>
-              <div class="flex items-center gap-2 w-full sm:w-auto">
-                <button onclick="app.openNewPlayerModal(true)" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-2">
-                  <span>Inserisci Atleta</span>
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
-                  </svg>
-                </button>
-              </div>
+            <div class="text-xs text-blue-950 leading-relaxed">
+              <strong>Roster Ufficiale Torneo Momy:</strong> La gestione dei partecipanti (inserimento, modifica ed eliminazione atleti) e dei tabelloni è curata esclusivamente dall'Amministratore Ufficiale (<strong>Barcello Luca</strong>).
             </div>
-          `
-        ) : `
-          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div class="text-xs text-slate-600">
-              Accesso come Spettatore. Per iscriverti al torneo con i tuoi dati, effettua la registrazione iniziale.
-            </div>
-            <button onclick="app.openLoginModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-3.5 py-2 rounded-xl shadow-sm transition whitespace-nowrap">
-              Accedi / Registrati
-            </button>
           </div>
         `}
 
@@ -1286,9 +1270,11 @@ class App {
               </svg>
             </div>
 
-            <button onclick="app.openNewPlayerModal(false)" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-4 py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
-              + Inserisci Atleta
-            </button>
+            ${this.isAdmin ? `
+              <button onclick="app.openNewPlayerModal(false)" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-4 py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
+                + Inserisci Atleta
+              </button>
+            ` : ''}
           </div>
         </div>
     `;
@@ -1303,11 +1289,15 @@ class App {
           </div>
           <h3 class="text-base sm:text-lg font-bold text-gray-800 mb-1">Nessun atleta iscritto al momento</h3>
           <p class="text-xs sm:text-sm text-gray-500 max-w-sm mx-auto mb-5">
-            L'elenco partecipanti del Torneo Momy è attualmente vuoto. Inserisci i ragazzi che parteciperanno alla competizione.
+            ${this.isAdmin
+              ? "L'elenco partecipanti del Torneo Momy è attualmente vuoto. Inserisci i ragazzi che parteciperanno alla competizione."
+              : "L'elenco partecipanti del Torneo Momy è attualmente vuoto. L'amministratore ufficiale (Barcello Luca) provvederà all'inserimento degli iscritti."}
           </p>
-          <button onclick="app.openNewPlayerModal(false)" class="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl shadow transition">
-            + Inserisci Atleta
-          </button>
+          ${this.isAdmin ? `
+            <button onclick="app.openNewPlayerModal(false)" class="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl shadow transition">
+              + Inserisci Atleta
+            </button>
+          ` : ''}
         </div>
       `;
     } else {
@@ -1327,18 +1317,11 @@ class App {
             </thead>
             <tbody class="divide-y divide-gray-100">
               ${filtered.map((p, idx) => {
-                const isMe = this.user && (
-                  (p.userId && p.userId === this.user.email) ||
-                  (p.email && p.email.toLowerCase() === this.user.email.toLowerCase()) ||
-                  (p.firstName && p.lastName && this.user.firstName && this.user.lastName &&
-                   p.firstName.toLowerCase() === this.user.firstName.toLowerCase() &&
-                   p.lastName.toLowerCase() === this.user.lastName.toLowerCase())
-                );
                 return `
-                  <tr class="hover:bg-gray-50/80 transition ${isMe ? 'bg-blue-50/40' : ''}">
+                  <tr class="hover:bg-gray-50/80 transition">
                     <td class="py-3 px-3 font-mono text-center text-gray-400 font-semibold">${idx + 1}</td>
-                    <td class="py-3 px-3 font-bold text-gray-900">${p.firstName || p.name.split(' ')[0] || '-'}</td>
-                    <td class="py-3 px-3 font-bold text-gray-900">${p.lastName || p.name.split(' ').slice(1).join(' ') || '-'}</td>
+                    <td class="py-3 px-3 font-bold text-gray-900">${p.firstName || (p.name ? p.name.split(' ')[0] : '-') || '-'}</td>
+                    <td class="py-3 px-3 font-bold text-gray-900">${p.lastName || (p.name ? p.name.split(' ').slice(1).join(' ') : '-') || '-'}</td>
                     <td class="py-3 px-3 text-gray-600 font-mono text-xs">${this.formatDate(p.birthDate)}</td>
                     <td class="py-3 px-3">
                       <span class="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-semibold">
@@ -1354,15 +1337,8 @@ class App {
                         <button onclick="app.deletePlayer('${p.id}')" class="text-xs text-rose-600 hover:text-rose-800 font-medium px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 transition">
                           Elimina
                         </button>
-                      ` : isMe ? `
-                        <button onclick="app.editPlayer('${p.id}')" class="text-xs text-blue-700 hover:text-blue-900 font-medium px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 transition">
-                          Modifica
-                        </button>
-                        <button onclick="app.cancelMyRegistration('${p.id}')" class="text-xs text-rose-600 hover:text-rose-800 font-medium px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 transition">
-                          Ritira
-                        </button>
                       ` : `
-                        <span class="text-gray-300 text-xs">-</span>
+                        <span class="text-gray-400 text-xs italic">Sola lettura</span>
                       `}
                     </td>
                   </tr>
@@ -1388,6 +1364,11 @@ class App {
   }
 
   openNewPlayerModal(fromProfile = false) {
+    if (!this.isAdmin) {
+      this.showToast("Solo l'amministratore (Barcello Luca) può inserire giocatori.", "error");
+      return;
+    }
+
     const modalTitle = document.getElementById("player-modal-title");
     const submitBtn = document.getElementById("player-submit-btn");
     if (modalTitle) modalTitle.textContent = "Inserisci Atleta";
@@ -1401,44 +1382,26 @@ class App {
     const rkInput = document.getElementById("player-ranking-input");
     const notesInput = document.getElementById("player-notes-input");
 
-    // Precompila con i dati dell'account se disponibili
-    if (this.user && this.user.email !== "ospite@torneo.it") {
-      fnInput.value = this.user.firstName || (this.user.name ? this.user.name.split(" ")[0] : "");
-      lnInput.value = this.user.lastName || (this.user.name ? this.user.name.split(" ").slice(1).join(" ") : "");
-      bdInput.value = this.user.birthDate || "";
-      rkInput.value = this.user.ranking || "NC";
-      notesInput.value = "";
-    } else {
-      fnInput.value = "";
-      lnInput.value = "";
-      bdInput.value = "";
-      rkInput.value = "NC";
-      notesInput.value = "";
-    }
+    fnInput.value = "";
+    lnInput.value = "";
+    bdInput.value = "";
+    rkInput.value = "NC";
+    notesInput.value = "";
 
     this.openModal("modal-player");
     setTimeout(() => {
-      if (fnInput.value && lnInput.value) {
-        notesInput.focus();
-      } else {
-        fnInput.focus();
-      }
+      fnInput.focus();
     }, 150);
   }
 
   editPlayer(id) {
+    if (!this.isAdmin) {
+      this.showToast("Solo l'amministratore (Barcello Luca) può modificare i dati dei giocatori.", "error");
+      return;
+    }
+
     const p = this.state.players.find(x => x.id === id);
     if (!p) return;
-
-    const isMe = this.user && (
-      (p.userId && p.userId === this.user.email) ||
-      (p.email && p.email.toLowerCase() === this.user.email.toLowerCase()) ||
-      (p.firstName && p.lastName && this.user.firstName && this.user.lastName &&
-       p.firstName.toLowerCase() === this.user.firstName.toLowerCase() &&
-       p.lastName.toLowerCase() === this.user.lastName.toLowerCase())
-    );
-
-    if (!this.isAdmin && !isMe) return;
 
     const modalTitle = document.getElementById("player-modal-title");
     const submitBtn = document.getElementById("player-submit-btn");
@@ -1446,8 +1409,8 @@ class App {
     if (submitBtn) submitBtn.textContent = "Aggiungi Atleta";
     document.getElementById("player-id-input").value = p.id;
 
-    document.getElementById("player-firstname-input").value = p.firstName || p.name.split(' ')[0] || "";
-    document.getElementById("player-lastname-input").value = p.lastName || p.name.split(' ').slice(1).join(' ') || "";
+    document.getElementById("player-firstname-input").value = p.firstName || (p.name ? p.name.split(' ')[0] : "") || "";
+    document.getElementById("player-lastname-input").value = p.lastName || (p.name ? p.name.split(' ').slice(1).join(' ') : "") || "";
     document.getElementById("player-birthdate-input").value = p.birthDate || "";
     document.getElementById("player-ranking-input").value = p.ranking || "NC";
     document.getElementById("player-notes-input").value = p.notes || "";
@@ -1456,6 +1419,11 @@ class App {
   }
 
   handleSavePlayer() {
+    if (!this.isAdmin) {
+      this.showToast("Operazione consentita solo all'amministratore (Barcello Luca).", "error");
+      return;
+    }
+
     const id = document.getElementById("player-id-input").value;
     const firstName = document.getElementById("player-firstname-input").value.trim();
     const lastName = document.getElementById("player-lastname-input").value.trim();
@@ -1500,7 +1468,7 @@ class App {
         return;
       }
 
-      // Nuovo atleta
+      // Nuovo atleta inserito da admin
       const newPlayer = {
         id: `p-${Date.now()}`,
         firstName,
@@ -1509,8 +1477,8 @@ class App {
         birthDate,
         ranking,
         notes,
-        email: this.user ? this.user.email : "",
-        userId: this.user ? this.user.email : "",
+        email: "",
+        userId: "",
         status: "confermato"
       };
       this.state.players.push(newPlayer);
@@ -1521,19 +1489,11 @@ class App {
     this.showToast(`Atleta ${fullName} registrato con successo!`, "success");
   }
 
-  cancelMyRegistration(id) {
-    const p = this.state.players.find(x => x.id === id);
-    if (!p) return;
-
-    if (confirm(`Sei sicuro di voler ritirare la tua iscrizione al Torneo Momy (${p.name})?`)) {
-      this.state.players = this.state.players.filter(x => x.id !== id);
-      this.saveState();
-      this.showToast("Iscrizione ritirata", "info");
-    }
-  }
-
   deletePlayer(id) {
-    if (!this.isAdmin) return;
+    if (!this.isAdmin) {
+      this.showToast("Solo l'amministratore (Barcello Luca) può eliminare giocatori.", "error");
+      return;
+    }
     const p = this.state.players.find(x => x.id === id);
     if (!p) return;
 
@@ -1545,7 +1505,513 @@ class App {
   }
 
   // ==========================================
-  // SEZIONE 2: TABELLONE FINALE
+  // SEZIONE 3: CALENDARIO PARTITE (ORARI & CAMPI)
+  // ==========================================
+  getAllMatches() {
+    this.tournamentManager.ensureGroups();
+    const all = [];
+
+    // Gironi
+    const sinnerMatches = this.state.groups?.sinner?.matches || [];
+    sinnerMatches.forEach(m => {
+      all.push({
+        type: "group",
+        groupKey: "sinner",
+        groupName: "Girone Sinner",
+        phase: "Girone Sinner",
+        match: m
+      });
+    });
+
+    const alcarazMatches = this.state.groups?.alcaraz?.matches || [];
+    alcarazMatches.forEach(m => {
+      all.push({
+        type: "group",
+        groupKey: "alcaraz",
+        groupName: "Girone Alcaraz",
+        phase: "Girone Alcaraz",
+        match: m
+      });
+    });
+
+    // Tabellone
+    if (this.state.bracket && this.state.bracket.rounds) {
+      this.state.bracket.rounds.forEach((round, rIdx) => {
+        (round.matches || []).forEach(m => {
+          all.push({
+            type: "bracket",
+            roundIndex: rIdx,
+            roundName: round.name,
+            phase: `Tabellone • ${round.name}`,
+            match: m
+          });
+        });
+      });
+    }
+
+    return all;
+  }
+
+  setScheduleFilter(key, value) {
+    if (key === "phase") this.schedulePhaseFilter = value;
+    if (key === "court") this.scheduleCourtFilter = value;
+    if (key === "status") this.scheduleStatusFilter = value;
+    if (key === "search") this.scheduleSearchQuery = (value || "").toLowerCase().trim();
+    this.renderScheduleView();
+  }
+
+  renderScheduleView() {
+    const container = document.getElementById("schedule-container");
+    if (!container) return;
+
+    const allMatches = this.getAllMatches();
+    const scheduledMatches = allMatches.filter(x => x.match.dateTime);
+    const completedMatches = allMatches.filter(x => x.match.status === "completato");
+
+    // Filtraggio
+    const filtered = allMatches.filter(item => {
+      const m = item.match;
+      const p1 = this.tournamentManager.getPlayer(m.player1Id);
+      const p2 = this.tournamentManager.getPlayer(m.player2Id);
+      const p1Name = p1 ? p1.name.toLowerCase() : "";
+      const p2Name = p2 ? p2.name.toLowerCase() : "";
+
+      // Filtro Fase
+      if (this.schedulePhaseFilter === "sinner" && item.groupKey !== "sinner") return false;
+      if (this.schedulePhaseFilter === "alcaraz" && item.groupKey !== "alcaraz") return false;
+      if (this.schedulePhaseFilter === "bracket" && item.type !== "bracket") return false;
+
+      // Filtro Campo
+      if (this.scheduleCourtFilter !== "all") {
+        if (!m.court || !m.court.includes(this.scheduleCourtFilter)) return false;
+      }
+
+      // Filtro Stato
+      if (this.scheduleStatusFilter === "scheduled" && !m.dateTime) return false;
+      if (this.scheduleStatusFilter === "unscheduled" && m.dateTime) return false;
+      if (this.scheduleStatusFilter === "live" && m.status !== "in_corso") return false;
+      if (this.scheduleStatusFilter === "completed" && m.status !== "completato") return false;
+
+      // Ricerca Atleta
+      if (this.scheduleSearchQuery) {
+        const q = this.scheduleSearchQuery;
+        if (!p1Name.includes(q) && !p2Name.includes(q)) return false;
+      }
+
+      return true;
+    });
+
+    // Ordinamento cronologico
+    filtered.sort((a, b) => {
+      const dtA = a.match.dateTime ? new Date(a.match.dateTime).getTime() : Infinity;
+      const dtB = b.match.dateTime ? new Date(b.match.dateTime).getTime() : Infinity;
+      if (dtA !== dtB) return dtA - dtB;
+      return a.phase.localeCompare(b.phase);
+    });
+
+    let html = `
+      <div class="space-y-6">
+
+        <!-- Banner Intestazione Calendario -->
+        <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 rounded-2xl p-5 sm:p-6 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
+              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Programma Ufficiale Partite</span>
+            </div>
+            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Calendario Incontri & Campi</h2>
+            <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
+              Date, orari e campi di gioco stabiliti dall'Amministratore (Barcello Luca) per la Fase a Gironi (Sinner & Alcaraz) e il Tabellone Finale.
+            </p>
+          </div>
+
+          ${this.isAdmin ? `
+            <div class="bg-yellow-400 text-blue-950 text-xs font-black px-4 py-2.5 rounded-xl shadow border border-yellow-300 flex items-center gap-2">
+              <svg class="w-4 h-4 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+              </svg>
+              <span>Gestione Orari e Campi Attiva</span>
+            </div>
+          ` : `
+            <div class="text-xs text-blue-200 bg-white/10 px-3.5 py-2 rounded-xl border border-white/20">
+              Orari e campi gestiti dall'Amministratore Barcello Luca
+            </div>
+          `}
+        </div>
+
+        <!-- Box Statistiche Incontri -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm text-center">
+            <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Incontri Totali</div>
+            <div class="text-xl sm:text-2xl font-black text-gray-900 mt-0.5">${allMatches.length}</div>
+          </div>
+          <div class="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm text-center">
+            <div class="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Programmati</div>
+            <div class="text-xl sm:text-2xl font-black text-blue-900 mt-0.5">${scheduledMatches.length}</div>
+          </div>
+          <div class="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm text-center">
+            <div class="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Da Fissare</div>
+            <div class="text-xl sm:text-2xl font-black text-amber-900 mt-0.5">${allMatches.length - scheduledMatches.length}</div>
+          </div>
+          <div class="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm text-center">
+            <div class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Completati</div>
+            <div class="text-xl sm:text-2xl font-black text-emerald-700 mt-0.5">${completedMatches.length}</div>
+          </div>
+        </div>
+
+        <!-- Filtri e Ricerca -->
+        <div class="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            
+            <!-- Filtro Fase -->
+            <div class="flex flex-wrap items-center gap-1.5">
+              <span class="text-xs font-bold text-gray-600 mr-1">Fase:</span>
+              <button onclick="app.setScheduleFilter('phase', 'all')" class="text-xs px-3 py-1.5 rounded-xl font-semibold transition ${this.schedulePhaseFilter === 'all' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
+                Tutte
+              </button>
+              <button onclick="app.setScheduleFilter('phase', 'sinner')" class="text-xs px-3 py-1.5 rounded-xl font-semibold transition ${this.schedulePhaseFilter === 'sinner' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
+                Girone Sinner
+              </button>
+              <button onclick="app.setScheduleFilter('phase', 'alcaraz')" class="text-xs px-3 py-1.5 rounded-xl font-semibold transition ${this.schedulePhaseFilter === 'alcaraz' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
+                Girone Alcaraz
+              </button>
+              <button onclick="app.setScheduleFilter('phase', 'bracket')" class="text-xs px-3 py-1.5 rounded-xl font-semibold transition ${this.schedulePhaseFilter === 'bracket' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
+                Tabellone Finale
+              </button>
+            </div>
+
+            <!-- Ricerca Atleta -->
+            <div class="relative w-full sm:w-56">
+              <input type="text" id="schedule-search-input" value="${this.scheduleSearchQuery}" placeholder="Cerca atleta..." class="w-full text-xs sm:text-sm pl-8 pr-3 py-1.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
+              <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+            </div>
+
+          </div>
+
+          <!-- Filtri Campo e Stato -->
+          <div class="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100 text-xs">
+            <div class="flex items-center gap-2">
+              <label class="font-bold text-gray-600">Campo:</label>
+              <select onchange="app.setScheduleFilter('court', this.value)" class="text-xs border rounded-lg px-2.5 py-1 bg-white font-medium">
+                <option value="all" ${this.scheduleCourtFilter === 'all' ? 'selected' : ''}>Tutti i campi</option>
+                <option value="Campo 1" ${this.scheduleCourtFilter === 'Campo 1' ? 'selected' : ''}>Campo 1 (Centrale)</option>
+                <option value="Campo 2" ${this.scheduleCourtFilter === 'Campo 2' ? 'selected' : ''}>Campo 2 (Terra)</option>
+                <option value="Campo 3" ${this.scheduleCourtFilter === 'Campo 3' ? 'selected' : ''}>Campo 3 (Sintetico)</option>
+              </select>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <label class="font-bold text-gray-600">Stato:</label>
+              <select onchange="app.setScheduleFilter('status', this.value)" class="text-xs border rounded-lg px-2.5 py-1 bg-white font-medium">
+                <option value="all" ${this.scheduleStatusFilter === 'all' ? 'selected' : ''}>Tutti gli stati</option>
+                <option value="scheduled" ${this.scheduleStatusFilter === 'scheduled' ? 'selected' : ''}>Con data/ora fissata</option>
+                <option value="unscheduled" ${this.scheduleStatusFilter === 'unscheduled' ? 'selected' : ''}>Da programmare</option>
+                <option value="live" ${this.scheduleStatusFilter === 'live' ? 'selected' : ''}>In corso (Live)</option>
+                <option value="completed" ${this.scheduleStatusFilter === 'completed' ? 'selected' : ''}>Completati</option>
+              </select>
+            </div>
+          </div>
+        </div>
+    `;
+
+    if (allMatches.length === 0) {
+      html += `
+        <div class="text-center py-16 bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+          <div class="w-14 h-14 bg-blue-50 border border-blue-200 text-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+          </div>
+          <h3 class="text-lg font-bold text-gray-800 mb-1">Nessuna partita in calendario</h3>
+          <p class="text-xs sm:text-sm text-gray-500 max-w-md mx-auto mb-6">
+            Componi la fase a gironi o il tabellone finale per generare automaticamente gli incontri del Torneo Momy.
+          </p>
+          ${this.isAdmin ? `
+            <button onclick="app.switchTab('groups')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition">
+              Vai alla Fase a Gironi
+            </button>
+          ` : `
+            <button onclick="app.switchTab('players')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition">
+              Visualizza Iscritti
+            </button>
+          `}
+        </div>
+      </div>
+      `;
+      container.innerHTML = html;
+      return;
+    }
+
+    if (filtered.length === 0) {
+      html += `
+        <div class="text-center py-12 bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+          <p class="text-sm font-semibold text-gray-700">Nessuna partita corrisponde ai filtri selezionati.</p>
+          <button onclick="app.schedulePhaseFilter='all'; app.scheduleCourtFilter='all'; app.scheduleStatusFilter='all'; app.scheduleSearchQuery=''; app.renderScheduleView();" class="mt-3 text-xs text-blue-600 hover:underline font-bold">
+            Resetta tutti i filtri
+          </button>
+        </div>
+      </div>
+      `;
+      container.innerHTML = html;
+      return;
+    }
+
+    // Lista Schede Incontri
+    html += `
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        ${filtered.map(item => {
+          const m = item.match;
+          const p1 = this.tournamentManager.getPlayer(m.player1Id);
+          const p2 = this.tournamentManager.getPlayer(m.player2Id);
+          const isCompleted = m.status === "completato";
+          const isLive = m.status === "in_corso";
+          const hasDateTime = !!m.dateTime;
+
+          const isGroup = item.type === "group";
+          const phaseColor = isGroup
+            ? (item.groupKey === "sinner" ? "bg-blue-100 text-blue-900 border-blue-200" : "bg-indigo-100 text-indigo-900 border-indigo-200")
+            : "bg-yellow-100 text-blue-950 border-yellow-300";
+
+          const courtBadge = m.court || "Campo da definire";
+
+          return `
+            <div class="bg-white rounded-2xl border ${hasDateTime ? 'border-gray-200' : 'border-dashed border-gray-300'} shadow-sm hover:shadow-md transition overflow-hidden flex flex-col justify-between">
+              
+              <!-- Barra Superiore Incontro -->
+              <div class="p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/60">
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${phaseColor}">
+                    ${item.phase}
+                  </span>
+                  <span class="text-[11px] font-semibold text-gray-600 flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                    </svg>
+                    <span>${courtBadge}</span>
+                  </span>
+                </div>
+
+                <div>
+                  ${isLive ? `
+                    <span class="inline-flex items-center gap-1 bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      <span class="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse"></span>
+                      <span>Live in corso</span>
+                    </span>
+                  ` : isCompleted ? `
+                    <span class="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      Completato
+                    </span>
+                  ` : hasDateTime ? `
+                    <span class="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
+                      In programma
+                    </span>
+                  ` : `
+                    <span class="bg-gray-100 text-gray-500 text-[10px] font-medium px-2 py-0.5 rounded-full">
+                      Da fissare
+                    </span>
+                  `}
+                </div>
+              </div>
+
+              <!-- Dettagli Atleti e Data/Ora -->
+              <div class="p-4 sm:p-5 flex-grow space-y-3">
+                
+                <!-- Box Data & Orario -->
+                <div class="flex items-center gap-2.5 p-2.5 rounded-xl ${hasDateTime ? 'bg-blue-50/70 border border-blue-200' : 'bg-amber-50/50 border border-amber-200/60'}">
+                  <div class="w-7 h-7 rounded-lg ${hasDateTime ? 'bg-blue-600 text-white' : 'bg-amber-100 text-amber-800'} flex items-center justify-center flex-shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                  </div>
+                  <div class="text-xs">
+                    ${hasDateTime ? `
+                      <span class="font-bold text-blue-950">${this.formatScheduleDateTime(m.dateTime)}</span>
+                      <span class="text-blue-700 text-[11px] block">Durata: 1 ora fino alla campana</span>
+                    ` : `
+                      <span class="font-semibold text-amber-900 italic">Data e ora non ancora fissate</span>
+                      <span class="text-amber-700 text-[11px] block">In attesa di programmazione da parte dell'admin</span>
+                    `}
+                  </div>
+                </div>
+
+                <!-- Atleti a Confronto -->
+                <div class="space-y-1.5 pt-1">
+                  <!-- Giocatore 1 -->
+                  <div class="flex items-center justify-between p-2 rounded-lg ${m.winnerId && m.winnerId === m.player1Id ? 'bg-blue-50/90 font-bold border border-blue-200' : 'bg-gray-50'}">
+                    <div class="flex items-center gap-2 truncate">
+                      <span class="text-xs font-bold ${m.winnerId && m.winnerId === m.player1Id ? 'text-blue-950' : 'text-gray-800'} truncate">
+                        ${p1 ? p1.name : (m.player1Id ? m.player1Id : 'In attesa')}
+                      </span>
+                      ${p1 && p1.ranking ? `
+                        <span class="text-[9px] font-mono bg-white text-gray-700 px-1.5 py-0.2 rounded border font-semibold">
+                          ${p1.ranking}
+                        </span>
+                      ` : ''}
+                    </div>
+                    ${m.games1 !== null && m.games1 !== undefined ? `
+                      <span class="font-mono text-xs font-black text-blue-900 bg-white px-2 py-0.5 rounded border">
+                        ${m.games1}
+                      </span>
+                    ` : (isCompleted && m.scores ? `
+                      <span class="font-mono text-xs font-bold text-blue-900">${m.scores}</span>
+                    ` : '')}
+                  </div>
+
+                  <!-- Giocatore 2 -->
+                  <div class="flex items-center justify-between p-2 rounded-lg ${m.winnerId && m.winnerId === m.player2Id ? 'bg-blue-50/90 font-bold border border-blue-200' : 'bg-gray-50'}">
+                    <div class="flex items-center gap-2 truncate">
+                      <span class="text-xs font-bold ${m.winnerId && m.winnerId === m.player2Id ? 'text-blue-950' : 'text-gray-800'} truncate">
+                        ${p2 ? p2.name : (m.player2Id ? m.player2Id : 'In attesa')}
+                      </span>
+                      ${p2 && p2.ranking ? `
+                        <span class="text-[9px] font-mono bg-white text-gray-700 px-1.5 py-0.2 rounded border font-semibold">
+                          ${p2.ranking}
+                        </span>
+                      ` : ''}
+                    </div>
+                    ${m.games2 !== null && m.games2 !== undefined ? `
+                      <span class="font-mono text-xs font-black text-blue-900 bg-white px-2 py-0.5 rounded border">
+                        ${m.games2}
+                      </span>
+                    ` : ''}
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- Footer con Azioni Admin -->
+              ${this.isAdmin ? `
+                <div class="p-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                  <span class="text-[11px] text-gray-400">ID: ${m.id}</span>
+                  <button onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey || item.roundIndex}', '${m.id}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-sm transition flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    <span>Imposta Data, Ora & Campo</span>
+                  </button>
+                </div>
+              ` : ''}
+
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+
+    html += `</div>`;
+    container.innerHTML = html;
+
+    // Ricollega ricerca calendario
+    const searchInput = document.getElementById("schedule-search-input");
+    if (searchInput) {
+      searchInput.addEventListener("input", (e) => {
+        this.scheduleSearchQuery = e.target.value.toLowerCase().trim();
+        this.renderScheduleView();
+      });
+    }
+  }
+
+  formatScheduleDateTime(dateTimeStr) {
+    if (!dateTimeStr) return "";
+    try {
+      const d = new Date(dateTimeStr);
+      if (isNaN(d.getTime())) return dateTimeStr;
+      const dayName = d.toLocaleDateString('it-IT', { weekday: 'long' });
+      const dayFormatted = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+      const dateNum = d.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' });
+      const time = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+      return `${dayFormatted} ${dateNum} • ore ${time}`;
+    } catch (e) {
+      return dateTimeStr;
+    }
+  }
+
+  openScheduleMatchModal(type, groupKeyOrRound, matchId) {
+    if (!this.isAdmin) {
+      this.showToast("Solo l'amministratore (Barcello Luca) può programmare data e campo.", "error");
+      return;
+    }
+
+    let targetMatch = null;
+    let phaseLabel = "";
+
+    if (type === "group") {
+      this.tournamentManager.ensureGroups();
+      const group = this.state.groups[groupKeyOrRound];
+      if (group) {
+        targetMatch = group.matches.find(m => m.id === matchId);
+        phaseLabel = group.name || `Girone ${groupKeyOrRound}`;
+      }
+    } else if (type === "bracket") {
+      if (this.state.bracket && this.state.bracket.rounds) {
+        for (let r = 0; r < this.state.bracket.rounds.length; r++) {
+          const round = this.state.bracket.rounds[r];
+          const found = round.matches.find(m => m.id === matchId);
+          if (found) {
+            targetMatch = found;
+            phaseLabel = `Tabellone • ${round.name}`;
+            groupKeyOrRound = r;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!targetMatch) return;
+
+    const p1 = this.tournamentManager.getPlayer(targetMatch.player1Id);
+    const p2 = this.tournamentManager.getPlayer(targetMatch.player2Id);
+
+    document.getElementById("schedule-match-type").value = type;
+    document.getElementById("schedule-match-group-or-round").value = groupKeyOrRound;
+    document.getElementById("schedule-match-id").value = matchId;
+
+    document.getElementById("schedule-match-phase-label").textContent = phaseLabel;
+    document.getElementById("schedule-match-p1-name").textContent = p1 ? p1.name : "In attesa";
+    document.getElementById("schedule-match-p2-name").textContent = p2 ? p2.name : "In attesa";
+
+    document.getElementById("schedule-match-datetime").value = targetMatch.dateTime || "";
+    document.getElementById("schedule-match-court").value = targetMatch.court || "Campo 1 (Centrale)";
+    document.getElementById("schedule-match-status").value = targetMatch.status || "in_programma";
+
+    this.openModal("modal-schedule-match");
+  }
+
+  handleSaveScheduleMatch() {
+    if (!this.isAdmin) return;
+
+    const type = document.getElementById("schedule-match-type").value;
+    const groupKeyOrRound = document.getElementById("schedule-match-group-or-round").value;
+    const matchId = document.getElementById("schedule-match-id").value;
+    const dateTime = document.getElementById("schedule-match-datetime").value;
+    const court = document.getElementById("schedule-match-court").value;
+    const status = document.getElementById("schedule-match-status").value;
+
+    if (type === "group") {
+      this.tournamentManager.ensureGroups();
+      this.tournamentManager.updateGroupMatch(groupKeyOrRound, matchId, {
+        dateTime,
+        court,
+        status
+      });
+    } else if (type === "bracket") {
+      this.tournamentManager.updateBracketMatch(matchId, {
+        dateTime,
+        court,
+        status
+      });
+    }
+
+    this.saveState();
+    this.closeModal("modal-schedule-match");
+    this.render();
+    this.showToast("Data, ora e campo impostati con successo!", "success");
+  }
+
+  // ==========================================
+  // SEZIONE 4: TABELLONE FINALE
   // ==========================================
   renderBracketView() {
     const container = document.getElementById("bracket-container");
@@ -1812,7 +2278,7 @@ class App {
   }
 
   // ==========================================
-  // SEZIONE 4: REGOLAMENTO
+  // SEZIONE 5: REGOLAMENTO
   // ==========================================
   renderRulesView() {
     const container = document.getElementById("rules-container");
@@ -1848,56 +2314,69 @@ class App {
             <div class="space-y-2 text-xs text-amber-900 leading-relaxed">
               <div class="bg-white/90 p-3 rounded-xl border border-amber-200 shadow-xs">
                 <strong class="text-blue-950 block mb-1">1. Durante la Fase a Gironi (Girone Sinner & Girone Alcaraz):</strong>
-                Se al suono della campana il punteggio è in parità (es. 4-4, 5-5), <strong>la partita termina con il pareggio</strong>. A ciascun atleta viene assegnato <strong>1 punto</strong> in classifica (vittoria: 3 punti, sconfitta: 0 punti).
+                Se al suono della campana il punteggio è in parità (es. 4-4, 5-5), <strong>la partita termina con il pareggio</strong>. A ciascun atleta viene assegnato <strong>1 punto</strong> in classifica (Vittoria: 3 punti, Pareggio: 1 punto, Sconfitta: 0 punti).
               </div>
               <div class="bg-white/90 p-3 rounded-xl border border-amber-200 shadow-xs">
                 <strong class="text-blue-950 block mb-1">2. Nella Fase Finale a Eliminazione Diretta (Tabellone Finale):</strong>
-                Nel tabellone finale ad eliminazione diretta non sono ammessi pareggi: se al suono della campana si è in pareggio, si gioca immediatamente un <strong>rapido tie-break ai 5 punti</strong> per decretare il vincitore che avanza al turno successivo.
+                Nel tabellone ad eliminazione diretta non sono ammessi pareggi: se al suono della campana si è in parità, si gioca immediatamente un <strong>rapido tie-break ai 5 punti</strong> per decretare il vincitore che passa al turno successivo.
               </div>
             </div>
           </div>
 
-          <!-- Gironi Sinner e Alcaraz -->
-          <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
-            <h4 class="font-bold text-gray-900 text-xs sm:text-sm mb-1.5">Fase a Gironi: Girone Sinner e Girone Alcaraz</h4>
-            <p class="text-xs text-gray-600 leading-relaxed">
-              I partecipanti sono distribuiti nei due raggruppamenti ufficiali (Girone Sinner e Girone Alcaraz) con formula all'italiana (tutti contro tutti). I migliori atleti di ciascun girone accedono al Tabellone Finale incrociato.
+          <!-- Gironi e Qualificazione di TUTTI i giocatori al Tabellone -->
+          <div class="bg-slate-50 border border-slate-200 p-4 sm:p-5 rounded-2xl">
+            <h4 class="font-bold text-gray-900 text-xs sm:text-sm mb-1.5 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
+              <span>Gironi & Accesso di Tutti al Tabellone Finale</span>
+            </h4>
+            <p class="text-xs text-gray-700 leading-relaxed">
+              I partecipanti disputano la fase a gironi (<strong>Girone Sinner</strong> e <strong>Girone Alcaraz</strong>) con formula all'italiana. <strong>Tutti i giocatori accedono alla fase a tabellone finale ad eliminazione diretta</strong>: in base alla posizione e ai risultati ottenuti nel girone viene composto il tabellone ad incrocio (le prime posizioni affrontano le posizioni inferiori del girone opposto con eventuali bye).
             </p>
           </div>
 
-          <!-- Fair play -->
-          <div>
-            <h4 class="font-bold text-gray-800 text-xs uppercase tracking-wider mb-2">Disposizioni di Gioco & Fair Play</h4>
-            <ul class="list-disc pl-5 text-xs text-gray-600 space-y-1.5">
-              <li>I partecipanti devono presentarsi alla segreteria almeno 15 minuti prima dell'inizio del match.</li>
-              <li>Riscaldamento preliminare in campo limitato a 5 minuti per massimizzare l'ora di gioco.</li>
-              <li>Chiamate di palla autonome e leali da parte dei giocatori sul proprio campo.</li>
-              <li>Le decisioni dell'Amministratore e Giudice Arbitro ufficiale sono definitive ed inappellabili.</li>
-            </ul>
+          <!-- Ruolo Esclusivo Amministratore -->
+          <div class="bg-blue-50/60 border border-blue-200 p-4 rounded-2xl">
+            <h4 class="font-bold text-blue-950 text-xs sm:text-sm mb-1 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+              <span>Amministrazione Ufficiale & Gestione Esclusiva</span>
+            </h4>
+            <p class="text-xs text-blue-900 leading-relaxed">
+              La gestione degli atleti (inserimento, modifica dati anagrafici ed eliminazione), la composizione e modifica dei gironi, la programmazione del calendario gare (data, orario e campo) e la compilazione del tabellone finale sono riservate in via esclusiva all'Amministratore Ufficiale (<strong>Barcello Luca</strong>).
+            </p>
           </div>
         </div>
 
         <div class="space-y-6">
           <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-            <h3 class="text-base font-bold text-gray-900 mb-3">Informazioni Organizzazione</h3>
+            <h3 class="text-base font-bold text-gray-900 mb-3">Informazioni Torneo</h3>
             <div class="text-xs text-gray-600 space-y-2.5">
               <div><strong>Manifestazione:</strong> Torneo Momy 26/27</div>
               <div><strong>Amministratore Ufficiale:</strong> Barcello Luca</div>
               <div><strong>Gironi:</strong> Girone Sinner • Girone Alcaraz</div>
-              <div><strong>Fase Finale:</strong> Tabellone a Eliminazione Diretta</div>
-              <div><strong>Campi:</strong> Terra Rossa e Sintetico</div>
-              <div><strong>Regolamento:</strong> Conforme disposizioni FITP</div>
+              <div><strong>Fase Finale:</strong> Tutti qualificati al Tabellone</div>
+              <div><strong>Durata Match:</strong> 1 ora fino alla campana</div>
+              <div><strong>Campi:</strong> Centrale (1), Terra (2), Sintetico (3)</div>
             </div>
           </div>
 
           <div class="bg-gradient-to-br from-slate-950 via-blue-900 to-indigo-950 rounded-2xl p-6 text-white shadow">
-            <h3 class="font-bold text-base mb-2 text-yellow-300">Partecipa al Torneo</h3>
+            <h3 class="font-bold text-base mb-2 text-yellow-300">
+              ${this.isAdmin ? "Gestione Torneo Admin" : "Roster Torneo Momy"}
+            </h3>
             <p class="text-xs text-blue-100 mb-4 leading-relaxed">
-              Per iscriverti al torneo compila la tua scheda anagrafica nella sezione Iscritti.
+              ${this.isAdmin
+                ? "Puoi inserire o modificare i partecipanti, aggiornare gli orari delle partite e validare i risultati."
+                : "La gestione dei partecipanti, dei gironi e del calendario è curata dall'Amministratore Barcello Luca."}
             </p>
-            <button onclick="app.switchTab('players'); app.openNewPlayerModal();" class="w-full bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs py-2.5 px-4 rounded-xl shadow transition">
-              Inserisci Atleta Ora
-            </button>
+            ${this.isAdmin ? `
+              <button onclick="app.switchTab('players'); app.openNewPlayerModal(false);" class="w-full bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs py-2.5 px-4 rounded-xl shadow transition">
+                + Inserisci Atleta (Admin)
+              </button>
+            ` : `
+              <button onclick="app.switchTab('players');" class="w-full bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs py-2.5 px-4 rounded-xl shadow transition">
+                Visualizza Elenco Iscritti
+              </button>
+            `}
           </div>
         </div>
       </div>
