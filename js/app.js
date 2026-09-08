@@ -1,8 +1,8 @@
 // Torneo Momy - Applicazione Principale con Login & Gestione Ruoli (Admin / Giocatore)
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
-const USER_KEY = "torneo_momy_user_session";
-const DATA_KEY = "torneo_momy_store_v5";
+const USER_KEY = "torneo_momy_user_session_v6";
+const DATA_KEY = "torneo_momy_store_v6";
 
 class App {
   constructor() {
@@ -21,7 +21,16 @@ class App {
     try {
       const saved = localStorage.getItem(USER_KEY);
       if (saved) {
-        return JSON.parse(saved);
+        const u = JSON.parse(saved);
+        if (u.email && u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+          u.role = "admin";
+        }
+        if (!u.firstName && u.name) {
+          const parts = u.name.trim().split(" ");
+          u.firstName = parts[0] || "";
+          u.lastName = parts.slice(1).join(" ") || "";
+        }
+        return u;
       }
     } catch (e) {
       console.warn("Nessun utente salvato", e);
@@ -95,7 +104,7 @@ class App {
       });
     });
 
-    // Form di Login
+    // Form di Login / Registrazione
     const loginForm = document.getElementById("login-form");
     if (loginForm) {
       loginForm.addEventListener("submit", (e) => {
@@ -133,23 +142,38 @@ class App {
   }
 
   // ==========================================
-  // GESTIONE AUTENTICAZIONE & RUOLI
+  // GESTIONE AUTENTICAZIONE & REGISTRAZIONE
   // ==========================================
   handleLogin() {
-    const emailInput = document.getElementById("login-email-input").value.trim().toLowerCase();
-    const nameInput = document.getElementById("login-name-input").value.trim();
+    const firstName = document.getElementById("login-firstname-input").value.trim();
+    const lastName = document.getElementById("login-lastname-input").value.trim();
+    const email = document.getElementById("login-email-input").value.trim().toLowerCase();
+    const birthDate = document.getElementById("login-birthdate-input").value.trim();
+    const ranking = document.getElementById("login-ranking-input").value.trim() || "NC";
 
-    if (!emailInput) {
+    if (!email) {
       alert("Inserisci un indirizzo email valido.");
+      return;
+    }
+    if (!firstName || !lastName) {
+      alert("Inserisci sia il Nome che il Cognome.");
+      return;
+    }
+    if (!birthDate) {
+      alert("Inserisci la data di nascita.");
       return;
     }
 
     // Riconoscimento automatico admin
-    const isAdmin = emailInput === ADMIN_EMAIL.toLowerCase();
+    const isAdmin = email === ADMIN_EMAIL.toLowerCase();
 
     const userObj = {
-      email: emailInput,
-      name: nameInput || (isAdmin ? "Luca Barcello" : "Giocatore"),
+      email: email,
+      firstName: firstName,
+      lastName: lastName,
+      name: `${firstName} ${lastName}`.trim(),
+      birthDate: birthDate,
+      ranking: ranking,
       role: isAdmin ? "admin" : "player"
     };
 
@@ -157,16 +181,20 @@ class App {
     this.closeModal("modal-login");
 
     if (isAdmin) {
-      this.showToast(`Benvenuto Amministratore (${emailInput})`, "success");
+      this.showToast(`Benvenuto Amministratore (${email})`, "success");
     } else {
-      this.showToast(`Accesso effettuato come Giocatore (${emailInput})`, "info");
+      this.showToast(`Benvenuto ${userObj.name}! Accesso completato`, "success");
     }
   }
 
   loginAsGuest() {
     const userObj = {
       email: "ospite@torneo.it",
+      firstName: "Spettatore",
+      lastName: "",
       name: "Spettatore",
+      birthDate: "",
+      ranking: "NC",
       role: "player"
     };
     this.saveUser(userObj);
@@ -175,17 +203,30 @@ class App {
   }
 
   openLoginModal() {
+    const fnInput = document.getElementById("login-firstname-input");
+    const lnInput = document.getElementById("login-lastname-input");
     const emailInput = document.getElementById("login-email-input");
-    const nameInput = document.getElementById("login-name-input");
+    const bdInput = document.getElementById("login-birthdate-input");
+    const rkInput = document.getElementById("login-ranking-input");
+
     if (this.user) {
+      fnInput.value = this.user.firstName || "";
+      lnInput.value = this.user.lastName || "";
       emailInput.value = this.user.email === "ospite@torneo.it" ? "" : this.user.email;
-      nameInput.value = this.user.name || "";
+      bdInput.value = this.user.birthDate || "";
+      rkInput.value = this.user.ranking || "NC";
     } else {
+      fnInput.value = "";
+      lnInput.value = "";
       emailInput.value = "";
-      nameInput.value = "";
+      bdInput.value = "";
+      rkInput.value = "NC";
     }
     this.openModal("modal-login");
-    setTimeout(() => emailInput.focus(), 150);
+    setTimeout(() => {
+      if (fnInput.value) emailInput.focus();
+      else fnInput.focus();
+    }, 150);
   }
 
   renderUserBadge() {
@@ -204,14 +245,32 @@ class App {
       badge.className = "bg-amber-400/20 text-amber-200 border border-amber-400/40 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs font-medium";
       badge.innerHTML = `
         <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-        <span class="truncate max-w-[200px]"><strong>Admin:</strong> ${this.user.email}</span>
+        <span class="truncate max-w-[200px]"><strong>Admin:</strong> ${this.user.name || this.user.email}</span>
       `;
     } else {
       badge.className = "bg-white/10 text-emerald-100 border border-white/20 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs";
       badge.innerHTML = `
         <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-        <span class="truncate max-w-[200px]">${this.user.name} (Giocatore)</span>
+        <span class="truncate max-w-[200px] font-medium">${this.user.name}</span>
+        ${this.user.ranking ? `<span class="bg-emerald-900/60 border border-emerald-500/40 text-emerald-200 text-[10px] font-mono px-1.5 py-0.5 rounded font-bold">${this.user.ranking}</span>` : ''}
       `;
+    }
+  }
+
+  formatDate(dateStr) {
+    if (!dateStr) return "-";
+    try {
+      const parts = dateStr.split("-");
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString("it-IT");
+      }
+      return dateStr;
+    } catch (e) {
+      return dateStr;
     }
   }
 
@@ -291,32 +350,97 @@ class App {
       if (!this.searchQuery) return true;
       const q = this.searchQuery;
       return (
+        (p.firstName && p.firstName.toLowerCase().includes(q)) ||
+        (p.lastName && p.lastName.toLowerCase().includes(q)) ||
         (p.name && p.name.toLowerCase().includes(q)) ||
-        (p.club && p.club.toLowerCase().includes(q)) ||
-        (p.ranking && p.ranking.toLowerCase().includes(q))
+        (p.ranking && p.ranking.toLowerCase().includes(q)) ||
+        (p.birthDate && p.birthDate.includes(q)) ||
+        (p.notes && p.notes.toLowerCase().includes(q))
       );
     });
+
+    const myRegisteredPlayer = (this.user && this.user.email !== "ospite@torneo.it")
+      ? this.state.players.find(p =>
+          (p.userId && p.userId === this.user.email) ||
+          (p.email && p.email.toLowerCase() === this.user.email.toLowerCase()) ||
+          (p.firstName && p.lastName && this.user.firstName && this.user.lastName &&
+           p.firstName.toLowerCase() === this.user.firstName.toLowerCase() &&
+           p.lastName.toLowerCase() === this.user.lastName.toLowerCase())
+        )
+      : null;
 
     let html = `
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
         
-        <!-- Banner informativo per Giocatore vs Admin -->
+        <!-- Banner Condizionale Ruolo / Iscrizione Atleta -->
         ${this.isAdmin ? `
           <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 mb-5 flex flex-wrap items-center justify-between gap-3">
             <div class="text-xs text-emerald-900">
-              <strong>Accesso Amministratore attivo (${ADMIN_EMAIL}):</strong> puoi aggiungere e modificare atleti, assegnare le teste di serie e generare il tabellone finale.
+              <strong>Accesso Amministratore (${ADMIN_EMAIL}):</strong> puoi aggiungere o modificare atleti e comporre il tabellone finale.
             </div>
-            <button onclick="app.openNewPlayerModal()" class="bg-tennis-green hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
+            <button onclick="app.openNewPlayerModal(false)" class="bg-tennis-green hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
               + Aggiungi Atleta
             </button>
           </div>
-        ` : `
+        ` : (this.user && this.user.email !== "ospite@torneo.it") ? (
+          myRegisteredPlayer ? `
+            <div class="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-emerald-100 border border-emerald-300 text-tennis-green flex items-center justify-center font-bold">
+                  <svg class="w-5 h-5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="text-xs font-bold text-emerald-900">Sei iscritto al Torneo Momy!</div>
+                  <div class="text-xs text-emerald-800 mt-0.5">
+                    Atleta: <strong>${myRegisteredPlayer.firstName} ${myRegisteredPlayer.lastName}</strong> • Data di nascita: ${this.formatDate(myRegisteredPlayer.birthDate)} • Classifica: <span class="font-mono font-bold bg-white px-1.5 py-0.5 rounded border border-emerald-300">${myRegisteredPlayer.ranking || 'NC'}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="app.editPlayer('${myRegisteredPlayer.id}')" class="text-xs font-semibold text-emerald-800 bg-white border border-emerald-300 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition">
+                  Modifica Note
+                </button>
+                <button onclick="app.cancelMyRegistration('${myRegisteredPlayer.id}')" class="text-xs font-semibold text-rose-700 bg-white border border-rose-200 hover:bg-rose-50 px-3 py-1.5 rounded-xl transition">
+                  Ritira Iscrizione
+                </button>
+              </div>
+            </div>
+          ` : `
+            <div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-300 rounded-2xl p-4 sm:p-5 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+              <div>
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="w-2.5 h-2.5 rounded-full bg-tennis-green"></span>
+                  <span class="text-xs font-bold uppercase tracking-wider text-tennis-green">Iscrizione al Torneo</span>
+                </div>
+                <div class="text-sm font-bold text-gray-900">
+                  ${this.user.firstName} ${this.user.lastName}
+                  <span class="text-xs font-normal text-gray-600 ml-2">
+                    (Nascita: ${this.formatDate(this.user.birthDate)} • Classifica FITP: <strong class="font-mono text-tennis-green">${this.user.ranking || 'NC'}</strong>)
+                  </span>
+                </div>
+                <p class="text-xs text-gray-600 mt-1">
+                  I tuoi dati sono precompilati in base al tuo account: clicca per inserirti nell'elenco partecipanti.
+                </p>
+              </div>
+              <div class="flex items-center gap-2 w-full sm:w-auto">
+                <button onclick="app.openNewPlayerModal(true)" class="w-full sm:w-auto bg-tennis-green hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-2">
+                  <span>Iscriviti al Torneo</span>
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          `
+        ) : `
           <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div class="text-xs text-slate-600">
-              Accesso come <strong>${this.user ? this.user.name : 'Giocatore/Spettatore'}</strong> (Sola lettura). Per gestire gli atleti e i punteggi, accedi come amministratore con <code>${ADMIN_EMAIL}</code>.
+              Accesso come Spettatore. Per iscriverti al torneo con i tuoi dati, effettua la registrazione iniziale.
             </div>
-            <button onclick="app.openNewPlayerModal()" class="bg-tennis-green hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 py-2 rounded-xl shadow-sm transition whitespace-nowrap">
-              Invia Modulo Iscrizione
+            <button onclick="app.openLoginModal()" class="bg-tennis-green hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 py-2 rounded-xl shadow-sm transition whitespace-nowrap">
+              Accedi / Registrati
             </button>
           </div>
         `}
@@ -335,14 +459,14 @@ class App {
           <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <!-- Campo Cerca -->
             <div class="relative w-full sm:w-64">
-              <input type="text" id="search-input" value="${this.searchQuery}" placeholder="Cerca per nome o circolo..." class="w-full text-xs sm:text-sm pl-8 pr-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+              <input type="text" id="search-input" value="${this.searchQuery}" placeholder="Cerca per nome, cognome o classifica..." class="w-full text-xs sm:text-sm pl-8 pr-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
               <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
               </svg>
             </div>
 
-            <button onclick="app.openNewPlayerModal()" class="w-full sm:w-auto bg-tennis-green hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm px-4 py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
-              + Aggiungi Atleta
+            <button onclick="app.openNewPlayerModal(${!this.isAdmin})" class="w-full sm:w-auto bg-tennis-green hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm px-4 py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
+              ${this.isAdmin ? '+ Aggiungi Atleta' : (myRegisteredPlayer ? '+ Nuovo Partecipante' : 'Iscriviti al Torneo')}
             </button>
           </div>
         </div>
@@ -360,8 +484,8 @@ class App {
           <p class="text-xs sm:text-sm text-gray-500 max-w-sm mx-auto mb-5">
             L'elenco partecipanti del Torneo Momy è attualmente vuoto. Inserisci i ragazzi che parteciperanno alla competizione.
           </p>
-          <button onclick="app.openNewPlayerModal()" class="bg-tennis-green hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl shadow transition">
-            + Inserisci il Primo Atleta
+          <button onclick="app.openNewPlayerModal(${!this.isAdmin})" class="bg-tennis-green hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl shadow transition">
+            ${this.isAdmin ? '+ Inserisci Atleta' : 'Iscriviti al Torneo'}
           </button>
         </div>
       `;
@@ -372,50 +496,57 @@ class App {
             <thead>
               <tr class="bg-gray-50 text-gray-600 uppercase text-[11px] font-semibold border-b border-gray-200">
                 <th class="py-3 px-3 w-12 text-center">#</th>
-                <th class="py-3 px-3">T.d.S.</th>
-                <th class="py-3 px-3">Atleta</th>
-                <th class="py-3 px-3">Anno</th>
-                <th class="py-3 px-3">Circolo Tennis</th>
-                <th class="py-3 px-3">Classifica</th>
-                ${this.isAdmin ? '<th class="py-3 px-3">Genitore / Telefono</th>' : ''}
+                <th class="py-3 px-3">Nome</th>
+                <th class="py-3 px-3">Cognome</th>
+                <th class="py-3 px-3">Data di Nascita</th>
+                <th class="py-3 px-3">Classifica FITP</th>
                 <th class="py-3 px-3">Note</th>
-                ${this.isAdmin ? '<th class="py-3 px-3 text-right">Azioni</th>' : ''}
+                <th class="py-3 px-3 text-right">Azioni</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
-              ${filtered.map((p, idx) => `
-                <tr class="hover:bg-gray-50/80 transition">
-                  <td class="py-3 px-3 font-mono text-center text-gray-400 font-semibold">${idx + 1}</td>
-                  <td class="py-3 px-3">
-                    ${p.seed ? `<span class="bg-tennis-green text-white font-bold text-xs px-2 py-0.5 rounded">[${p.seed}]</span>` : '<span class="text-gray-300">-</span>'}
-                  </td>
-                  <td class="py-3 px-3 font-bold text-gray-900">${p.name}</td>
-                  <td class="py-3 px-3 text-gray-600">${p.birthYear || '-'}</td>
-                  <td class="py-3 px-3 text-gray-600">${p.club || '-'}</td>
-                  <td class="py-3 px-3">
-                    <span class="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
-                      ${p.ranking || 'NC'}
-                    </span>
-                  </td>
-                  ${this.isAdmin ? `
-                    <td class="py-3 px-3 text-gray-600">
-                      ${p.parentName ? `<div class="font-medium text-gray-800">${p.parentName}</div>` : ''}
-                      ${p.parentPhone ? `<div class="text-xs text-gray-500 font-mono">${p.parentPhone}</div>` : (!p.parentName ? '-' : '')}
+              ${filtered.map((p, idx) => {
+                const isMe = this.user && (
+                  (p.userId && p.userId === this.user.email) ||
+                  (p.email && p.email.toLowerCase() === this.user.email.toLowerCase()) ||
+                  (p.firstName && p.lastName && this.user.firstName && this.user.lastName &&
+                   p.firstName.toLowerCase() === this.user.firstName.toLowerCase() &&
+                   p.lastName.toLowerCase() === this.user.lastName.toLowerCase())
+                );
+                return `
+                  <tr class="hover:bg-gray-50/80 transition ${isMe ? 'bg-emerald-50/40' : ''}">
+                    <td class="py-3 px-3 font-mono text-center text-gray-400 font-semibold">${idx + 1}</td>
+                    <td class="py-3 px-3 font-bold text-gray-900">${p.firstName || p.name.split(' ')[0] || '-'}</td>
+                    <td class="py-3 px-3 font-bold text-gray-900">${p.lastName || p.name.split(' ').slice(1).join(' ') || '-'}</td>
+                    <td class="py-3 px-3 text-gray-600 font-mono text-xs">${this.formatDate(p.birthDate)}</td>
+                    <td class="py-3 px-3">
+                      <span class="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-semibold">
+                        ${p.ranking || 'NC'}
+                      </span>
                     </td>
-                  ` : ''}
-                  <td class="py-3 px-3 text-gray-500 text-xs italic max-w-xs truncate">${p.notes || '-'}</td>
-                  ${this.isAdmin ? `
+                    <td class="py-3 px-3 text-gray-500 text-xs italic max-w-xs truncate">${p.notes || '-'}</td>
                     <td class="py-3 px-3 text-right space-x-1 whitespace-nowrap">
-                      <button onclick="app.editPlayer('${p.id}')" class="text-xs text-emerald-700 hover:text-emerald-900 font-medium px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 transition">
-                        Modifica
-                      </button>
-                      <button onclick="app.deletePlayer('${p.id}')" class="text-xs text-rose-600 hover:text-rose-800 font-medium px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 transition">
-                        Elimina
-                      </button>
+                      ${this.isAdmin ? `
+                        <button onclick="app.editPlayer('${p.id}')" class="text-xs text-emerald-700 hover:text-emerald-900 font-medium px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 transition">
+                          Modifica
+                        </button>
+                        <button onclick="app.deletePlayer('${p.id}')" class="text-xs text-rose-600 hover:text-rose-800 font-medium px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 transition">
+                          Elimina
+                        </button>
+                      ` : isMe ? `
+                        <button onclick="app.editPlayer('${p.id}')" class="text-xs text-emerald-700 hover:text-emerald-900 font-medium px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 transition">
+                          Modifica
+                        </button>
+                        <button onclick="app.cancelMyRegistration('${p.id}')" class="text-xs text-rose-600 hover:text-rose-800 font-medium px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 transition">
+                          Ritira
+                        </button>
+                      ` : `
+                        <span class="text-gray-300 text-xs">-</span>
+                      `}
                     </td>
-                  ` : ''}
-                </tr>
-              `).join('')}
+                  </tr>
+                `;
+              }).join('')}
             </tbody>
           </table>
         </div>
@@ -435,36 +566,65 @@ class App {
     }
   }
 
-  openNewPlayerModal() {
-    document.getElementById("player-modal-title").textContent = this.isAdmin ? "Nuovo Iscritto (Admin)" : "Modulo Iscrizione Ragazzo/a";
+  openNewPlayerModal(fromProfile = false) {
+    const shouldPreFill = fromProfile || (!this.isAdmin && this.user && this.user.email !== "ospite@torneo.it");
+
+    document.getElementById("player-modal-title").textContent = shouldPreFill ? "Iscrizione al Torneo Momy" : "Nuovo Iscritto (Admin)";
+    document.getElementById("player-submit-btn").textContent = shouldPreFill ? "Conferma Iscrizione" : "Salva Atleta";
     document.getElementById("player-id-input").value = "";
-    document.getElementById("player-name-input").value = "";
-    document.getElementById("player-year-input").value = "";
-    document.getElementById("player-ranking-input").value = "NC";
-    document.getElementById("player-club-input").value = "";
-    document.getElementById("player-seed-input").value = "";
-    document.getElementById("player-parent-input").value = "";
-    document.getElementById("player-phone-input").value = "";
-    document.getElementById("player-notes-input").value = "";
+
+    const fnInput = document.getElementById("player-firstname-input");
+    const lnInput = document.getElementById("player-lastname-input");
+    const bdInput = document.getElementById("player-birthdate-input");
+    const rkInput = document.getElementById("player-ranking-input");
+    const notesInput = document.getElementById("player-notes-input");
+
+    if (shouldPreFill && this.user) {
+      fnInput.value = this.user.firstName || "";
+      lnInput.value = this.user.lastName || "";
+      bdInput.value = this.user.birthDate || "";
+      rkInput.value = this.user.ranking || "NC";
+      notesInput.value = "";
+    } else {
+      fnInput.value = "";
+      lnInput.value = "";
+      bdInput.value = "";
+      rkInput.value = "NC";
+      notesInput.value = "";
+    }
 
     this.openModal("modal-player");
-    setTimeout(() => document.getElementById("player-name-input").focus(), 150);
+    setTimeout(() => {
+      if (shouldPreFill && fnInput.value) {
+        notesInput.focus();
+      } else {
+        fnInput.focus();
+      }
+    }, 150);
   }
 
   editPlayer(id) {
-    if (!this.isAdmin) return;
     const p = this.state.players.find(x => x.id === id);
     if (!p) return;
 
-    document.getElementById("player-modal-title").textContent = "Modifica Atleta";
+    const isMe = this.user && (
+      (p.userId && p.userId === this.user.email) ||
+      (p.email && p.email.toLowerCase() === this.user.email.toLowerCase()) ||
+      (p.firstName && p.lastName && this.user.firstName && this.user.lastName &&
+       p.firstName.toLowerCase() === this.user.firstName.toLowerCase() &&
+       p.lastName.toLowerCase() === this.user.lastName.toLowerCase())
+    );
+
+    if (!this.isAdmin && !isMe) return;
+
+    document.getElementById("player-modal-title").textContent = "Modifica Dati Atleta";
+    document.getElementById("player-submit-btn").textContent = "Aggiorna Iscrizione";
     document.getElementById("player-id-input").value = p.id;
-    document.getElementById("player-name-input").value = p.name || "";
-    document.getElementById("player-year-input").value = p.birthYear || "";
+
+    document.getElementById("player-firstname-input").value = p.firstName || p.name.split(' ')[0] || "";
+    document.getElementById("player-lastname-input").value = p.lastName || p.name.split(' ').slice(1).join(' ') || "";
+    document.getElementById("player-birthdate-input").value = p.birthDate || "";
     document.getElementById("player-ranking-input").value = p.ranking || "NC";
-    document.getElementById("player-club-input").value = p.club || "";
-    document.getElementById("player-seed-input").value = p.seed || "";
-    document.getElementById("player-parent-input").value = p.parentName || "";
-    document.getElementById("player-phone-input").value = p.parentPhone || "";
     document.getElementById("player-notes-input").value = p.notes || "";
 
     this.openModal("modal-player");
@@ -472,21 +632,23 @@ class App {
 
   handleSavePlayer() {
     const id = document.getElementById("player-id-input").value;
-    const name = document.getElementById("player-name-input").value.trim();
-    const birthYearVal = document.getElementById("player-year-input").value.trim();
-    const birthYear = birthYearVal ? parseInt(birthYearVal, 10) : "";
+    const firstName = document.getElementById("player-firstname-input").value.trim();
+    const lastName = document.getElementById("player-lastname-input").value.trim();
+    const birthDate = document.getElementById("player-birthdate-input").value.trim();
     const ranking = document.getElementById("player-ranking-input").value.trim() || "NC";
-    const club = document.getElementById("player-club-input").value.trim();
-    const seedVal = document.getElementById("player-seed-input").value.trim();
-    const seed = seedVal ? parseInt(seedVal, 10) : null;
-    const parentName = document.getElementById("player-parent-input").value.trim();
-    const parentPhone = document.getElementById("player-phone-input").value.trim();
     const notes = document.getElementById("player-notes-input").value.trim();
 
-    if (!name) {
-      alert("Il nome e cognome dell'atleta è obbligatorio");
+    if (!firstName || !lastName) {
+      alert("Inserisci Nome e Cognome dell'atleta.");
       return;
     }
+
+    if (!birthDate) {
+      alert("Inserisci la data di nascita dell'atleta.");
+      return;
+    }
+
+    const fullName = `${firstName} ${lastName}`.trim();
 
     if (id) {
       // Modifica atleta esistente
@@ -494,14 +656,36 @@ class App {
       if (idx !== -1) {
         this.state.players[idx] = {
           ...this.state.players[idx],
-          name, birthYear, ranking, club, seed, parentName, parentPhone, notes
+          firstName,
+          lastName,
+          name: fullName,
+          birthDate,
+          ranking,
+          notes
         };
       }
     } else {
+      // Controllo duplicati
+      const already = this.state.players.some(p =>
+        p.firstName.toLowerCase() === firstName.toLowerCase() &&
+        p.lastName.toLowerCase() === lastName.toLowerCase()
+      );
+      if (already) {
+        alert(`L'atleta ${fullName} risulta già presente tra gli iscritti.`);
+        return;
+      }
+
       // Nuovo atleta
       const newPlayer = {
         id: `p-${Date.now()}`,
-        name, birthYear, ranking, club, seed, parentName, parentPhone, notes,
+        firstName,
+        lastName,
+        name: fullName,
+        birthDate,
+        ranking,
+        notes,
+        email: this.user ? this.user.email : "",
+        userId: this.user ? this.user.email : "",
         status: "confermato"
       };
       this.state.players.push(newPlayer);
@@ -509,7 +693,18 @@ class App {
 
     this.saveState();
     this.closeModal("modal-player");
-    this.showToast(`Iscrizione di ${name} salvata!`, "success");
+    this.showToast(`Iscrizione di ${fullName} registrata con successo!`, "success");
+  }
+
+  cancelMyRegistration(id) {
+    const p = this.state.players.find(x => x.id === id);
+    if (!p) return;
+
+    if (confirm(`Sei sicuro di voler ritirare la tua iscrizione al Torneo Momy (${p.name})?`)) {
+      this.state.players = this.state.players.filter(x => x.id !== id);
+      this.saveState();
+      this.showToast("Iscrizione ritirata", "info");
+    }
   }
 
   deletePlayer(id) {
@@ -648,9 +843,8 @@ class App {
               <!-- Giocatore 1 -->
               <div class="flex items-center justify-between py-1.5 border-b border-gray-100 ${isP1Winner ? 'font-bold text-emerald-900 bg-emerald-50/50 -mx-3 px-3 rounded' : 'text-gray-700'}">
                 <div class="flex items-center gap-1.5 truncate">
-                  ${p1 && p1.seed ? `<span class="text-[10px] bg-emerald-700 text-white font-bold px-1.5 py-0.2 rounded">${p1.seed}</span>` : ""}
-                  <span class="truncate text-sm">${p1 ? p1.name : (match.player1Id ? match.player1Id : '<span class="text-gray-400 italic">In attesa</span>')}</span>
-                  ${p1 && p1.club ? `<span class="text-[11px] text-gray-400">(${p1.club})</span>` : ""}
+                  <span class="truncate text-sm font-semibold">${p1 ? p1.name : (match.player1Id ? match.player1Id : '<span class="text-gray-400 italic">In attesa</span>')}</span>
+                  ${p1 && p1.ranking ? `<span class="text-[10px] font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200 font-semibold">${p1.ranking}</span>` : ""}
                 </div>
                 ${isP1Winner ? `<span class="text-emerald-700 font-bold text-xs bg-emerald-100 px-1.5 py-0.5 rounded">Vinto</span>` : ""}
               </div>
@@ -658,9 +852,8 @@ class App {
               <!-- Giocatore 2 -->
               <div class="flex items-center justify-between py-1.5 ${isP2Winner ? 'font-bold text-emerald-900 bg-emerald-50/50 -mx-3 px-3 rounded' : 'text-gray-700'}">
                 <div class="flex items-center gap-1.5 truncate">
-                  ${p2 && p2.seed ? `<span class="text-[10px] bg-emerald-700 text-white font-bold px-1.5 py-0.2 rounded">${p2.seed}</span>` : ""}
-                  <span class="truncate text-sm">${p2 ? p2.name : (match.player2Id ? match.player2Id : '<span class="text-gray-400 italic">In attesa</span>')}</span>
-                  ${p2 && p2.club ? `<span class="text-[11px] text-gray-400">(${p2.club})</span>` : ""}
+                  <span class="truncate text-sm font-semibold">${p2 ? p2.name : (match.player2Id ? match.player2Id : '<span class="text-gray-400 italic">In attesa</span>')}</span>
+                  ${p2 && p2.ranking ? `<span class="text-[10px] font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200 font-semibold">${p2.ranking}</span>` : ""}
                 </div>
                 ${isP2Winner ? `<span class="text-emerald-700 font-bold text-xs bg-emerald-100 px-1.5 py-0.5 rounded">Vinto</span>` : ""}
               </div>

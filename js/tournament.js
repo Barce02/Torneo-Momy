@@ -10,6 +10,20 @@ class TournamentManager {
     return this.state.players.find(p => p.id === id) || null;
   }
 
+  // Valuta la forza della classifica FITP per comporre gli accoppiamenti
+  getRankingWeight(ranking) {
+    if (!ranking) return 0;
+    const r = String(ranking).trim().toUpperCase();
+    if (r === "NC") return 1;
+    const match = r.match(/^([1-4])(?:\.([1-8]))?$/);
+    if (match) {
+      const category = parseInt(match[1], 10);
+      const sub = match[2] ? parseInt(match[2], 10) : 0;
+      return (5 - category) * 100 + (10 - sub) * 10;
+    }
+    return 1;
+  }
+
   // Genera un tabellone a eliminazione diretta
   generateBracket(playersList) {
     const players = playersList || this.state.players;
@@ -17,25 +31,26 @@ class TournamentManager {
       throw new Error("Servono almeno 2 atleti iscritti per comporre il tabellone finale.");
     }
 
-    // Ordina: prima le teste di serie (1, 2, 3...), poi gli altri
-    const seeded = players
-      .filter(p => p.seed)
-      .sort((a, b) => a.seed - b.seed);
-    const unseeded = players
-      .filter(p => !p.seed)
-      .sort(() => Math.random() - 0.5);
-
-    const sortedPlayers = [...seeded, ...unseeded];
+    // Ordina i partecipanti in base alla classifica FITP (i migliori piazzati nelle posizioni cardine)
+    const sortedPlayers = [...players].sort((a, b) => {
+      const weightA = this.getRankingWeight(a.ranking);
+      const weightB = this.getRankingWeight(b.ranking);
+      if (weightA !== weightB) {
+        return weightB - weightA;
+      }
+      return Math.random() - 0.5;
+    });
 
     // Dimensione minima potenza di 2 (4, 8, 16, 32)
     let bracketSize = 4;
-    if (sortedPlayers.length > 8) bracketSize = 16;
+    if (sortedPlayers.length > 16) bracketSize = 32;
+    else if (sortedPlayers.length > 8) bracketSize = 16;
     else if (sortedPlayers.length > 4) bracketSize = 8;
     else bracketSize = 4;
 
     const slots = new Array(bracketSize).fill(null);
 
-    // Schema di posizionamento teste di serie standard tennis
+    // Schema di posizionamento giocatori secondo ranking standard tennis
     let seedPositions = [];
     if (bracketSize === 4) {
       seedPositions = [0, 3, 1, 2];
@@ -43,6 +58,8 @@ class TournamentManager {
       seedPositions = [0, 7, 4, 3, 2, 5, 6, 1];
     } else if (bracketSize === 16) {
       seedPositions = [0, 15, 8, 7, 4, 11, 12, 3, 2, 13, 10, 5, 6, 9, 14, 1];
+    } else {
+      seedPositions = Array.from({ length: bracketSize }, (_, i) => i);
     }
 
     let pIdx = 0;
@@ -62,7 +79,8 @@ class TournamentManager {
       1: ["Finale"],
       2: ["Semifinali", "Finale"],
       3: ["Quarti di Finale", "Semifinali", "Finale"],
-      4: ["Ottavi di Finale", "Quarti di Finale", "Semifinali", "Finale"]
+      4: ["Ottavi di Finale", "Quarti di Finale", "Semifinali", "Finale"],
+      5: ["Sedicesimi di Finale", "Ottavi di Finale", "Quarti di Finale", "Semifinali", "Finale"]
     };
 
     const names = roundNamesMap[totalRounds] || ["Turno 1", "Turno 2", "Semifinali", "Finale"];
