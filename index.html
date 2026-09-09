@@ -710,25 +710,6 @@
                   Rimuovi Foto
                 </button>
               </div>
-
-              <!-- Avatar predefiniti con icone SVG stilizzate -->
-              <div class="pt-1">
-                <span class="text-[10px] text-gray-500 font-semibold block mb-1">Oppure scegli un badge profilo:</span>
-                <div class="flex gap-1.5 justify-center sm:justify-start">
-                  <button type="button" onclick="app.selectPresetAvatar('racket')" title="Racchetta" class="w-8 h-8 rounded-lg bg-blue-100 hover:bg-yellow-200 text-blue-950 flex items-center justify-center border transition">
-                    <svg class="w-4 h-4 text-blue-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="9" r="6" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 13.5L21 21"/></svg>
-                  </button>
-                  <button type="button" onclick="app.selectPresetAvatar('trophy')" title="Coppa" class="w-8 h-8 rounded-lg bg-blue-100 hover:bg-yellow-200 text-blue-950 flex items-center justify-center border transition">
-                    <svg class="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 21h8m-4-4v4M5 4h14v4a7 7 0 01-14 0V4z"/></svg>
-                  </button>
-                  <button type="button" onclick="app.selectPresetAvatar('star')" title="Stella" class="w-8 h-8 rounded-lg bg-blue-100 hover:bg-yellow-200 text-blue-950 flex items-center justify-center border transition">
-                    <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
-                  </button>
-                  <button type="button" onclick="app.selectPresetAvatar('shield')" title="Scudo" class="w-8 h-8 rounded-lg bg-blue-100 hover:bg-yellow-200 text-blue-950 flex items-center justify-center border transition">
-                    <svg class="w-4 h-4 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -778,14 +759,15 @@
           </div>
         </div>
 
-        <!-- CATEGORIA TORNEO -->
+        <!-- CATEGORIA TORNEO (MODIFICABILE SOLO DA ADMIN) -->
         <div>
           <label class="block text-xs font-semibold text-gray-700 mb-1">Categoria Torneo</label>
-          <select id="account-category-select" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium">
+          <select id="account-category-select" disabled class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl bg-gray-100 text-gray-700 font-medium cursor-not-allowed">
             <option value="U10">Under 10 (U10)</option>
             <option value="U12" selected>Under 12 (U12)</option>
             <option value="Open">Categoria Open (Open)</option>
           </select>
+          <p class="text-[10px] text-gray-500 mt-1">Assegnata in base all'età. Solo l'amministratore può modificarla.</p>
         </div>
 
         <!-- EMAIL IDENTIFICATIVA (READONLY) -->

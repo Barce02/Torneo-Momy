@@ -77,6 +77,7 @@ class App {
           u.firstName = parts[0] || "";
           u.lastName = parts.slice(1).join(" ") || "";
         }
+        delete u.presetAvatar;
         return u;
       }
     } catch (e) {
@@ -300,6 +301,9 @@ class App {
       const cEl = document.getElementById(categorySelectId);
       if (bEl && cEl) {
         bEl.addEventListener("change", (e) => {
+          if (categorySelectId.includes("account") && !this.isAdmin) {
+            return;
+          }
           const val = e.target.value;
           if (val) {
             const year = new Date(val).getFullYear();
@@ -888,18 +892,6 @@ class App {
     if (user.photoUrl) {
       return `<img src="${user.photoUrl}" alt="Avatar" class="${sizeClass} rounded-full object-cover">`;
     }
-    if (user.presetAvatar === "racket") {
-      return `<svg class="w-3.5 h-3.5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="9" r="6" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 13.5L21 21"/></svg>`;
-    }
-    if (user.presetAvatar === "trophy") {
-      return `<svg class="w-3.5 h-3.5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 21h8m-4-4v4M5 4h14v4a7 7 0 01-14 0V4z"/></svg>`;
-    }
-    if (user.presetAvatar === "star") {
-      return `<svg class="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>`;
-    }
-    if (user.presetAvatar === "shield") {
-      return `<svg class="w-3.5 h-3.5 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>`;
-    }
     const initials = (user.firstName ? user.firstName[0] : "") + (user.lastName ? user.lastName[0] : (user.name ? user.name[0] : "U"));
     return `<span class="${textClass} font-black uppercase text-blue-950">${initials || 'U'}</span>`;
   }
@@ -928,8 +920,6 @@ class App {
     let content = "";
     if (this.user.photoUrl) {
       content = `<img src="${this.user.photoUrl}" alt="Avatar" class="w-full h-full object-cover rounded-2xl">`;
-    } else if (this.user.presetAvatar) {
-      content = this.getAvatarMarkup(this.user, "w-10 h-10", "text-xl");
     } else {
       const initials = (this.user.firstName ? this.user.firstName[0] : "") + (this.user.lastName ? this.user.lastName[0] : (this.user.name ? this.user.name[0] : "U"));
       content = `<span class="text-2xl font-black uppercase text-yellow-300">${initials || 'U'}</span>`;
@@ -961,14 +951,6 @@ class App {
     reader.readAsDataURL(file);
   }
 
-  selectPresetAvatar(type) {
-    if (!this.user) return;
-    delete this.user.photoUrl;
-    this.user.presetAvatar = type;
-    this.renderAccountAvatarPreview();
-    this.renderUserBadge();
-  }
-
   removeAccountPhoto() {
     if (!this.user) return;
     delete this.user.photoUrl;
@@ -994,7 +976,7 @@ class App {
     const lastName = lnEl ? lnEl.value.trim() : "";
     const birthDate = bdEl ? bdEl.value.trim() : "";
     const ranking = rkEl ? rkEl.value.trim() : "NC";
-    const category = catEl ? catEl.value : this.tournamentManager.getPlayerCategory({ birthDate });
+    const category = (this.isAdmin && catEl) ? catEl.value : (this.user.category || this.tournamentManager.getPlayerCategory(this.user));
     const newPassword = npEl ? npEl.value : "";
     const confirmPassword = cpEl ? cpEl.value : "";
     const biometricsEnabled = bioEl ? bioEl.checked : true;
@@ -1143,6 +1125,14 @@ class App {
   }
 
   renderCategorySelector() {
+    const wrapper = document.getElementById("category-bar-wrapper");
+    const allowedTabs = ["players", "groups", "bracket"];
+    const showBar = allowedTabs.includes(this.currentTab);
+    if (wrapper) {
+      wrapper.classList.toggle("hidden", !showBar);
+    }
+    if (!showBar) return;
+
     const container = document.getElementById("category-selector-buttons");
     if (!container) return;
 
@@ -3588,6 +3578,13 @@ class App {
     const accounts = this.loadAccounts();
     const accountsCount = Object.keys(accounts).length;
     const linkedPlayer = this.getPlayerForAccount(u);
+    const curCat = (u.category || this.tournamentManager.getPlayerCategory(u)) === "U9" ? "U10" : (u.category || this.tournamentManager.getPlayerCategory(u));
+    const catLabels = {
+      U10: "Under 10 (U10)",
+      U12: "Under 12 (U12)",
+      Open: "Categoria Open (Open)"
+    };
+    const curCategoryLabel = catLabels[curCat] || "Under 12 (U12)";
 
     container.innerHTML = `
       <div class="space-y-6 max-w-4xl mx-auto">
@@ -3625,19 +3622,13 @@ class App {
                 <span>•</span>
                 <span>Nascita: <strong>${this.formatDate(u.birthDate)}</strong></span>
                 <span>•</span>
-                <span>Categoria: <strong>${u.category || this.tournamentManager.getPlayerCategory(u)}</strong></span>
+                <span>Categoria: <strong>${curCat}</strong></span>
               </div>
             </div>
           </div>
 
           <!-- Azioni Rapide Banner -->
           <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            ${this.isAdmin ? `
-              <button onclick="app.showAdminAccounts()" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-1.5 cursor-pointer">
-                <svg class="w-4 h-4 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-                <span>Tutti gli Account (${accountsCount})</span>
-              </button>
-            ` : ''}
             <button onclick="app.logout()" class="w-full sm:w-auto bg-white/10 hover:bg-rose-600/80 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-white/20 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm">
               <svg class="w-4 h-4 text-rose-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
               <span>Esci dall'Account</span>
@@ -3696,25 +3687,6 @@ class App {
                       Rimuovi Foto
                     </button>
                   </div>
-
-                  <!-- Badge profilo predefiniti -->
-                  <div>
-                    <span class="text-[11px] text-gray-500 font-semibold block mb-1.5">Oppure scegli uno stile predefinito:</span>
-                    <div class="flex gap-2 justify-center sm:justify-start">
-                      <button type="button" onclick="app.selectPresetAvatar('racket')" title="Racchetta" class="w-9 h-9 rounded-xl bg-white hover:bg-yellow-200 text-blue-950 flex items-center justify-center border border-gray-300 shadow-sm transition cursor-pointer">
-                        <svg class="w-4 h-4 text-blue-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="9" r="6" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 13.5L21 21"/></svg>
-                      </button>
-                      <button type="button" onclick="app.selectPresetAvatar('trophy')" title="Coppa" class="w-9 h-9 rounded-xl bg-white hover:bg-yellow-200 text-blue-950 flex items-center justify-center border border-gray-300 shadow-sm transition cursor-pointer">
-                        <svg class="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 21h8m-4-4v4M5 4h14v4a7 7 0 01-14 0V4z"/></svg>
-                      </button>
-                      <button type="button" onclick="app.selectPresetAvatar('star')" title="Stella" class="w-9 h-9 rounded-xl bg-white hover:bg-yellow-200 text-blue-950 flex items-center justify-center border border-gray-300 shadow-sm transition cursor-pointer">
-                        <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
-                      </button>
-                      <button type="button" onclick="app.selectPresetAvatar('shield')" title="Scudo" class="w-9 h-9 rounded-xl bg-white hover:bg-yellow-200 text-blue-950 flex items-center justify-center border border-gray-300 shadow-sm transition cursor-pointer">
-                        <svg class="w-4 h-4 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                      </button>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -3746,11 +3718,18 @@ class App {
               </div>
               <div>
                 <label class="block text-xs font-bold text-gray-700 mb-1">Categoria di Gioco *</label>
-                <select id="account-page-category-select" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
-                  <option value="U10" ${(u.category || this.tournamentManager.getPlayerCategory(u)) === 'U10' || (u.category || this.tournamentManager.getPlayerCategory(u)) === 'U9' ? 'selected' : ''}>Under 10 (U10)</option>
-                  <option value="U12" ${(u.category || this.tournamentManager.getPlayerCategory(u)) === 'U12' ? 'selected' : ''}>Under 12 (U12)</option>
-                  <option value="Open" ${(u.category || this.tournamentManager.getPlayerCategory(u)) === 'Open' ? 'selected' : ''}>Open</option>
-                </select>
+                ${this.isAdmin ? `
+                  <select id="account-page-category-select" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
+                    <option value="U10" ${curCat === 'U10' ? 'selected' : ''}>Under 10 (U10)</option>
+                    <option value="U12" ${curCat === 'U12' ? 'selected' : ''}>Under 12 (U12)</option>
+                    <option value="Open" ${curCat === 'Open' ? 'selected' : ''}>Categoria Open (Open)</option>
+                  </select>
+                  <p class="text-[10px] text-blue-700 mt-1 font-semibold">Modalità Amministratore: puoi modificare la categoria se errata.</p>
+                ` : `
+                  <input type="text" value="${curCategoryLabel}" readonly disabled class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl bg-gray-100 text-gray-800 font-bold cursor-not-allowed">
+                  <input type="hidden" id="account-page-category-select" value="${curCat}">
+                  <p class="text-[10px] text-gray-500 mt-1">Assegnata in base all'età. Solo l'amministratore può modificarla.</p>
+                `}
               </div>
             </div>
 
