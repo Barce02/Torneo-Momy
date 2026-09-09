@@ -69,45 +69,15 @@
           </div>
         </div>
 
-        <!-- Profilo Utente & Azioni Header -->
-        <div class="flex flex-wrap items-center gap-2.5">
-          <!-- Badge Utente / Ruolo -->
-          <div id="user-profile-badge" class="bg-white/10 border border-white/20 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs">
-            <!-- Popolato via JS (Admin o Giocatore) -->
-          </div>
-
-          <!-- Tasto Disconnetti (Logout) -->
-          <button id="btn-logout" onclick="app.logout()" title="Disconnetti dall'account" class="bg-white/10 hover:bg-rose-600/80 text-white text-xs px-2.5 py-1.5 rounded-xl border border-white/20 transition flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5 text-rose-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-            </svg>
-            <span class="hidden sm:inline">Esci</span>
-          </button>
-
-          <!-- Tasto Gestione Account per Admin -->
-          <button id="btn-admin-accounts-header" onclick="app.showAdminAccounts()" title="Tutti gli Account Registrati (Admin)" class="hidden bg-yellow-400 hover:bg-yellow-300 text-blue-950 text-xs px-2.5 py-1.5 rounded-xl border border-yellow-300 transition items-center gap-1.5 font-bold shadow-sm cursor-pointer">
-            <svg class="w-3.5 h-3.5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
-            </svg>
-            <span class="hidden sm:inline">Tutti gli Account</span>
-            <span id="header-accounts-count" class="bg-blue-950 text-yellow-300 text-[10px] px-1.5 py-0.2 rounded-full font-black">0</span>
-          </button>
-
-          <!-- Tasto Account / Profilo Personalizzato -->
-          <button id="btn-account-header" onclick="app.openAccountModal()" title="Gestisci Profilo & Account" class="bg-white/10 hover:bg-white/20 text-white text-xs px-2.5 py-1.5 rounded-xl border border-white/20 transition flex items-center gap-1.5 cursor-pointer">
-            <span id="header-avatar-circle" class="w-5 h-5 rounded-full bg-yellow-400 text-blue-950 font-black text-[10px] flex items-center justify-center overflow-hidden">
+        <!-- Profilo Utente & Azioni Header (Solo Account) -->
+        <div class="flex items-center">
+          <button id="btn-account-header" onclick="app.openAccountPage()" title="Visualizza e gestisci il tuo Account" class="bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm px-3.5 py-2 rounded-xl border border-white/20 transition flex items-center gap-2 cursor-pointer shadow-sm">
+            <span id="header-avatar-circle" class="w-6 h-6 rounded-full bg-yellow-400 text-blue-950 font-black text-xs flex items-center justify-center overflow-hidden flex-shrink-0">
               <svg class="w-3.5 h-3.5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
               </svg>
             </span>
-            <span class="hidden sm:inline font-semibold">Account</span>
-          </button>
-
-          <!-- Tasto Stampa -->
-          <button onclick="window.print()" title="Stampa per Bacheca" class="bg-white/10 hover:bg-white/20 text-white p-2 rounded-xl border border-white/20 transition flex items-center">
-            <svg class="w-4 h-4 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-            </svg>
+            <span id="header-account-label" class="font-bold tracking-tight">Account</span>
           </button>
         </div>
       </div>
@@ -162,6 +132,14 @@
           <span>Regolamento</span>
         </button>
 
+        <!-- Tab 6: Account Personale -->
+        <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap" data-tab="account">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+          </svg>
+          <span id="nav-account-label">Account</span>
+        </button>
+
       </div>
     </div>
   </nav>
@@ -192,6 +170,11 @@
     <!-- SEZIONE 5: REGOLAMENTO -->
     <div id="tab-panel-rules" class="hidden">
       <div id="rules-container"></div>
+    </div>
+
+    <!-- SEZIONE 6: IL MIO ACCOUNT -->
+    <div id="tab-panel-account" class="hidden">
+      <div id="account-container"></div>
     </div>
 
   </main>

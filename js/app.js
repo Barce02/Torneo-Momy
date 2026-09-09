@@ -582,20 +582,11 @@ class App {
   }
 
   renderUserBadge() {
-    const badge = document.getElementById("user-profile-badge");
-    const logoutBtn = document.getElementById("btn-logout");
     const headerAvatar = document.getElementById("header-avatar-circle");
-    const adminAccountsBtn = document.getElementById("btn-admin-accounts-header");
-    const adminAccountsCount = document.getElementById("header-accounts-count");
-    if (!badge) return;
+    const accountLabel = document.getElementById("header-account-label");
+    const navAccountLabel = document.getElementById("nav-account-label");
 
     if (!this.user || this.user.email === "ospite@torneo.it") {
-      badge.className = "bg-white/10 border border-white/20 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs text-slate-300 cursor-pointer hover:bg-white/20 transition";
-      badge.onclick = () => this.openLoginModal("login");
-      badge.innerHTML = `
-        <span class="w-2 h-2 rounded-full bg-yellow-400"></span>
-        <span>Spettatore</span>
-      `;
       if (headerAvatar) {
         headerAvatar.innerHTML = `
           <svg class="w-3.5 h-3.5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -603,58 +594,28 @@ class App {
           </svg>
         `;
       }
-      if (logoutBtn) logoutBtn.classList.add("hidden");
-      if (adminAccountsBtn) {
-        adminAccountsBtn.classList.add("hidden");
-        adminAccountsBtn.classList.remove("flex");
+      if (accountLabel) {
+        accountLabel.textContent = "Account";
+      }
+      if (navAccountLabel) {
+        navAccountLabel.textContent = "Account";
       }
       return;
     }
 
-    if (logoutBtn) logoutBtn.classList.remove("hidden");
-
-    // Rendi il badge cliccabile per personalizzare il profilo
-    badge.onclick = () => this.openAccountModal();
-    badge.title = "Clicca per personalizzare il tuo account e foto profilo";
-
-    const avatarHtml = this.getAvatarMarkup(this.user, "w-5 h-5", "text-[10px]");
-
+    const avatarHtml = this.getAvatarMarkup(this.user, "w-6 h-6", "text-[10px]");
     if (headerAvatar) {
       headerAvatar.innerHTML = avatarHtml;
     }
 
-    // Aggiorna pulsante gestione account per Admin
-    if (adminAccountsBtn) {
-      if (this.isAdmin) {
-        adminAccountsBtn.classList.remove("hidden");
-        adminAccountsBtn.classList.add("flex");
-        if (adminAccountsCount) {
-          const accounts = this.loadAccounts();
-          adminAccountsCount.textContent = Object.keys(accounts).length;
-        }
-      } else {
-        adminAccountsBtn.classList.add("hidden");
-        adminAccountsBtn.classList.remove("flex");
-      }
+    if (accountLabel) {
+      const displayName = this.user.firstName || (this.user.name ? this.user.name.split(" ")[0] : "Account");
+      accountLabel.textContent = displayName;
     }
 
-    if (this.isAdmin) {
-      badge.className = "bg-yellow-400 text-blue-950 border border-yellow-300 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs font-black shadow-sm cursor-pointer hover:bg-yellow-300 transition";
-      badge.innerHTML = `
-        <div class="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-blue-900 text-yellow-300">
-          ${avatarHtml}
-        </div>
-        <span class="truncate max-w-[170px]">Admin: ${this.user.name}</span>
-      `;
-    } else {
-      badge.className = "bg-blue-950/80 text-white border border-blue-700/60 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs cursor-pointer hover:bg-blue-900 transition";
-      badge.innerHTML = `
-        <div class="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-blue-800 text-yellow-300">
-          ${avatarHtml}
-        </div>
-        <span class="truncate max-w-[150px] font-medium">${this.user.name}</span>
-        ${this.user.ranking ? `<span class="bg-yellow-400 text-blue-950 font-mono text-[10px] px-1.5 py-0.5 rounded font-black">${this.user.ranking}</span>` : ''}
-      `;
+    if (navAccountLabel) {
+      const displayName = this.user.firstName || "Account";
+      navAccountLabel.textContent = displayName;
     }
   }
 
@@ -682,46 +643,37 @@ class App {
   // ==========================================
   // GESTIONE PROFILO ACCOUNT
   // ==========================================
+  openAccountPage() {
+    this.switchTab("account");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   openAccountModal() {
-    if (!this.user || this.user.email === "ospite@torneo.it") {
-      this.openLoginModal("login");
-      return;
-    }
-
-    const fnInput = document.getElementById("account-firstname-input");
-    const lnInput = document.getElementById("account-lastname-input");
-    const bdInput = document.getElementById("account-birthdate-input");
-    const rkInput = document.getElementById("account-ranking-input");
-    const emInput = document.getElementById("account-email-input");
-    const npInput = document.getElementById("account-newpassword-input");
-    const cpInput = document.getElementById("account-confirmpassword-input");
-    const bioToggle = document.getElementById("account-biometrics-toggle");
-
-    if (fnInput) fnInput.value = this.user.firstName || "";
-    if (lnInput) lnInput.value = this.user.lastName || "";
-    if (bdInput) bdInput.value = this.user.birthDate || "";
-    if (rkInput) rkInput.value = this.user.ranking || "NC";
-    if (emInput) emInput.value = this.user.email || "";
-    if (npInput) npInput.value = "";
-    if (cpInput) cpInput.value = "";
-    if (bioToggle) bioToggle.checked = !!this.user.biometricsEnabled;
-
-    this.renderAccountAvatarPreview();
-    this.openModal("modal-account");
+    this.openAccountPage();
   }
 
   renderAccountAvatarPreview() {
-    const container = document.getElementById("account-avatar-preview");
-    if (!container || !this.user) return;
+    const containers = [
+      document.getElementById("account-avatar-preview"),
+      document.getElementById("account-page-avatar-preview"),
+      document.getElementById("account-page-form-avatar-preview")
+    ].filter(Boolean);
 
+    if (containers.length === 0 || !this.user) return;
+
+    let content = "";
     if (this.user.photoUrl) {
-      container.innerHTML = `<img src="${this.user.photoUrl}" alt="Avatar" class="w-full h-full object-cover rounded-2xl">`;
+      content = `<img src="${this.user.photoUrl}" alt="Avatar" class="w-full h-full object-cover rounded-2xl">`;
     } else if (this.user.presetAvatar) {
-      container.innerHTML = this.getAvatarMarkup(this.user, "w-10 h-10", "text-xl");
+      content = this.getAvatarMarkup(this.user, "w-10 h-10", "text-xl");
     } else {
       const initials = (this.user.firstName ? this.user.firstName[0] : "") + (this.user.lastName ? this.user.lastName[0] : (this.user.name ? this.user.name[0] : "U"));
-      container.innerHTML = `<span class="text-2xl font-black uppercase text-yellow-300">${initials || 'U'}</span>`;
+      content = `<span class="text-2xl font-black uppercase text-yellow-300">${initials || 'U'}</span>`;
     }
+
+    containers.forEach(c => {
+      c.innerHTML = content;
+    });
   }
 
   handlePhotoUpload(event) {
@@ -765,13 +717,21 @@ class App {
   handleSaveAccountProfile() {
     if (!this.user) return;
 
-    const firstName = document.getElementById("account-firstname-input").value.trim();
-    const lastName = document.getElementById("account-lastname-input").value.trim();
-    const birthDate = document.getElementById("account-birthdate-input").value.trim();
-    const ranking = document.getElementById("account-ranking-input").value.trim() || "NC";
-    const newPassword = document.getElementById("account-newpassword-input").value;
-    const confirmPassword = document.getElementById("account-confirmpassword-input").value;
-    const biometricsEnabled = document.getElementById("account-biometrics-toggle")?.checked ?? true;
+    const fnEl = document.getElementById("account-page-firstname-input") || document.getElementById("account-firstname-input");
+    const lnEl = document.getElementById("account-page-lastname-input") || document.getElementById("account-lastname-input");
+    const bdEl = document.getElementById("account-page-birthdate-input") || document.getElementById("account-birthdate-input");
+    const rkEl = document.getElementById("account-page-ranking-input") || document.getElementById("account-ranking-input");
+    const npEl = document.getElementById("account-page-newpassword-input") || document.getElementById("account-newpassword-input");
+    const cpEl = document.getElementById("account-page-confirmpassword-input") || document.getElementById("account-confirmpassword-input");
+    const bioEl = document.getElementById("account-page-biometrics-toggle") || document.getElementById("account-biometrics-toggle");
+
+    const firstName = fnEl ? fnEl.value.trim() : "";
+    const lastName = lnEl ? lnEl.value.trim() : "";
+    const birthDate = bdEl ? bdEl.value.trim() : "";
+    const ranking = rkEl ? rkEl.value.trim() : "NC";
+    const newPassword = npEl ? npEl.value : "";
+    const confirmPassword = cpEl ? cpEl.value : "";
+    const biometricsEnabled = bioEl ? bioEl.checked : true;
 
     if (!firstName || !lastName) {
       alert("Inserisci sia il Nome che il Cognome.");
@@ -832,8 +792,16 @@ class App {
 
     this.closeModal("modal-account");
     this.renderUserBadge();
-    this.render();
+    if (this.currentTab === "account") {
+      this.renderAccountView();
+    } else {
+      this.render();
+    }
     this.showToast("Profilo aggiornato con successo!", "success");
+  }
+
+  handleSaveAccountProfilePage() {
+    this.handleSaveAccountProfile();
   }
 
   formatDate(dateStr) {
@@ -872,7 +840,7 @@ class App {
   }
 
   renderTabContent() {
-    const tabPanels = ["players", "groups", "schedule", "bracket", "rules"];
+    const tabPanels = ["players", "groups", "schedule", "bracket", "rules", "account"];
     tabPanels.forEach(tp => {
       const el = document.getElementById(`tab-panel-${tp}`);
       if (el) {
@@ -899,6 +867,9 @@ class App {
         break;
       case "rules":
         this.renderRulesView();
+        break;
+      case "account":
+        this.renderAccountView();
         break;
     }
   }
@@ -988,18 +959,24 @@ class App {
             </p>
           </div>
 
-          ${this.isAdmin ? `
-            <div class="flex flex-wrap gap-2 w-full md:w-auto">
-              <button onclick="app.handleAutoAssignGroups()" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-1.5">
+          <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            <button onclick="window.print()" title="Stampa Gironi e Classifiche per Bacheca Circolo" class="w-full sm:w-auto bg-white/15 hover:bg-white/25 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-white/30 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm">
+              <svg class="w-4 h-4 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+              </svg>
+              <span>Stampa Gironi</span>
+            </button>
+            ${this.isAdmin ? `
+              <button onclick="app.handleAutoAssignGroups()" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-1.5 cursor-pointer">
                 + Distribuisci Atleti nei 2 Gironi
               </button>
               ${totalInGroups >= 2 ? `
-                <button onclick="app.handleGenerateBracketFromGroups()" class="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl border border-white/30 transition flex items-center justify-center gap-1.5">
-                  Genera Tabellone Finale (Tutti Qualificati)
+                <button onclick="app.handleGenerateBracketFromGroups()" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl border border-blue-500 transition flex items-center justify-center gap-1.5 cursor-pointer shadow">
+                  Genera Tabellone Finale
                 </button>
               ` : ''}
-            </div>
-          ` : ''}
+            ` : ''}
+          </div>
         </div>
     `;
 
@@ -2764,32 +2741,6 @@ class App {
 
     let html = "";
 
-    // Controlli di gestione tabellone per l'Amministratore
-    if (this.isAdmin) {
-      html += `
-        <div class="bg-blue-50 border border-blue-200 rounded-xl p-3.5 mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-2">
-            <span class="text-blue-950 font-bold text-xs sm:text-sm">Gestione Tabellone Finale (Admin):</span>
-            <span class="text-xs text-blue-800">
-              ${bracket ? "Clicca su qualsiasi match per aggiornare il punteggio e il campo." : "Componi il tabellone con gli atleti iscritti."}
-            </span>
-          </div>
-          <div class="flex items-center gap-2">
-            ${players.length >= 2 ? `
-              <button onclick="app.handleGenerateBracket()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-3.5 py-2 rounded-xl shadow-sm transition">
-                ${bracket ? "Rigenera Tabellone" : "Genera Tabellone Finale Automatico"}
-              </button>
-            ` : ''}
-            ${bracket ? `
-              <button onclick="app.handleResetBracket()" class="text-xs bg-rose-600 hover:bg-rose-700 text-white font-medium px-3.5 py-2 rounded-xl transition">
-                Azzera Tabellone
-              </button>
-            ` : ''}
-          </div>
-        </div>
-      `;
-    }
-
     // Se il tabellone non è ancora generato
     if (!bracket || !bracket.rounds || bracket.rounds.length === 0) {
       html += `
@@ -2817,11 +2768,11 @@ class App {
           <div class="flex flex-wrap justify-center gap-3">
             ${this.isAdmin ? `
               ${players.length >= 2 ? `
-                <button onclick="app.handleGenerateBracket()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition">
+                <button onclick="app.handleGenerateBracket()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
                   Genera Tabellone Finale (${players.length} Partecipanti)
                 </button>
               ` : `
-                <button onclick="app.switchTab('players')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition">
+                <button onclick="app.switchTab('players')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
                   Vai a Iscritti per Aggiungere Giocatori
                 </button>
               `}
@@ -2836,6 +2787,39 @@ class App {
       container.innerHTML = html;
       return;
     }
+
+    // Barra Intestazione Tabellone con Tasto Stampa
+    html += `
+      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-blue-900 text-yellow-400 flex items-center justify-center font-black flex-shrink-0 shadow">
+            <svg class="w-5 h-5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-gray-900">Tabellone Finale ad Eliminazione Diretta</h2>
+            <p class="text-xs text-gray-500">Incontri ufficiali, risultati e progressione del torneo</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          <button onclick="window.print()" title="Stampa Tabellone Finale per Bacheca Circolo" class="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer">
+            <svg class="w-4 h-4 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+            </svg>
+            <span>Stampa Tabellone</span>
+          </button>
+          ${this.isAdmin ? `
+            <button onclick="app.handleGenerateBracket()" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl shadow-sm transition cursor-pointer">
+              Rigenera Tabellone
+            </button>
+            <button onclick="app.handleResetBracket()" class="w-full sm:w-auto bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium text-xs px-3.5 py-2.5 rounded-xl border border-rose-200 transition cursor-pointer">
+              Azzera
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
 
     // Render visivo ad albero
     html += `
@@ -3140,6 +3124,268 @@ class App {
         </div>
       </div>
     `;
+  }
+
+  // ==========================================
+  // SEZIONE 6: IL MIO ACCOUNT (PAGINA COMPLETA)
+  // ==========================================
+  renderAccountView() {
+    const container = document.getElementById("account-container");
+    if (!container) return;
+
+    if (!this.user || this.user.email === "ospite@torneo.it") {
+      container.innerHTML = `
+        <div class="max-w-md mx-auto bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 my-6 text-center">
+          <div class="h-16 flex items-center justify-center mx-auto mb-3">
+            <img src="assets/logo.jpg" alt="Momy Sport Village" class="h-full w-auto object-contain">
+          </div>
+          <h2 class="text-xl font-bold text-gray-900 mb-1">Area Riservata Account</h2>
+          <p class="text-xs sm:text-sm text-gray-500 mb-6">
+            Accedi con la tua email e password, oppure crea un nuovo account per gestire il tuo profilo e partecipare al torneo.
+          </p>
+
+          <div class="flex flex-col gap-3">
+            <button onclick="app.openLoginModal('login')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm py-3 px-4 rounded-xl shadow transition flex items-center justify-center gap-2 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+              <span>Accedi al tuo Account</span>
+            </button>
+            <button onclick="app.openLoginModal('register')" class="w-full bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-sm py-3 px-4 rounded-xl shadow transition flex items-center justify-center gap-2 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
+              <span>Crea Nuovo Account</span>
+            </button>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    const u = this.user;
+    const accounts = this.loadAccounts();
+    const accountsCount = Object.keys(accounts).length;
+    const linkedPlayer = this.getPlayerForAccount(u);
+
+    container.innerHTML = `
+      <div class="space-y-6 max-w-4xl mx-auto">
+
+        <!-- Banner Scheda Profilo Utente -->
+        <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 rounded-2xl p-6 sm:p-7 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div class="flex items-center gap-4">
+            <!-- Avatar grande -->
+            <div id="account-page-avatar-preview" class="w-20 h-20 rounded-2xl bg-blue-900 text-yellow-300 border-2 border-yellow-400 shadow-md flex items-center justify-center font-black text-2xl overflow-hidden flex-shrink-0">
+              <!-- Riempito via JS -->
+            </div>
+            <div>
+              <div class="flex flex-wrap items-center gap-2 mb-1">
+                <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">${this.escapeHtml(u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Utente')}</h2>
+                ${this.isAdmin ? `
+                  <span class="bg-yellow-400 text-blue-950 font-black text-xs uppercase px-2.5 py-0.5 rounded shadow-sm">
+                    👑 Amministratore
+                  </span>
+                ` : linkedPlayer ? `
+                  <span class="bg-emerald-500 text-white font-bold text-xs px-2.5 py-0.5 rounded shadow-sm">
+                    🎾 Atleta nel Torneo
+                  </span>
+                ` : `
+                  <span class="bg-blue-500/80 text-white font-medium text-xs px-2.5 py-0.5 rounded shadow-sm">
+                    👤 Account Registrato
+                  </span>
+                `}
+              </div>
+              <p class="text-xs sm:text-sm text-blue-200 font-mono flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                <span>${this.escapeHtml(u.email)}</span>
+              </p>
+              <div class="flex items-center gap-3 mt-2 text-xs text-yellow-300/90 font-medium">
+                <span>Classifica: <strong>${u.ranking || 'NC'}</strong></span>
+                <span>•</span>
+                <span>Nascita: <strong>${this.formatDate(u.birthDate)}</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Azioni Rapide Banner -->
+          <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            ${this.isAdmin ? `
+              <button onclick="app.showAdminAccounts()" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-1.5 cursor-pointer">
+                <svg class="w-4 h-4 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                <span>Tutti gli Account (${accountsCount})</span>
+              </button>
+            ` : ''}
+            <button onclick="app.logout()" class="w-full sm:w-auto bg-white/10 hover:bg-rose-600/80 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-white/20 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm">
+              <svg class="w-4 h-4 text-rose-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+              <span>Esci dall'Account</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Se Admin: Scheda Backup & Sincronizzazione Dati -->
+        ${this.isAdmin ? `
+          <div class="bg-blue-50 border border-blue-200 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div>
+              <h3 class="text-sm font-bold text-blue-950 flex items-center gap-2">
+                <svg class="w-4 h-4 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                <span>Sincronizzazione Dati tra Dispositivi (Telefono ↔ Computer)</span>
+              </h3>
+              <p class="text-xs text-blue-800 mt-0.5">Esporta tutti gli account e i dati del torneo per archiviarli o sincronizzarli tra cellulare e PC.</p>
+            </div>
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+              <button onclick="app.exportBackupData()" class="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer">
+                <span>Esporta Backup</span>
+              </button>
+              <label class="flex-1 sm:flex-none bg-white hover:bg-gray-100 text-blue-900 border border-blue-300 text-xs font-bold px-3.5 py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer">
+                <span>Importa Backup</span>
+                <input type="file" accept=".json,application/json" class="hidden" onchange="app.importBackupData(event)">
+              </label>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- FORM MODIFICA PROFILO -->
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8">
+          <h3 class="text-base sm:text-lg font-bold text-gray-900 mb-5 pb-3 border-b border-gray-100 flex items-center gap-2">
+            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            <span>Dati Personali e Personalizzazione Profilo</span>
+          </h3>
+
+          <form id="account-page-form" class="space-y-6" onsubmit="event.preventDefault(); app.handleSaveAccountProfilePage();">
+            
+            <!-- Foto Profilo / Avatar -->
+            <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5">
+              <label class="block text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Foto Profilo / Avatar</label>
+              <div class="flex flex-col sm:flex-row items-center gap-5">
+                <div id="account-page-form-avatar-preview" class="w-20 h-20 rounded-2xl bg-blue-900 text-yellow-300 border-2 border-yellow-400 shadow-md flex items-center justify-center font-black text-2xl overflow-hidden flex-shrink-0">
+                  <!-- Popolato via JS -->
+                </div>
+
+                <div class="flex-grow space-y-3 text-center sm:text-left">
+                  <div class="flex flex-wrap gap-2 justify-center sm:justify-start">
+                    <label class="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-sm transition inline-flex items-center gap-1.5">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                      <span>Carica Nuova Foto</span>
+                      <input type="file" id="account-page-photo-file" accept="image/*" class="hidden" onchange="app.handlePhotoUpload(event)">
+                    </label>
+
+                    <button type="button" onclick="app.removeAccountPhoto()" class="bg-white hover:bg-gray-100 text-rose-700 text-xs font-semibold px-3.5 py-2 rounded-xl border border-gray-200 transition cursor-pointer">
+                      Rimuovi Foto
+                    </button>
+                  </div>
+
+                  <!-- Badge profilo predefiniti -->
+                  <div>
+                    <span class="text-[11px] text-gray-500 font-semibold block mb-1.5">Oppure scegli uno stile predefinito:</span>
+                    <div class="flex gap-2 justify-center sm:justify-start">
+                      <button type="button" onclick="app.selectPresetAvatar('racket')" title="Racchetta" class="w-9 h-9 rounded-xl bg-white hover:bg-yellow-200 text-blue-950 flex items-center justify-center border border-gray-300 shadow-sm transition cursor-pointer">
+                        <svg class="w-4 h-4 text-blue-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="9" r="6" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 13.5L21 21"/></svg>
+                      </button>
+                      <button type="button" onclick="app.selectPresetAvatar('trophy')" title="Coppa" class="w-9 h-9 rounded-xl bg-white hover:bg-yellow-200 text-blue-950 flex items-center justify-center border border-gray-300 shadow-sm transition cursor-pointer">
+                        <svg class="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 21h8m-4-4v4M5 4h14v4a7 7 0 01-14 0V4z"/></svg>
+                      </button>
+                      <button type="button" onclick="app.selectPresetAvatar('star')" title="Stella" class="w-9 h-9 rounded-xl bg-white hover:bg-yellow-200 text-blue-950 flex items-center justify-center border border-gray-300 shadow-sm transition cursor-pointer">
+                        <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+                      </button>
+                      <button type="button" onclick="app.selectPresetAvatar('shield')" title="Scudo" class="w-9 h-9 rounded-xl bg-white hover:bg-yellow-200 text-blue-950 flex items-center justify-center border border-gray-300 shadow-sm transition cursor-pointer">
+                        <svg class="w-4 h-4 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dati Anagrafici -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">Nome *</label>
+                <input type="text" id="account-page-firstname-input" value="${this.escapeHtml(u.firstName || '')}" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">Cognome *</label>
+                <input type="text" id="account-page-lastname-input" value="${this.escapeHtml(u.lastName || '')}" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">Data di Nascita *</label>
+                <input type="date" id="account-page-birthdate-input" value="${u.birthDate || ''}" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white" required>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">Classifica FITP *</label>
+                <select id="account-page-ranking-input" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
+                  ${["NC", "4.6", "4.5", "4.4", "4.3", "4.2", "4.1", "3.5", "3.4", "3.3", "3.2", "3.1", "2.8", "2.7", "2.6", "2.5", "2.4", "2.3", "2.2", "2.1", "1"].map(rk => `
+                    <option value="${rk}" ${u.ranking === rk ? 'selected' : ''}>${rk}</option>
+                  `).join('')}
+                </select>
+              </div>
+            </div>
+
+            <!-- Email (Unica e non modificabile) -->
+            <div>
+              <label class="block text-xs font-bold text-gray-700 mb-1">Indirizzo Email (Identificativo Unico)</label>
+              <input type="email" value="${this.escapeHtml(u.email)}" readonly class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl bg-gray-50 text-gray-600 cursor-not-allowed font-mono">
+              <p class="text-[11px] text-gray-400 mt-1">L'email non può essere modificata direttamente per garantire l'integrità delle credenziali di accesso.</p>
+            </div>
+
+            <!-- Modifica Password -->
+            <div class="bg-blue-50/50 border border-blue-200/80 rounded-2xl p-4 sm:p-5 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-blue-950">Modifica Password di Accesso (Opzionale)</span>
+                <span class="text-[11px] text-gray-500">Lascia vuoto se non vuoi modificarla</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-[11px] font-semibold text-gray-700 mb-1">Nuova Password</label>
+                  <div class="relative">
+                    <input type="password" id="account-page-newpassword-input" autocomplete="new-password" placeholder="Minimo 4 caratteri" minlength="4" class="w-full text-xs sm:text-sm pl-3 pr-9 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 bg-white">
+                    <button type="button" onclick="app.togglePasswordVisibility('account-page-newpassword-input', this)" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition" title="Mostra/Nascondi password">
+                      <svg class="w-3.5 h-3.5 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                      <svg class="w-3.5 h-3.5 eye-icon-hide hidden text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-gray-700 mb-1">Conferma Nuova Password</label>
+                  <div class="relative">
+                    <input type="password" id="account-page-confirmpassword-input" autocomplete="new-password" placeholder="Ripeti nuova password" minlength="4" class="w-full text-xs sm:text-sm pl-3 pr-9 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 bg-white">
+                    <button type="button" onclick="app.togglePasswordVisibility('account-page-confirmpassword-input', this)" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition" title="Mostra/Nascondi password">
+                      <svg class="w-3.5 h-3.5 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                      <svg class="w-3.5 h-3.5 eye-icon-hide hidden text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Opzione Biometrica -->
+            <div class="bg-blue-50/70 border border-blue-200 rounded-xl p-3.5 flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <svg class="w-5 h-5 text-blue-700 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 004 11m5.808 9.562l.054.09"/></svg>
+                <label for="account-page-biometrics-toggle" class="text-xs sm:text-sm text-blue-950 font-semibold cursor-pointer">
+                  Accesso rapido con Face ID / Touch ID abilitato su questo dispositivo
+                </label>
+              </div>
+              <input type="checkbox" id="account-page-biometrics-toggle" ${u.biometricsEnabled ? 'checked' : ''} class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+            </div>
+
+            <!-- Pulsanti Azione Form -->
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-100">
+              <button type="button" onclick="app.logout()" class="w-full sm:w-auto text-xs font-semibold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-4 py-2.5 rounded-xl border border-rose-200 transition text-center cursor-pointer">
+                Disconnetti Account (Esci)
+              </button>
+              <div class="flex items-center gap-3 w-full sm:w-auto">
+                <button type="submit" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-6 py-2.5 rounded-xl shadow-md transition cursor-pointer">
+                  Salva Modifiche Profilo
+                </button>
+              </div>
+            </div>
+
+          </form>
+        </div>
+
+      </div>
+    `;
+
+    this.renderAccountAvatarPreview();
   }
 
   // ==========================================
