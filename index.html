@@ -144,6 +144,26 @@
     </div>
   </nav>
 
+  <!-- BARRA SELETTORE CATEGORIA (U9, U12, OPEN) -->
+  <div id="category-bar-wrapper" class="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 border-b border-yellow-400/30 px-4 sm:px-6 lg:px-8 py-2 sticky top-[118px] z-25 shadow-md">
+    <div class="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-[11px] font-extrabold uppercase tracking-wider text-yellow-400 flex items-center gap-1">
+          <svg class="w-3.5 h-3.5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+          </svg>
+          Categoria:
+        </span>
+        <div id="category-selector-buttons" class="flex flex-wrap items-center gap-1.5">
+          <!-- Popolato dinamicamente da app.renderCategorySelector() -->
+        </div>
+      </div>
+      <div id="category-status-indicator" class="text-[11px] text-yellow-300/90 font-medium hidden sm:flex items-center gap-1.5">
+        <!-- Indicatore categoria attiva -->
+      </div>
+    </div>
+  </div>
+
   <!-- CONTENUTO PRINCIPALE -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full">
     
@@ -340,6 +360,16 @@
             </div>
           </div>
 
+          <!-- Categoria Torneo -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Categoria Torneo *</label>
+            <select id="register-category-select" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
+              <option value="U9">Under 9 (U9)</option>
+              <option value="U12" selected>Under 12 (U12)</option>
+              <option value="Open">Categoria Open (Open)</option>
+            </select>
+          </div>
+
           <!-- Opzione Face ID / Touch ID -->
           <div class="bg-blue-50/70 border border-blue-200 rounded-xl p-2.5 flex items-center gap-2 mt-1">
             <input type="checkbox" id="register-biometrics-checkbox" checked class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
@@ -360,59 +390,114 @@
         </div>
       </div>
 
-      <!-- SEZIONE 3: RECUPERA PASSWORD -->
+      <!-- SEZIONE 3: RECUPERA PASSWORD CON INVIO EMAIL REALE -->
       <div id="auth-section-forgot" class="hidden">
-        <div class="mb-4 text-xs text-blue-900 bg-blue-50/90 p-3 rounded-xl border border-blue-200">
-          Inserisci l'indirizzo email del tuo account. Potrai reimpostare immediatamente la password di accesso.
+        
+        <!-- STEP 1: RICHIESTA CODICE VIA EMAIL -->
+        <div id="forgot-step-1" class="space-y-3">
+          <div class="text-xs text-blue-900 bg-blue-50/90 p-3.5 rounded-xl border border-blue-200">
+            <div class="font-bold flex items-center gap-1.5 text-blue-950 mb-1">
+              <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+              </svg>
+              <span>Recupero Password Tramite Email</span>
+            </div>
+            Inserisci l'indirizzo email associato al tuo account. Ti invieremo un'email con un codice di sicurezza a 6 cifre per reimpostare la tua password.
+          </div>
+
+          <form id="forgot-step1-form" class="space-y-3" onsubmit="event.preventDefault(); app.handleRequestPasswordReset();">
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1">Indirizzo Email dell'Account *</label>
+              <input type="email" id="forgot-email-input" name="email" autocomplete="username" placeholder="es. mario.rossi@email.com" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+            </div>
+
+            <button type="submit" id="btn-request-reset-code" class="w-full py-2.5 text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow transition flex items-center justify-center gap-2 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+              </svg>
+              <span id="btn-request-reset-label">Invia Codice di Verifica via Email</span>
+            </button>
+          </form>
+
+          <div class="text-center pt-2 border-t mt-3">
+            <button type="button" onclick="app.switchAuthMode('login')" class="text-xs text-blue-700 hover:text-blue-900 font-semibold underline">
+              Ricordi la password? Torna all'accesso
+            </button>
+          </div>
         </div>
 
-        <form id="forgot-form" class="space-y-3">
-          <div>
-            <label class="block text-xs font-semibold text-gray-700 mb-1">Indirizzo Email dell'Account *</label>
-            <input type="email" id="forgot-email-input" name="email" autocomplete="username" placeholder="es. mario.rossi@email.com" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
-          </div>
-
-          <div>
-            <label class="block text-xs font-semibold text-gray-700 mb-1">Nuova Password *</label>
-            <div class="relative">
-              <input type="password" id="forgot-new-password-input" name="new-password" autocomplete="new-password" placeholder="Minimo 4 caratteri" class="w-full text-xs sm:text-sm pl-3.5 pr-10 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" minlength="4" required>
-              <button type="button" onclick="app.togglePasswordVisibility('forgot-new-password-input', this)" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition" title="Mostra/Nascondi password" aria-label="Mostra/Nascondi password">
-                <svg class="w-4 h-4 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                </svg>
-                <svg class="w-4 h-4 eye-icon-hide hidden text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/>
-                </svg>
-              </button>
+        <!-- STEP 2: INSERISCI CODICE E NUOVA PASSWORD -->
+        <div id="forgot-step-2" class="hidden space-y-3">
+          <div class="text-xs text-emerald-950 bg-emerald-50/90 p-3.5 rounded-xl border border-emerald-200">
+            <div class="font-bold flex items-center gap-1.5 text-emerald-900 mb-1">
+              <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span>Email di verifica inviata!</span>
             </div>
+            Abbiamo inviato un'email con il codice di verifica a <strong id="forgot-sent-email-label" class="text-blue-900 font-mono underline">...</strong>. Controlla la tua casella di posta (inclusa la cartella Spam / Posta indesiderata).
           </div>
 
-          <div>
-            <label class="block text-xs font-semibold text-gray-700 mb-1">Conferma Nuova Password *</label>
-            <div class="relative">
-              <input type="password" id="forgot-confirm-password-input" name="confirm-password" autocomplete="new-password" placeholder="Ripeti la nuova password" class="w-full text-xs sm:text-sm pl-3.5 pr-10 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" minlength="4" required>
-              <button type="button" onclick="app.togglePasswordVisibility('forgot-confirm-password-input', this)" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition" title="Mostra/Nascondi password" aria-label="Mostra/Nascondi password">
-                <svg class="w-4 h-4 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                </svg>
-                <svg class="w-4 h-4 eye-icon-hide hidden text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/>
-                </svg>
-              </button>
+          <!-- Banner di test / offline con codice -->
+          <div id="forgot-code-helper-banner" class="bg-yellow-50 border border-yellow-200 rounded-xl p-2.5 text-xs text-yellow-950 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-[11px] uppercase tracking-wider text-yellow-800">Codice generato:</span>
+              <span id="forgot-code-display-badge" class="font-mono font-black text-sm bg-yellow-400/90 px-2 py-0.5 rounded text-blue-950 tracking-widest">------</span>
             </div>
+            <span class="text-[10px] text-yellow-800/80">Valido 15 min</span>
           </div>
 
-          <button type="submit" class="w-full py-2.5 text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow transition mt-1">
-            Reimposta Password & Accedi
-          </button>
-        </form>
+          <form id="forgot-step2-form" class="space-y-3" onsubmit="event.preventDefault(); app.handleVerifyResetCode();">
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1">Codice di Verifica a 6 Cifre *</label>
+              <input type="text" id="forgot-code-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" placeholder="123456" class="w-full text-center text-lg font-mono font-bold tracking-widest px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white" required>
+            </div>
 
-        <div class="text-center pt-3 border-t mt-4">
-          <button type="button" onclick="app.switchAuthMode('login')" class="text-xs text-blue-700 hover:text-blue-900 font-semibold underline">
-            Ricordi la password? Torna all'accesso
-          </button>
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1">Nuova Password *</label>
+              <div class="relative">
+                <input type="password" id="forgot-new-password-input" name="new-password" autocomplete="new-password" placeholder="Minimo 4 caratteri" class="w-full text-xs sm:text-sm pl-3.5 pr-10 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" minlength="4" required>
+                <button type="button" onclick="app.togglePasswordVisibility('forgot-new-password-input', this)" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition" title="Mostra/Nascondi password" aria-label="Mostra/Nascondi password">
+                  <svg class="w-4 h-4 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                  </svg>
+                  <svg class="w-4 h-4 eye-icon-hide hidden text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1">Conferma Nuova Password *</label>
+              <div class="relative">
+                <input type="password" id="forgot-confirm-password-input" name="confirm-password" autocomplete="new-password" placeholder="Ripeti la nuova password" class="w-full text-xs sm:text-sm pl-3.5 pr-10 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" minlength="4" required>
+                <button type="button" onclick="app.togglePasswordVisibility('forgot-confirm-password-input', this)" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition" title="Mostra/Nascondi password" aria-label="Mostra/Nascondi password">
+                  <svg class="w-4 h-4 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                  </svg>
+                  <svg class="w-4 h-4 eye-icon-hide hidden text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <button type="submit" id="btn-submit-verify-code" class="w-full py-2.5 text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow transition mt-1 cursor-pointer">
+              Verifica Codice & Salva Nuova Password
+            </button>
+          </form>
+
+          <div class="flex items-center justify-between text-xs pt-2 border-t mt-3">
+            <button type="button" onclick="app.resetForgotStep()" class="text-blue-700 hover:text-blue-900 font-semibold underline">
+              ← Invia a un'altra email
+            </button>
+            <button type="button" onclick="app.switchAuthMode('login')" class="text-gray-500 hover:text-gray-800">
+              Torna al login
+            </button>
+          </div>
         </div>
       </div>
 
@@ -482,6 +567,16 @@
               <option value="1">1</option>
             </select>
           </div>
+        </div>
+
+        <!-- Categoria Torneo -->
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Categoria Torneo *</label>
+          <select id="player-category-select" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
+            <option value="U9">Under 9 (U9)</option>
+            <option value="U12" selected>Under 12 (U12)</option>
+            <option value="Open">Categoria Open (Open)</option>
+          </select>
         </div>
 
         <div>
@@ -686,6 +781,16 @@
           </div>
         </div>
 
+        <!-- CATEGORIA TORNEO -->
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Categoria Torneo</label>
+          <select id="account-category-select" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium">
+            <option value="U9">Under 9 (U9)</option>
+            <option value="U12" selected>Under 12 (U12)</option>
+            <option value="Open">Categoria Open (Open)</option>
+          </select>
+        </div>
+
         <!-- EMAIL IDENTIFICATIVA (READONLY) -->
         <div>
           <label class="block text-xs font-semibold text-gray-700 mb-1">Email Account</label>
@@ -871,6 +976,7 @@
         <input type="hidden" id="schedule-match-type">
         <input type="hidden" id="schedule-match-group-or-round">
         <input type="hidden" id="schedule-match-id">
+        <input type="hidden" id="schedule-match-category">
 
         <div class="bg-blue-50/80 p-3.5 rounded-xl border border-blue-200 text-center">
           <div id="schedule-match-phase-label" class="text-xs text-blue-900 font-bold uppercase tracking-wider">Girone Sinner</div>
@@ -1001,6 +1107,15 @@
               <option value="1">1</option>
             </select>
           </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Categoria Torneo</label>
+          <select id="admin-account-category-select" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium">
+            <option value="U9">Under 9 (U9)</option>
+            <option value="U12" selected>Under 12 (U12)</option>
+            <option value="Open">Categoria Open (Open)</option>
+          </select>
         </div>
 
         <div>

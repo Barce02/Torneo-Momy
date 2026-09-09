@@ -20,6 +20,9 @@ class App {
     this.currentEditingMatchId = null;
     this.revealedPasswords = {};
 
+    this.selectedCategory = "U12"; // "all", "U9", "U12", "Open"
+    this.pendingPasswordReset = this.loadPendingPasswordReset();
+
     // Filtri calendario
     this.schedulePhaseFilter = "all";
     this.scheduleCourtFilter = "all";
@@ -27,6 +30,19 @@ class App {
     this.scheduleSearchQuery = "";
 
     this.init();
+  }
+
+  loadPendingPasswordReset() {
+    try {
+      const saved = localStorage.getItem("torneo_momy_pending_reset");
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.expiresAt && data.expiresAt > Date.now()) {
+          return data;
+        }
+      }
+    } catch (e) {}
+    return null;
   }
 
   loadAccounts() {
@@ -204,14 +220,45 @@ class App {
       });
     }
 
-    // Form Recupera Password
-    const forgotForm = document.getElementById("forgot-form");
-    if (forgotForm) {
-      forgotForm.addEventListener("submit", (e) => {
+    // Form Recupera Password (Step 1 e Step 2)
+    const forgotStep1 = document.getElementById("forgot-step1-form");
+    if (forgotStep1) {
+      forgotStep1.addEventListener("submit", (e) => {
         e.preventDefault();
-        this.handleResetPassword();
+        this.handleRequestPasswordReset();
       });
     }
+
+    const forgotStep2 = document.getElementById("forgot-step2-form");
+    if (forgotStep2) {
+      forgotStep2.addEventListener("submit", (e) => {
+        e.preventDefault();
+        this.handleVerifyResetCode();
+      });
+    }
+
+    // Calcolo automatico della categoria al cambio della data di nascita
+    const hookBirthdateCategory = (birthdateId, categorySelectId) => {
+      const bEl = document.getElementById(birthdateId);
+      const cEl = document.getElementById(categorySelectId);
+      if (bEl && cEl) {
+        bEl.addEventListener("change", (e) => {
+          const val = e.target.value;
+          if (val) {
+            const year = new Date(val).getFullYear();
+            if (year >= 2017) cEl.value = "U9";
+            else if (year >= 2014) cEl.value = "U12";
+            else cEl.value = "Open";
+          }
+        });
+      }
+    };
+
+    hookBirthdateCategory("register-birthdate-input", "register-category-select");
+    hookBirthdateCategory("player-birthdate-input", "player-category-select");
+    hookBirthdateCategory("account-birthdate-input", "account-category-select");
+    hookBirthdateCategory("account-page-birthdate-input", "account-page-category-select");
+    hookBirthdateCategory("admin-account-birthdate-input", "admin-account-category-select");
 
     // Form Personalizzazione Profilo Account
     const accountForm = document.getElementById("account-profile-form");
@@ -314,10 +361,7 @@ class App {
       secLogin.classList.add("hidden");
       secRegister.classList.add("hidden");
       if (secForgot) secForgot.classList.remove("hidden");
-      setTimeout(() => {
-        const em = document.getElementById("forgot-email-input");
-        if (em) em.focus();
-      }, 100);
+      this.resetForgotStep();
     } else {
       tabLogin.className = "flex-1 py-2.5 text-center border-b-2 border-blue-600 text-blue-700 font-bold transition";
       tabRegister.className = "flex-1 py-2.5 text-center border-b-2 border-transparent text-gray-500 hover:text-gray-800 transition";
@@ -331,21 +375,26 @@ class App {
     }
   }
 
-  handleResetPassword() {
-    const email = document.getElementById("forgot-email-input").value.trim().toLowerCase();
-    const newPassword = document.getElementById("forgot-new-password-input").value;
-    const confirmPassword = document.getElementById("forgot-confirm-password-input").value;
+  resetForgotStep() {
+    const step1 = document.getElementById("forgot-step-1");
+    const step2 = document.getElementById("forgot-step-2");
+    if (step1) step1.classList.remove("hidden");
+    if (step2) step2.classList.add("hidden");
+    const em = document.getElementById("forgot-email-input");
+    if (em) {
+      if (!em.value && this.user && this.user.email && this.user.email !== "ospite@torneo.it") {
+        em.value = this.user.email;
+      }
+      setTimeout(() => em.focus(), 100);
+    }
+  }
+
+  async handleRequestPasswordReset() {
+    const emailInput = document.getElementById("forgot-email-input");
+    const email = emailInput ? emailInput.value.trim().toLowerCase() : "";
 
     if (!email) {
       alert("Inserisci l'indirizzo email del tuo account.");
-      return;
-    }
-    if (!newPassword || newPassword.length < 4) {
-      alert("La nuova password deve contenere almeno 4 caratteri.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      alert("Le due password inserite non coincidono.");
       return;
     }
 
@@ -353,17 +402,135 @@ class App {
     const account = accounts[email];
 
     if (!account) {
-      alert(`Nessun account registrato con l'indirizzo ${email}.`);
+      alert(`Nessun account registrato con l'indirizzo "${email}".\n\nVerifica l'indirizzo digitato o procedi con una nuova registrazione.`);
       return;
     }
 
+    // Genera codice di verifica sicuro a 6 cifre
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    this.pendingPasswordReset = {
+      email: email,
+      code: code,
+      expiresAt: Date.now() + 15 * 60 * 1000 // Scadenza 15 minuti
+    };
+    try {
+      localStorage.setItem("torneo_momy_pending_reset", JSON.stringify(this.pendingPasswordReset));
+    } catch (e) {}
+
+    // Stato visivo di caricamento
+    const btn = document.getElementById("btn-request-reset-code");
+    const label = document.getElementById("btn-request-reset-label");
+    if (btn) btn.disabled = true;
+    if (label) label.textContent = "Invio codice in corso...";
+
+    const athleteName = account ? `${account.firstName || ''} ${account.lastName || ''}`.trim() || 'Atleta' : 'Atleta';
+
+    // Invio effettivo email via API FormSubmit
+    try {
+      await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(email)}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({
+          _subject: `Codice di Verifica Password Torneo Momy: ${code}`,
+          _template: "table",
+          atleta: athleteName,
+          email_account: email,
+          codice_di_verifica: code,
+          validita: "15 minuti",
+          messaggio: `Ciao ${athleteName}, hai richiesto il reset della password del tuo account per il Torneo Momy 26/27. Inserisci il codice ${code} per impostare la nuova password.`
+        })
+      });
+    } catch (err) {
+      console.warn("Invio FormSubmit non riuscito o bloccato da CORS/file://", err);
+    } finally {
+      if (btn) btn.disabled = false;
+      if (label) label.textContent = "Invia Codice di Verifica via Email";
+    }
+
+    // Passa a Step 2
+    const step1 = document.getElementById("forgot-step-1");
+    const step2 = document.getElementById("forgot-step-2");
+    if (step1) step1.classList.add("hidden");
+    if (step2) step2.classList.remove("hidden");
+
+    const sentEmailLabel = document.getElementById("forgot-sent-email-label");
+    if (sentEmailLabel) sentEmailLabel.textContent = email;
+
+    const codeBadge = document.getElementById("forgot-code-display-badge");
+    if (codeBadge) codeBadge.textContent = code;
+
+    const codeInput = document.getElementById("forgot-code-input");
+    if (codeInput) {
+      codeInput.value = "";
+      setTimeout(() => codeInput.focus(), 150);
+    }
+
+    this.showToast(`Codice di verifica generato e inviato a ${email}!`, "info");
+  }
+
+  handleVerifyResetCode() {
+    if (!this.pendingPasswordReset || !this.pendingPasswordReset.code) {
+      alert("Nessuna richiesta di reset password attiva. Richiedi prima un nuovo codice.");
+      this.resetForgotStep();
+      return;
+    }
+
+    if (Date.now() > this.pendingPasswordReset.expiresAt) {
+      alert("Il codice di verifica è scaduto (validità 15 minuti). Richiedine uno nuovo.");
+      this.resetForgotStep();
+      return;
+    }
+
+    const codeInput = document.getElementById("forgot-code-input");
+    const newPasswordInput = document.getElementById("forgot-new-password-input");
+    const confirmPasswordInput = document.getElementById("forgot-confirm-password-input");
+
+    const enteredCode = (codeInput ? codeInput.value : "").trim();
+    const newPassword = newPasswordInput ? newPasswordInput.value : "";
+    const confirmPassword = confirmPasswordInput ? confirmPasswordInput.value : "";
+
+    if (!enteredCode || enteredCode !== this.pendingPasswordReset.code) {
+      alert("Il codice di verifica inserito non è corretto. Controlla l'email ricevuta o il badge informativo.");
+      return;
+    }
+
+    if (!newPassword || newPassword.length < 4) {
+      alert("La nuova password deve contenere almeno 4 caratteri.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      alert("Le due password inserite non coincidono.");
+      return;
+    }
+
+    const email = this.pendingPasswordReset.email;
+    const accounts = this.loadAccounts();
+    const account = accounts[email];
+
+    if (!account) {
+      alert(`Account non trovato per ${email}.`);
+      return;
+    }
+
+    // Aggiorna password salvata
     account.password = newPassword;
     accounts[email] = account;
     this.saveAccounts(accounts);
 
+    // Rimuove richiesta pendente
+    this.pendingPasswordReset = null;
+    try {
+      localStorage.removeItem("torneo_momy_pending_reset");
+    } catch (e) {}
+
+    // Login automatico
     this.saveUser(account);
     this.closeModal("modal-login");
-    this.showToast("Password reimpostata con successo! Sei autenticato.", "success");
+    this.showToast(`Password reimpostata con successo! Benvenuto, ${account.firstName || 'Atleta'}!`, "success");
   }
 
   handleRegister() {
@@ -405,6 +572,8 @@ class App {
       return;
     }
 
+    const category = document.getElementById("register-category-select")?.value || this.tournamentManager.getPlayerCategory({ birthDate });
+
     const accountObj = {
       firstName,
       lastName,
@@ -413,6 +582,7 @@ class App {
       password,
       birthDate,
       ranking,
+      category,
       role: isAdmin ? "admin" : "player",
       biometricsEnabled: biometricsChecked
     };
@@ -721,6 +891,7 @@ class App {
     const lnEl = document.getElementById("account-page-lastname-input") || document.getElementById("account-lastname-input");
     const bdEl = document.getElementById("account-page-birthdate-input") || document.getElementById("account-birthdate-input");
     const rkEl = document.getElementById("account-page-ranking-input") || document.getElementById("account-ranking-input");
+    const catEl = document.getElementById("account-page-category-select") || document.getElementById("account-category-select");
     const npEl = document.getElementById("account-page-newpassword-input") || document.getElementById("account-newpassword-input");
     const cpEl = document.getElementById("account-page-confirmpassword-input") || document.getElementById("account-confirmpassword-input");
     const bioEl = document.getElementById("account-page-biometrics-toggle") || document.getElementById("account-biometrics-toggle");
@@ -729,6 +900,7 @@ class App {
     const lastName = lnEl ? lnEl.value.trim() : "";
     const birthDate = bdEl ? bdEl.value.trim() : "";
     const ranking = rkEl ? rkEl.value.trim() : "NC";
+    const category = catEl ? catEl.value : this.tournamentManager.getPlayerCategory({ birthDate });
     const newPassword = npEl ? npEl.value : "";
     const confirmPassword = cpEl ? cpEl.value : "";
     const biometricsEnabled = bioEl ? bioEl.checked : true;
@@ -760,6 +932,7 @@ class App {
     this.user.name = fullName;
     this.user.birthDate = birthDate;
     this.user.ranking = ranking;
+    this.user.category = category;
     this.user.biometricsEnabled = biometricsEnabled;
     if (newPassword) {
       this.user.password = newPassword;
@@ -786,6 +959,7 @@ class App {
       this.state.players[playerIdx].name = fullName;
       this.state.players[playerIdx].birthDate = birthDate;
       this.state.players[playerIdx].ranking = ranking;
+      this.state.players[playerIdx].category = category;
       if (this.user.photoUrl) this.state.players[playerIdx].photoUrl = this.user.photoUrl;
       this.saveState();
     }
@@ -826,6 +1000,12 @@ class App {
   // ==========================================
   switchTab(tab) {
     this.currentTab = tab;
+
+    // Se si naviga in Gironi o Tabellone e la categoria attiva è "all", imposta U12 di default
+    if ((tab === "groups" || tab === "bracket") && this.selectedCategory === "all") {
+      this.selectedCategory = "U12";
+    }
+
     document.querySelectorAll(".nav-tab-btn").forEach(btn => {
       if (btn.dataset.tab === tab) {
         btn.classList.add("border-blue-600", "text-blue-700", "bg-blue-50/70", "font-semibold");
@@ -836,7 +1016,81 @@ class App {
       }
     });
 
+    this.renderCategorySelector();
     this.renderTabContent();
+  }
+
+  // ==========================================
+  // GESTIONE SELETTORE CATEGORIA (U9, U12, OPEN)
+  // ==========================================
+  setCategory(cat) {
+    this.selectedCategory = cat;
+    this.renderCategorySelector();
+    this.renderTabContent();
+  }
+
+  renderCategorySelector() {
+    const container = document.getElementById("category-selector-buttons");
+    if (!container) return;
+
+    const cats = [
+      { id: "all", label: "Tutte", full: "Tutte le Categorie" },
+      { id: "U9", label: "U9", full: "Under 9" },
+      { id: "U12", label: "U12", full: "Under 12" },
+      { id: "Open", label: "Open", full: "Categoria Open" }
+    ];
+
+    const countAll = this.state.players.length;
+    const countU9 = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === "U9").length;
+    const countU12 = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === "U12").length;
+    const countOpen = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === "Open").length;
+
+    const counts = { all: countAll, U9: countU9, U12: countU12, Open: countOpen };
+
+    // In Gironi e Tabellone, "all" non ha senso
+    if ((this.currentTab === "groups" || this.currentTab === "bracket") && this.selectedCategory === "all") {
+      this.selectedCategory = "U12";
+    }
+
+    let html = "";
+    cats.forEach(c => {
+      if ((this.currentTab === "groups" || this.currentTab === "bracket") && c.id === "all") {
+        return;
+      }
+
+      const isActive = this.selectedCategory === c.id;
+      const activeClass = isActive
+        ? "bg-yellow-400 text-blue-950 font-black shadow border-yellow-300 ring-2 ring-yellow-400/50"
+        : "bg-white/10 hover:bg-white/20 text-white font-medium border-white/20";
+
+      html += `
+        <button type="button" onclick="app.setCategory('${c.id}')" class="px-2.5 py-1 rounded-lg text-xs border transition flex items-center gap-1.5 cursor-pointer ${activeClass}">
+          <span>${c.label}</span>
+          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold ${isActive ? 'bg-blue-950 text-yellow-300' : 'bg-white/20 text-white'}">${counts[c.id]}</span>
+        </button>
+      `;
+    });
+
+    container.innerHTML = html;
+
+    const statusBadge = document.getElementById("category-status-indicator");
+    if (statusBadge) {
+      const activeObj = cats.find(c => c.id === this.selectedCategory) || cats[2];
+      const count = counts[this.selectedCategory] ?? 0;
+      statusBadge.innerHTML = `Categoria attiva: <span class="font-black text-yellow-400 uppercase tracking-wide ml-1">${activeObj.full}</span> <span class="text-white/70 ml-1">(${count} iscritti)</span>`;
+    }
+  }
+
+  getCategoryBadgeMarkup(category) {
+    const cat = category || "U12";
+    if (cat === "U9") {
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">Under 9</span>`;
+    } else if (cat === "U12") {
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-300">Under 12</span>`;
+    } else if (cat === "Open") {
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">Open</span>`;
+    }
+    return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-300">${cat}</span>`;
   }
 
   renderTabContent() {
@@ -875,7 +1129,10 @@ class App {
   }
 
   render() {
-    this.tournamentManager.ensureGroups();
+    this.tournamentManager.ensureCategories();
+    this.tournamentManager.ensureGroups(this.selectedCategory === "all" ? "U12" : this.selectedCategory);
+
+    this.renderCategorySelector();
 
     // Aggiorna contatori header nav
     const playersCount = this.state.players.length;
@@ -884,14 +1141,16 @@ class App {
 
     // Aggiorna indicatore gironi
     const navGroups = document.getElementById("nav-groups-status");
-    if (navGroups && this.state.groups) {
-      const sCount = (this.state.groups.sinner?.playerIds || []).length;
-      const aCount = (this.state.groups.alcaraz?.playerIds || []).length;
+    if (navGroups && this.state.categoryGroups) {
+      const activeCat = this.selectedCategory === "all" ? "U12" : this.selectedCategory;
+      const catGroup = this.state.categoryGroups[activeCat];
+      const sCount = (catGroup?.sinner?.playerIds || []).length;
+      const aCount = (catGroup?.alcaraz?.playerIds || []).length;
       if (sCount > 0 || aCount > 0) {
-        navGroups.textContent = `${sCount + aCount} atleti (${sCount}+${aCount})`;
+        navGroups.textContent = `${activeCat}: ${sCount + aCount} atleti`;
         navGroups.className = "bg-yellow-400 text-blue-950 text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-sm";
       } else {
-        navGroups.textContent = "Sinner & Alcaraz";
+        navGroups.textContent = `${activeCat}: Sinner & Alcaraz`;
         navGroups.className = "bg-blue-100 text-blue-900 text-[10px] font-bold px-1.5 py-0.2 rounded-full";
       }
     }
@@ -915,11 +1174,13 @@ class App {
     // Aggiorna indicatore tabellone
     const navBracketStatus = document.getElementById("nav-bracket-status");
     if (navBracketStatus) {
-      if (this.state.bracket) {
-        navBracketStatus.textContent = "Attivo";
+      const activeCat = this.selectedCategory === "all" ? "U12" : this.selectedCategory;
+      const catBracket = this.state.categoryBrackets ? this.state.categoryBrackets[activeCat] : this.state.bracket;
+      if (catBracket && catBracket.rounds && catBracket.rounds.length > 0) {
+        navBracketStatus.textContent = `${activeCat}: Attivo`;
         navBracketStatus.className = "bg-yellow-400 text-blue-950 text-[10px] font-black px-1.5 py-0.2 rounded-full";
       } else {
-        navBracketStatus.textContent = "Non generato";
+        navBracketStatus.textContent = `${activeCat}: Non generato`;
         navBracketStatus.className = "bg-gray-100 text-gray-600 text-[10px] font-medium px-1.5 py-0.2 rounded-full";
       }
     }
@@ -934,14 +1195,23 @@ class App {
     const container = document.getElementById("groups-container");
     if (!container) return;
 
-    this.tournamentManager.ensureGroups();
-    const sinnerStandings = this.tournamentManager.getGroupStandings("sinner");
-    const alcarazStandings = this.tournamentManager.getGroupStandings("alcaraz");
-    const sinnerGroup = this.state.groups.sinner;
-    const alcarazGroup = this.state.groups.alcaraz;
+    if (this.selectedCategory === "all") {
+      this.selectedCategory = "U12";
+    }
+    const cat = this.selectedCategory;
+
+    this.tournamentManager.ensureCategories();
+    this.tournamentManager.ensureGroups(cat);
+
+    const sinnerStandings = this.tournamentManager.getGroupStandings("sinner", cat);
+    const alcarazStandings = this.tournamentManager.getGroupStandings("alcaraz", cat);
+    const catGroup = this.state.categoryGroups[cat] || this.tournamentManager.ensureGroups(cat);
+    const sinnerGroup = catGroup.sinner;
+    const alcarazGroup = catGroup.alcaraz;
 
     const totalInGroups = (sinnerGroup.playerIds || []).length + (alcarazGroup.playerIds || []).length;
-    const totalPlayers = this.state.players.length;
+    const categoryPlayers = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === cat);
+    const totalPlayersInCat = categoryPlayers.length;
 
     let html = `
       <div class="space-y-6">
@@ -951,12 +1221,21 @@ class App {
           <div>
             <div class="flex items-center gap-2 mb-1">
               <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
-              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Fase a Gironi • Torneo Momy 26/27</span>
+              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Fase a Gironi • Categoria ${cat}</span>
             </div>
-            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Girone Sinner & Girone Alcaraz</h2>
+            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Girone Sinner & Girone Alcaraz (${cat})</h2>
             <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
               Partite da <strong>1 ora</strong> continua fino al suono della campana. Se in parità al suono della campana, <strong>rimane il pareggio (1 punto ciascuno)</strong>. Vittoria: 3 pt • Pareggio: 1 pt • Sconfitta: 0 pt.
             </p>
+            <!-- Switcher Rapido Categoria nei Gironi -->
+            <div class="flex items-center gap-2 mt-3 flex-wrap">
+              <span class="text-[11px] font-bold text-yellow-300">Cambia Categoria:</span>
+              ${["U9", "U12", "Open"].map(c => `
+                <button type="button" onclick="app.setCategory('${c}')" class="px-2.5 py-1 rounded-lg text-xs font-bold border transition cursor-pointer ${cat === c ? 'bg-yellow-400 text-blue-950 border-yellow-300 shadow font-black ring-2 ring-yellow-400/40' : 'bg-white/10 hover:bg-white/20 text-white border-white/20'}">
+                  ${c}
+                </button>
+              `).join('')}
+            </div>
           </div>
 
           <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
@@ -964,15 +1243,15 @@ class App {
               <svg class="w-4 h-4 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
               </svg>
-              <span>Stampa Gironi</span>
+              <span>Stampa Gironi (${cat})</span>
             </button>
             ${this.isAdmin ? `
-              <button onclick="app.handleAutoAssignGroups()" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-1.5 cursor-pointer">
-                + Distribuisci Atleti nei 2 Gironi
+              <button onclick="app.handleAutoAssignGroups('${cat}')" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-1.5 cursor-pointer">
+                + Distribuisci Atleti nei 2 Gironi (${cat})
               </button>
               ${totalInGroups >= 2 ? `
-                <button onclick="app.handleGenerateBracketFromGroups()" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl border border-blue-500 transition flex items-center justify-center gap-1.5 cursor-pointer shadow">
-                  Genera Tabellone Finale
+                <button onclick="app.handleGenerateBracketFromGroups('${cat}')" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl border border-blue-500 transition flex items-center justify-center gap-1.5 cursor-pointer shadow">
+                  Genera Tabellone Finale (${cat})
                 </button>
               ` : ''}
             ` : ''}
@@ -988,18 +1267,18 @@ class App {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
             </svg>
           </div>
-          <h3 class="text-lg font-bold text-gray-800 mb-1">Gironi Sinner e Alcaraz non ancora composti</h3>
+          <h3 class="text-lg font-bold text-gray-800 mb-1">Gironi Sinner e Alcaraz (${cat}) non ancora composti</h3>
           <p class="text-xs sm:text-sm text-gray-500 max-w-md mx-auto mb-6">
-            ${totalPlayers === 0
-              ? "Nessun atleta è ancora registrato al torneo. Inserisci gli iscritti nella prima sezione per formare i gironi."
-              : `Ci sono attualmente <strong>${totalPlayers}</strong> atleti iscritti. L'amministratore può suddividere gli atleti nei due gironi con criterio bilanciato.`}
+            ${totalPlayersInCat === 0
+              ? `Nessun atleta è attualmente iscritto nella categoria <strong>${cat}</strong>. Inserisci atleti in questa categoria o cambia la categoria selezionata.`
+              : `Ci sono attualmente <strong>${totalPlayersInCat}</strong> atleti iscritti nella categoria <strong>${cat}</strong>. L'amministratore può suddividerli nei due gironi in modo bilanciato.`}
           </p>
-          ${this.isAdmin && totalPlayers >= 2 ? `
-            <button onclick="app.handleAutoAssignGroups()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition">
-              Componi Gironi Automaticamente (${totalPlayers} Partecipanti)
+          ${this.isAdmin && totalPlayersInCat >= 2 ? `
+            <button onclick="app.handleAutoAssignGroups('${cat}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
+              Componi Gironi Automaticamente (${totalPlayersInCat} Partecipanti ${cat})
             </button>
           ` : `
-            <button onclick="app.switchTab('players')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition">
+            <button onclick="app.switchTab('players')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
               Vai alla sezione Iscritti
             </button>
           `}
@@ -1163,28 +1442,33 @@ class App {
     return html;
   }
 
-  handleAutoAssignGroups() {
+  handleAutoAssignGroups(category = null) {
     if (!this.isAdmin) return;
-    if (this.state.players.length < 2) {
-      alert("Servono almeno 2 atleti iscritti per poter comporre i gironi Sinner e Alcaraz.");
+    const cat = category || (this.selectedCategory === "all" ? "U12" : this.selectedCategory);
+    const catPlayers = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === cat);
+
+    if (catPlayers.length < 2) {
+      alert(`Servono almeno 2 atleti iscritti nella categoria ${cat} per poter comporre i gironi.`);
       return;
     }
 
-    if (confirm("Vuoi distribuire automaticamente e in modo bilanciato gli iscritti tra Girone Sinner e Girone Alcaraz?")) {
-      this.tournamentManager.autoAssignGroups();
+    if (confirm(`Vuoi distribuire automaticamente e in modo bilanciato gli iscritti della categoria ${cat} tra Girone Sinner e Girone Alcaraz?`)) {
+      this.tournamentManager.autoAssignGroups(cat);
       this.saveState();
       this.render();
-      this.showToast("Gironi Sinner e Alcaraz composti con successo!", "success");
+      this.showToast(`Gironi Sinner e Alcaraz (${cat}) composti con successo!`, "success");
     }
   }
 
-  handleGenerateBracketFromGroups() {
+  handleGenerateBracketFromGroups(category = null) {
     if (!this.isAdmin) return;
+    const cat = category || (this.selectedCategory === "all" ? "U12" : this.selectedCategory);
     try {
-      this.tournamentManager.generateBracketFromGroups();
+      this.tournamentManager.generateBracketFromGroups(cat);
       this.saveState();
+      this.setCategory(cat);
       this.switchTab("bracket");
-      this.showToast("Tabellone Finale generato con tutti i partecipanti dei gironi!", "success");
+      this.showToast(`Tabellone Finale (${cat}) generato con tutti i partecipanti dei gironi!`, "success");
     } catch (e) {
       alert(e.message);
     }
@@ -1313,7 +1597,11 @@ class App {
     }
 
     const players = this.state.players;
+    const cat = this.selectedCategory;
     const filtered = players.filter(p => {
+      if (cat !== "all" && this.tournamentManager.getPlayerCategory(p) !== cat) {
+        return false;
+      }
       if (!this.searchQuery) return true;
       const q = this.searchQuery;
       return (
@@ -1338,7 +1626,7 @@ class App {
               <strong>Accesso Amministratore (Barcello Luca):</strong> puoi inserire, modificare o eliminare atleti, consultare e gestire tutti gli account registrati, organizzare i gironi e comporre il tabellone finale.
             </div>
             <div class="flex items-center gap-2">
-              <button onclick="app.openNewPlayerModal(false)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
+              <button onclick="app.openNewPlayerModal(false)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer">
                 + Inserisci Atleta
               </button>
             </div>
@@ -1373,7 +1661,7 @@ class App {
             <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span>Elenco Atleti nel Torneo</span>
               <span class="bg-blue-100 text-blue-900 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                ${players.length} ${players.length === 1 ? 'iscritto' : 'iscritti'}
+                ${filtered.length} ${filtered.length === 1 ? 'visibile' : 'visibili'} ${cat !== 'all' ? `(${cat})` : `(Totale ${players.length})`}
               </span>
             </h2>
             <p class="text-xs text-gray-500 mt-0.5">Atleti attivi inseriti nei gironi e nel tabellone</p>
@@ -1389,7 +1677,7 @@ class App {
             </div>
 
             ${this.isAdmin ? `
-              <button onclick="app.openNewPlayerModal(false)" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-4 py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
+              <button onclick="app.openNewPlayerModal(false)" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-4 py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer">
                 + Inserisci Atleta
               </button>
             ` : ''}
@@ -1397,7 +1685,7 @@ class App {
         </div>
     `;
 
-    if (players.length === 0) {
+    if (filtered.length === 0) {
       html += `
         <div class="text-center py-16 bg-gray-50/50 rounded-xl border border-dashed border-gray-300 p-8 my-6">
           <div class="w-14 h-14 bg-blue-50 text-blue-700 border border-blue-200 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-sm">
@@ -1405,18 +1693,20 @@ class App {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
             </svg>
           </div>
-          <h3 class="text-base sm:text-lg font-bold text-gray-800 mb-1">Nessun atleta iscritto al momento</h3>
+          <h3 class="text-base sm:text-lg font-bold text-gray-800 mb-1">Nessun atleta trovato ${cat !== 'all' ? `per la categoria ${cat}` : ''}</h3>
           <p class="text-xs sm:text-sm text-gray-500 max-w-sm mx-auto mb-5">
-            ${this.isAdmin
-              ? "L'elenco partecipanti del Torneo Momy è attualmente vuoto. Inserisci i ragazzi che parteciperanno alla competizione, oppure consulta la scheda 'Tutti gli Account Registrati' per inserire gli account già creati."
-              : "L'elenco partecipanti del Torneo Momy è attualmente vuoto. L'amministratore ufficiale (Barcello Luca) provvederà all'inserimento degli iscritti."}
+            ${players.length === 0
+              ? (this.isAdmin
+                  ? "L'elenco partecipanti del Torneo Momy è attualmente vuoto. Inserisci i ragazzi che parteciperanno alla competizione, oppure consulta la scheda 'Tutti gli Account Registrati' per inserire gli account già creati."
+                  : "L'elenco partecipanti del Torneo Momy è attualmente vuoto. L'amministratore ufficiale (Barcello Luca) provvederà all'inserimento degli iscritti.")
+              : `Nessun atleta corrisponde ai filtri impostati (categoria: ${cat}). Prova a selezionare "Tutte" o aggiungi nuovi atleti.`}
           </p>
           ${this.isAdmin ? `
             <div class="flex flex-wrap justify-center gap-3">
-              <button onclick="app.openNewPlayerModal(false)" class="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl shadow transition">
+              <button onclick="app.openNewPlayerModal(false)" class="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
                 + Inserisci Atleta
               </button>
-              <button onclick="app.switchPlayersSubTab('accounts')" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl shadow transition">
+              <button onclick="app.switchPlayersSubTab('accounts')" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
                 👥 Gestisci Account (${accountsCount})
               </button>
             </div>
@@ -1432,6 +1722,7 @@ class App {
                 <th class="py-3 px-3 w-12 text-center">#</th>
                 <th class="py-3 px-3">Nome</th>
                 <th class="py-3 px-3">Cognome</th>
+                <th class="py-3 px-3">Categoria</th>
                 <th class="py-3 px-3">Data di Nascita</th>
                 <th class="py-3 px-3">Classifica FITP</th>
                 <th class="py-3 px-3">Note</th>
@@ -1440,11 +1731,13 @@ class App {
             </thead>
             <tbody class="divide-y divide-gray-100">
               ${filtered.map((p, idx) => {
+                const playerCat = this.tournamentManager.getPlayerCategory(p);
                 return `
                   <tr class="hover:bg-gray-50/80 transition">
                     <td class="py-3 px-3 font-mono text-center text-gray-400 font-semibold">${idx + 1}</td>
                     <td class="py-3 px-3 font-bold text-gray-900">${p.firstName || (p.name ? p.name.split(' ')[0] : '-') || '-'}</td>
                     <td class="py-3 px-3 font-bold text-gray-900">${p.lastName || (p.name ? p.name.split(' ').slice(1).join(' ') : '-') || '-'}</td>
+                    <td class="py-3 px-3">${this.getCategoryBadgeMarkup(playerCat)}</td>
                     <td class="py-3 px-3 text-gray-600 font-mono text-xs">${this.formatDate(p.birthDate)}</td>
                     <td class="py-3 px-3">
                       <span class="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-semibold">
@@ -1454,10 +1747,10 @@ class App {
                     <td class="py-3 px-3 text-gray-500 text-xs italic max-w-xs truncate">${p.notes || '-'}</td>
                     <td class="py-3 px-3 text-right space-x-1 whitespace-nowrap">
                       ${this.isAdmin ? `
-                        <button onclick="app.editPlayer('${p.id}')" class="text-xs text-blue-700 hover:text-blue-900 font-medium px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 transition">
+                        <button onclick="app.editPlayer('${p.id}')" class="text-xs text-blue-700 hover:text-blue-900 font-medium px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 transition cursor-pointer">
                           Modifica
                         </button>
-                        <button onclick="app.deletePlayer('${p.id}')" class="text-xs text-rose-600 hover:text-rose-800 font-medium px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 transition">
+                        <button onclick="app.deletePlayer('${p.id}')" class="text-xs text-rose-600 hover:text-rose-800 font-medium px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 transition cursor-pointer">
                           Elimina
                         </button>
                       ` : `
@@ -1623,6 +1916,7 @@ class App {
                 <th class="py-3 px-3">Utente</th>
                 <th class="py-3 px-3">Email (Unica)</th>
                 <th class="py-3 px-3">Password</th>
+                <th class="py-3 px-3">Categoria</th>
                 <th class="py-3 px-3">Nascita</th>
                 <th class="py-3 px-3">Classifica</th>
                 <th class="py-3 px-3">Ruolo</th>
@@ -1661,6 +1955,7 @@ class App {
                         </button>
                       </div>
                     </td>
+                    <td class="py-3 px-3">${this.getCategoryBadgeMarkup(acc.category || this.tournamentManager.getPlayerCategory(acc))}</td>
                     <td class="py-3 px-3 text-gray-600 font-mono text-xs">${this.formatDate(acc.birthDate)}</td>
                     <td class="py-3 px-3">
                       <span class="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-semibold">
@@ -1737,6 +2032,7 @@ class App {
     const pwInput = document.getElementById("admin-account-password-input");
     const bdInput = document.getElementById("admin-account-birthdate-input");
     const rkInput = document.getElementById("admin-account-ranking-input");
+    const catSelect = document.getElementById("admin-account-category-select");
     const roleSelect = document.getElementById("admin-account-role-select");
     const alsoPlayerWrapper = document.getElementById("admin-account-also-player-wrapper");
     const alsoPlayerCheckbox = document.getElementById("admin-account-also-player");
@@ -1759,6 +2055,7 @@ class App {
       if (pwInput) pwInput.value = acc.password || "";
       if (bdInput) bdInput.value = acc.birthDate || "";
       if (rkInput) rkInput.value = acc.ranking || "NC";
+      if (catSelect) catSelect.value = acc.category || this.tournamentManager.getPlayerCategory(acc);
       if (roleSelect) roleSelect.value = acc.role || "player";
 
       const linkedPlayer = this.getPlayerForAccount(acc);
@@ -1781,6 +2078,7 @@ class App {
       if (pwInput) pwInput.value = "";
       if (bdInput) bdInput.value = "";
       if (rkInput) rkInput.value = "NC";
+      if (catSelect) catSelect.value = (this.selectedCategory !== "all") ? this.selectedCategory : "U12";
       if (roleSelect) roleSelect.value = "player";
       if (alsoPlayerWrapper) alsoPlayerWrapper.classList.remove("hidden");
       if (alsoPlayerCheckbox) alsoPlayerCheckbox.checked = true;
@@ -1803,6 +2101,7 @@ class App {
     const password = document.getElementById("admin-account-password-input")?.value || "";
     const birthDate = document.getElementById("admin-account-birthdate-input")?.value.trim() || "";
     const ranking = document.getElementById("admin-account-ranking-input")?.value.trim() || "NC";
+    const category = document.getElementById("admin-account-category-select")?.value || this.tournamentManager.getPlayerCategory({ birthDate });
     const role = document.getElementById("admin-account-role-select")?.value || "player";
     const alsoPlayer = document.getElementById("admin-account-also-player")?.checked ?? false;
 
@@ -1852,6 +2151,7 @@ class App {
       password,
       birthDate,
       ranking,
+      category,
       role: email === ADMIN_EMAIL.toLowerCase() ? "admin" : role,
       biometricsEnabled: prevAcc.biometricsEnabled ?? true
     };
@@ -1873,6 +2173,7 @@ class App {
       linkedPlayer.name = fullName;
       linkedPlayer.birthDate = birthDate;
       linkedPlayer.ranking = ranking;
+      linkedPlayer.category = category;
       linkedPlayer.email = email;
       linkedPlayer.userId = email;
       this.saveState();
@@ -1884,6 +2185,7 @@ class App {
         name: fullName,
         birthDate,
         ranking,
+        category,
         notes: "",
         email,
         userId: email,
@@ -1974,6 +2276,7 @@ class App {
       name: fullName,
       birthDate: acc.birthDate || "",
       ranking: acc.ranking || "NC",
+      category: acc.category || this.tournamentManager.getPlayerCategory(acc),
       notes: "",
       email: acc.email,
       userId: acc.email,
@@ -2094,12 +2397,14 @@ class App {
     const lnInput = document.getElementById("player-lastname-input");
     const bdInput = document.getElementById("player-birthdate-input");
     const rkInput = document.getElementById("player-ranking-input");
+    const catSelect = document.getElementById("player-category-select");
     const notesInput = document.getElementById("player-notes-input");
 
     fnInput.value = "";
     lnInput.value = "";
     bdInput.value = "";
     rkInput.value = "NC";
+    if (catSelect) catSelect.value = (this.selectedCategory !== "all") ? this.selectedCategory : "U12";
     notesInput.value = "";
 
     this.openModal("modal-player");
@@ -2127,6 +2432,8 @@ class App {
     document.getElementById("player-lastname-input").value = p.lastName || (p.name ? p.name.split(' ').slice(1).join(' ') : "") || "";
     document.getElementById("player-birthdate-input").value = p.birthDate || "";
     document.getElementById("player-ranking-input").value = p.ranking || "NC";
+    const catSelect = document.getElementById("player-category-select");
+    if (catSelect) catSelect.value = p.category || this.tournamentManager.getPlayerCategory(p);
     document.getElementById("player-notes-input").value = p.notes || "";
 
     this.openModal("modal-player");
@@ -2143,6 +2450,8 @@ class App {
     const lastName = document.getElementById("player-lastname-input").value.trim();
     const birthDate = document.getElementById("player-birthdate-input").value.trim();
     const ranking = document.getElementById("player-ranking-input").value.trim() || "NC";
+    const categorySelect = document.getElementById("player-category-select");
+    const category = categorySelect ? categorySelect.value : this.tournamentManager.getPlayerCategory({ birthDate });
     const notes = document.getElementById("player-notes-input").value.trim();
 
     if (!firstName || !lastName) {
@@ -2168,6 +2477,7 @@ class App {
           name: fullName,
           birthDate,
           ranking,
+          category,
           notes
         };
       }
@@ -2190,6 +2500,7 @@ class App {
         name: fullName,
         birthDate,
         ranking,
+        category,
         notes,
         email: "",
         userId: "",
@@ -2222,46 +2533,55 @@ class App {
   // SEZIONE 3: CALENDARIO PARTITE (ORARI & CAMPI)
   // ==========================================
   getAllMatches() {
-    this.tournamentManager.ensureGroups();
+    this.tournamentManager.ensureCategories();
+    const categories = ["U9", "U12", "Open"];
     const all = [];
 
-    // Gironi
-    const sinnerMatches = this.state.groups?.sinner?.matches || [];
-    sinnerMatches.forEach(m => {
-      all.push({
-        type: "group",
-        groupKey: "sinner",
-        groupName: "Girone Sinner",
-        phase: "Girone Sinner",
-        match: m
-      });
-    });
+    categories.forEach(cat => {
+      this.tournamentManager.ensureGroups(cat);
+      const groups = this.state.categoryGroups?.[cat] || {};
 
-    const alcarazMatches = this.state.groups?.alcaraz?.matches || [];
-    alcarazMatches.forEach(m => {
-      all.push({
-        type: "group",
-        groupKey: "alcaraz",
-        groupName: "Girone Alcaraz",
-        phase: "Girone Alcaraz",
-        match: m
-      });
-    });
-
-    // Tabellone
-    if (this.state.bracket && this.state.bracket.rounds) {
-      this.state.bracket.rounds.forEach((round, rIdx) => {
-        (round.matches || []).forEach(m => {
-          all.push({
-            type: "bracket",
-            roundIndex: rIdx,
-            roundName: round.name,
-            phase: `Tabellone • ${round.name}`,
-            match: m
-          });
+      const sinnerMatches = groups.sinner?.matches || [];
+      sinnerMatches.forEach(m => {
+        all.push({
+          type: "group",
+          category: cat,
+          groupKey: "sinner",
+          groupName: `Girone Sinner (${cat})`,
+          phase: `Girone Sinner • ${cat}`,
+          match: m
         });
       });
-    }
+
+      const alcarazMatches = groups.alcaraz?.matches || [];
+      alcarazMatches.forEach(m => {
+        all.push({
+          type: "group",
+          category: cat,
+          groupKey: "alcaraz",
+          groupName: `Girone Alcaraz (${cat})`,
+          phase: `Girone Alcaraz • ${cat}`,
+          match: m
+        });
+      });
+
+      this.tournamentManager.ensureBrackets(cat);
+      const bracket = this.state.categoryBrackets?.[cat];
+      if (bracket && bracket.rounds) {
+        bracket.rounds.forEach((round, rIdx) => {
+          (round.matches || []).forEach(m => {
+            all.push({
+              type: "bracket",
+              category: cat,
+              roundIndex: rIdx,
+              roundName: round.name,
+              phase: `Tabellone ${cat} • ${round.name}`,
+              match: m
+            });
+          });
+        });
+      }
+    });
 
     return all;
   }
@@ -2284,6 +2604,9 @@ class App {
 
     // Filtraggio
     const filtered = allMatches.filter(item => {
+      // Filtro Categoria attiva
+      if (this.selectedCategory !== "all" && item.category !== this.selectedCategory) return false;
+
       const m = item.match;
       const p1 = this.tournamentManager.getPlayer(m.player1Id);
       const p2 = this.tournamentManager.getPlayer(m.player2Id);
@@ -2500,10 +2823,11 @@ class App {
               
               <!-- Barra Superiore Incontro -->
               <div class="p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/60">
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${phaseColor}">
                     ${item.phase}
                   </span>
+                  ${this.getCategoryBadgeMarkup(item.category)}
                   <span class="text-[11px] font-semibold text-gray-600 flex items-center gap-1">
                     <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
@@ -2604,7 +2928,7 @@ class App {
               ${this.isAdmin ? `
                 <div class="p-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
                   <span class="text-[11px] text-gray-400">ID: ${m.id}</span>
-                  <button onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey || item.roundIndex}', '${m.id}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-sm transition flex items-center gap-1.5">
+                  <button onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                     </svg>
@@ -2647,30 +2971,34 @@ class App {
     }
   }
 
-  openScheduleMatchModal(type, groupKeyOrRound, matchId) {
+  openScheduleMatchModal(type, groupKeyOrRound, matchId, category = null) {
     if (!this.isAdmin) {
       this.showToast("Solo l'amministratore (Barcello Luca) può programmare data e campo.", "error");
       return;
     }
 
+    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "U12");
     let targetMatch = null;
     let phaseLabel = "";
 
     if (type === "group") {
-      this.tournamentManager.ensureGroups();
-      const group = this.state.groups[groupKeyOrRound];
+      this.tournamentManager.ensureGroups(cat);
+      const groups = this.state.categoryGroups?.[cat] || this.state.groups;
+      const group = groups ? groups[groupKeyOrRound] : null;
       if (group) {
         targetMatch = group.matches.find(m => m.id === matchId);
-        phaseLabel = group.name || `Girone ${groupKeyOrRound}`;
+        phaseLabel = `${group.name || `Girone ${groupKeyOrRound}`} (${cat})`;
       }
     } else if (type === "bracket") {
-      if (this.state.bracket && this.state.bracket.rounds) {
-        for (let r = 0; r < this.state.bracket.rounds.length; r++) {
-          const round = this.state.bracket.rounds[r];
+      this.tournamentManager.ensureBrackets(cat);
+      const bracket = this.state.categoryBrackets?.[cat] || this.state.bracket;
+      if (bracket && bracket.rounds) {
+        for (let r = 0; r < bracket.rounds.length; r++) {
+          const round = bracket.rounds[r];
           const found = round.matches.find(m => m.id === matchId);
           if (found) {
             targetMatch = found;
-            phaseLabel = `Tabellone • ${round.name}`;
+            phaseLabel = `Tabellone ${cat} • ${round.name}`;
             groupKeyOrRound = r;
             break;
           }
@@ -2686,6 +3014,8 @@ class App {
     document.getElementById("schedule-match-type").value = type;
     document.getElementById("schedule-match-group-or-round").value = groupKeyOrRound;
     document.getElementById("schedule-match-id").value = matchId;
+    const catInput = document.getElementById("schedule-match-category");
+    if (catInput) catInput.value = cat;
 
     document.getElementById("schedule-match-phase-label").textContent = phaseLabel;
     document.getElementById("schedule-match-p1-name").textContent = p1 ? p1.name : "In attesa";
@@ -2704,23 +3034,24 @@ class App {
     const type = document.getElementById("schedule-match-type").value;
     const groupKeyOrRound = document.getElementById("schedule-match-group-or-round").value;
     const matchId = document.getElementById("schedule-match-id").value;
+    const category = document.getElementById("schedule-match-category")?.value || (this.selectedCategory !== "all" ? this.selectedCategory : "U12");
     const dateTime = document.getElementById("schedule-match-datetime").value;
     const court = document.getElementById("schedule-match-court").value;
     const status = document.getElementById("schedule-match-status").value;
 
     if (type === "group") {
-      this.tournamentManager.ensureGroups();
+      this.tournamentManager.ensureGroups(category);
       this.tournamentManager.updateGroupMatch(groupKeyOrRound, matchId, {
         dateTime,
         court,
         status
-      });
+      }, category);
     } else if (type === "bracket") {
       this.tournamentManager.updateBracketMatch(matchId, {
         dateTime,
         court,
         status
-      });
+      }, category);
     }
 
     this.saveState();
@@ -2730,57 +3061,90 @@ class App {
   }
 
   // ==========================================
-  // SEZIONE 4: TABELLONE FINALE
+  // SEZIONE 4: TABELLONE FINALE PER CATEGORIA
   // ==========================================
   renderBracketView() {
     const container = document.getElementById("bracket-container");
     if (!container) return;
 
-    const bracket = this.state.bracket;
-    const players = this.state.players;
+    if (this.selectedCategory === "all") {
+      this.selectedCategory = "U12";
+    }
+    const cat = this.selectedCategory;
+
+    this.tournamentManager.ensureCategories();
+    this.tournamentManager.ensureBrackets(cat);
+
+    const bracket = this.state.categoryBrackets?.[cat] || (cat === "U12" ? this.state.bracket : null);
+    const categoryPlayers = this.tournamentManager.getPlayersByCategory(cat);
 
     let html = "";
 
-    // Se il tabellone non è ancora generato
+    // Se il tabellone non è ancora generato per questa categoria
     if (!bracket || !bracket.rounds || bracket.rounds.length === 0) {
       html += `
-        <div class="text-center py-16 bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
-          <div class="w-14 h-14 bg-blue-50 border border-blue-200 text-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-            </svg>
-          </div>
-          <h3 class="text-lg font-bold text-gray-800 mb-1">Tabellone Finale non ancora composto</h3>
-          
-          <div class="max-w-md mx-auto mb-6">
-            <p class="text-sm text-gray-500 mb-2">
-              ${players.length === 0
-                ? "Nessun atleta è ancora registrato. Aggiungi gli iscritti prima di generare il tabellone."
-                : `Al momento ci sono <strong>${players.length}</strong> atleti registrati.`}
-            </p>
-            ${players.length === 1 ? `
-              <p class="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
-                Servono almeno 2 iscritti per poter comporre gli incontri a eliminazione diretta.
+        <div class="space-y-6">
+          <!-- Banner Categoria -->
+          <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 rounded-2xl p-5 sm:p-6 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
+                <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Tabellone Finale • Categoria ${cat}</span>
+              </div>
+              <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Tabellone Eliminazione Diretta (${cat})</h2>
+              <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
+                Visualizzazione del tabellone a eliminazione diretta per la categoria <strong>${cat}</strong>.
               </p>
-            ` : ''}
+              <!-- Switcher Rapido Categoria nel Tabellone -->
+              <div class="flex items-center gap-2 mt-3 flex-wrap">
+                <span class="text-[11px] font-bold text-yellow-300">Cambia Categoria:</span>
+                ${["U9", "U12", "Open"].map(c => `
+                  <button type="button" onclick="app.setCategory('${c}')" class="px-2.5 py-1 rounded-lg text-xs font-bold border transition cursor-pointer ${cat === c ? 'bg-yellow-400 text-blue-950 border-yellow-300 shadow font-black ring-2 ring-yellow-400/40' : 'bg-white/10 hover:bg-white/20 text-white border-white/20'}">
+                    ${c}
+                  </button>
+                `).join('')}
+              </div>
+            </div>
           </div>
 
-          <div class="flex flex-wrap justify-center gap-3">
-            ${this.isAdmin ? `
-              ${players.length >= 2 ? `
-                <button onclick="app.handleGenerateBracket()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
-                  Genera Tabellone Finale (${players.length} Partecipanti)
-                </button>
-              ` : `
-                <button onclick="app.switchTab('players')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
-                  Vai a Iscritti per Aggiungere Giocatori
-                </button>
-              `}
-            ` : `
-              <p class="text-xs text-gray-500 italic">
-                Il tabellone ufficiale delle partite verrà pubblicato dall'amministratore (Barcello Luca).
+          <div class="text-center py-16 bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+            <div class="w-14 h-14 bg-blue-50 border border-blue-200 text-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+              </svg>
+            </div>
+            <h3 class="text-lg font-bold text-gray-800 mb-1">Tabellone Finale (${cat}) non ancora composto</h3>
+            
+            <div class="max-w-md mx-auto mb-6">
+              <p class="text-sm text-gray-500 mb-2">
+                ${categoryPlayers.length === 0
+                  ? `Nessun atleta è ancora registrato nella categoria ${cat}. Aggiungi gli iscritti prima di generare il tabellone.`
+                  : `Al momento ci sono <strong>${categoryPlayers.length}</strong> atleti registrati nella categoria <strong>${cat}</strong>.`}
               </p>
-            `}
+              ${categoryPlayers.length === 1 ? `
+                <p class="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                  Servono almeno 2 iscritti nella categoria ${cat} per poter comporre gli incontri a eliminazione diretta.
+                </p>
+              ` : ''}
+            </div>
+
+            <div class="flex flex-wrap justify-center gap-3">
+              ${this.isAdmin ? `
+                ${categoryPlayers.length >= 2 ? `
+                  <button onclick="app.handleGenerateBracket('${cat}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
+                    Genera Tabellone Finale ${cat} (${categoryPlayers.length} Partecipanti)
+                  </button>
+                ` : `
+                  <button onclick="app.switchTab('players')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
+                    Vai a Iscritti per Aggiungere Giocatori
+                  </button>
+                `}
+              ` : `
+                <p class="text-xs text-gray-500 italic">
+                  Il tabellone ufficiale delle partite verrà pubblicato dall'amministratore (Barcello Luca).
+                </p>
+              `}
+            </div>
           </div>
         </div>
       `;
@@ -2788,33 +3152,40 @@ class App {
       return;
     }
 
-    // Barra Intestazione Tabellone con Tasto Stampa
+    // Barra Intestazione Tabellone con Tasto Stampa e Switcher Categorie
     html += `
-      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-blue-900 text-yellow-400 flex items-center justify-center font-black flex-shrink-0 shadow">
-            <svg class="w-5 h-5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-            </svg>
+      <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 rounded-2xl p-5 sm:p-6 mb-5 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
+            <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Tabellone Ufficiale • Categoria ${cat}</span>
           </div>
-          <div>
-            <h2 class="text-base sm:text-lg font-bold text-gray-900">Tabellone Finale ad Eliminazione Diretta</h2>
-            <p class="text-xs text-gray-500">Incontri ufficiali, risultati e progressione del torneo</p>
+          <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Tabellone Finale ad Eliminazione Diretta (${cat})</h2>
+          <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">Incontri ufficiali, risultati e progressione del torneo per la categoria <strong>${cat}</strong>.</p>
+          
+          <!-- Switcher Rapido Categoria nel Tabellone -->
+          <div class="flex items-center gap-2 mt-3 flex-wrap">
+            <span class="text-[11px] font-bold text-yellow-300">Cambia Categoria:</span>
+            ${["U9", "U12", "Open"].map(c => `
+              <button type="button" onclick="app.setCategory('${c}')" class="px-2.5 py-1 rounded-lg text-xs font-bold border transition cursor-pointer ${cat === c ? 'bg-yellow-400 text-blue-950 border-yellow-300 shadow font-black ring-2 ring-yellow-400/40' : 'bg-white/10 hover:bg-white/20 text-white border-white/20'}">
+                ${c}
+              </button>
+            `).join('')}
           </div>
         </div>
-        <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-          <button onclick="window.print()" title="Stampa Tabellone Finale per Bacheca Circolo" class="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer">
+        <div class="flex items-center gap-2 flex-wrap w-full md:w-auto">
+          <button onclick="window.print()" title="Stampa Tabellone Finale per Bacheca Circolo" class="w-full sm:w-auto bg-white/15 hover:bg-white/25 text-white font-semibold text-xs px-4 py-2.5 rounded-xl border border-white/30 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm">
             <svg class="w-4 h-4 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
             </svg>
-            <span>Stampa Tabellone</span>
+            <span>Stampa Tabellone (${cat})</span>
           </button>
           ${this.isAdmin ? `
-            <button onclick="app.handleGenerateBracket()" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl shadow-sm transition cursor-pointer">
-              Rigenera Tabellone
+            <button onclick="app.handleGenerateBracket('${cat}')" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition cursor-pointer">
+              Rigenera Tabellone (${cat})
             </button>
-            <button onclick="app.handleResetBracket()" class="w-full sm:w-auto bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium text-xs px-3.5 py-2.5 rounded-xl border border-rose-200 transition cursor-pointer">
-              Azzera
+            <button onclick="app.handleResetBracket('${cat}')" class="w-full sm:w-auto bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium text-xs px-3.5 py-2.5 rounded-xl border border-rose-200 transition cursor-pointer">
+              Azzera (${cat})
             </button>
           ` : ''}
         </div>
@@ -2848,11 +3219,11 @@ class App {
 
         html += `
           <div class="match-card bg-white border ${hasWinner ? 'border-blue-400 ring-1 ring-blue-200' : 'border-gray-200'} rounded-xl shadow-sm hover:shadow-md transition relative overflow-hidden ${this.isAdmin ? 'cursor-pointer' : ''}"
-               onclick="${this.isAdmin ? `app.openMatchModal('${match.id}')` : ''}">
+               onclick="${this.isAdmin ? `app.openMatchModal('${match.id}', '${cat}')` : ''}">
             
             ${isFinal && hasWinner ? `
               <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-yellow-300 text-[11px] font-black px-2 py-1 text-center uppercase tracking-wider border-b border-blue-800">
-                Campione del Torneo Momy
+                Campione del Torneo Momy (${cat})
               </div>
             ` : ""}
 
@@ -2916,40 +3287,53 @@ class App {
     container.innerHTML = html;
   }
 
-  handleGenerateBracket() {
+  handleGenerateBracket(category = null) {
     if (!this.isAdmin) return;
+    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "U12");
     try {
-      this.tournamentManager.generateBracket();
+      this.tournamentManager.generateBracket(null, cat);
       this.saveState();
       this.renderBracketView();
-      this.showToast("Tabellone Finale generato con successo!", "success");
+      this.showToast(`Tabellone Finale (${cat}) generato con successo!`, "success");
     } catch (e) {
       alert(e.message);
     }
   }
 
-  handleResetBracket() {
+  handleResetBracket(category = null) {
     if (!this.isAdmin) return;
-    if (confirm("Sei sicuro di voler azzerare il tabellone finale?")) {
-      this.state.bracket = null;
+    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "U12");
+    if (confirm(`Sei sicuro di voler azzerare il tabellone finale della categoria ${cat}?`)) {
+      this.tournamentManager.ensureCategories();
+      if (this.state.categoryBrackets) {
+        this.state.categoryBrackets[cat] = null;
+      }
+      if (cat === "U12") {
+        this.state.bracket = null;
+      }
       this.saveState();
       this.renderBracketView();
-      this.showToast("Tabellone finale azzerato", "info");
+      this.showToast(`Tabellone finale (${cat}) azzerato`, "info");
     }
   }
 
   // Modale per aggiornare incontro da parte dell'Admin
-  openMatchModal(matchId) {
-    if (!this.isAdmin || !this.state.bracket) return;
+  openMatchModal(matchId, category = null) {
+    if (!this.isAdmin) return;
+    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "U12");
+    this.tournamentManager.ensureBrackets(cat);
+    const bracket = this.state.categoryBrackets?.[cat] || this.state.bracket;
+    if (!bracket || !bracket.rounds) return;
 
     let targetMatch = null;
-    this.state.bracket.rounds.forEach(r => {
+    bracket.rounds.forEach(r => {
       const found = r.matches.find(m => m.id === matchId);
       if (found) targetMatch = found;
     });
 
     if (!targetMatch) return;
     this.currentEditingMatchId = matchId;
+    this.currentEditingMatchCategory = cat;
 
     const p1 = this.tournamentManager.getPlayer(targetMatch.player1Id);
     const p2 = this.tournamentManager.getPlayer(targetMatch.player2Id);
@@ -2980,16 +3364,17 @@ class App {
     const court = document.getElementById("score-court-select").value;
     const dateTime = document.getElementById("score-datetime-input").value;
     const status = document.getElementById("score-status-select").value;
+    const cat = this.currentEditingMatchCategory || (this.selectedCategory !== "all" ? this.selectedCategory : "U12");
 
     const res = this.tournamentManager.updateBracketMatch(this.currentEditingMatchId, {
       winnerId, scores, court, dateTime, status
-    });
+    }, cat);
 
     if (res && res.isChampionDecided) {
       if (typeof confetti === 'function') {
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
       }
-      this.showToast(`Torneo Momy completato! Vincitore: ${res.winner ? res.winner.name : 'Campione'}`, "success", 6000);
+      this.showToast(`Torneo Momy (${res.category || cat}) completato! Vincitore: ${res.winner ? res.winner.name : 'Campione'}`, "success", 6000);
     } else {
       this.showToast("Risultato dell'incontro salvato!", "success");
     }
@@ -3195,10 +3580,12 @@ class App {
                 <svg class="w-3.5 h-3.5 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                 <span>${this.escapeHtml(u.email)}</span>
               </p>
-              <div class="flex items-center gap-3 mt-2 text-xs text-yellow-300/90 font-medium">
+              <div class="flex items-center gap-3 mt-2 text-xs text-yellow-300/90 font-medium flex-wrap">
                 <span>Classifica: <strong>${u.ranking || 'NC'}</strong></span>
                 <span>•</span>
                 <span>Nascita: <strong>${this.formatDate(u.birthDate)}</strong></span>
+                <span>•</span>
+                <span>Categoria: <strong>${u.category || this.tournamentManager.getPlayerCategory(u)}</strong></span>
               </div>
             </div>
           </div>
@@ -3304,7 +3691,7 @@ class App {
               </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label class="block text-xs font-bold text-gray-700 mb-1">Data di Nascita *</label>
                 <input type="date" id="account-page-birthdate-input" value="${u.birthDate || ''}" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white" required>
@@ -3315,6 +3702,14 @@ class App {
                   ${["NC", "4.6", "4.5", "4.4", "4.3", "4.2", "4.1", "3.5", "3.4", "3.3", "3.2", "3.1", "2.8", "2.7", "2.6", "2.5", "2.4", "2.3", "2.2", "2.1", "1"].map(rk => `
                     <option value="${rk}" ${u.ranking === rk ? 'selected' : ''}>${rk}</option>
                   `).join('')}
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">Categoria di Gioco *</label>
+                <select id="account-page-category-select" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
+                  <option value="U9" ${(u.category || this.tournamentManager.getPlayerCategory(u)) === 'U9' ? 'selected' : ''}>Under 9 (U9)</option>
+                  <option value="U12" ${(u.category || this.tournamentManager.getPlayerCategory(u)) === 'U12' ? 'selected' : ''}>Under 12 (U12)</option>
+                  <option value="Open" ${(u.category || this.tournamentManager.getPlayerCategory(u)) === 'Open' ? 'selected' : ''}>Open</option>
                 </select>
               </div>
             </div>
@@ -3386,6 +3781,14 @@ class App {
     `;
 
     this.renderAccountAvatarPreview();
+    const bdInput = document.getElementById("account-page-birthdate-input");
+    const catSelect = document.getElementById("account-page-category-select");
+    if (bdInput && catSelect) {
+      bdInput.addEventListener("change", (e) => {
+        const cat = this.tournamentManager.getPlayerCategory({ birthDate: e.target.value });
+        catSelect.value = cat;
+      });
+    }
   }
 
   // ==========================================

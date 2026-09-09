@@ -1,13 +1,91 @@
-// Gestione Logica Tabellone Finale Torneo Momy
+// Gestione Logica Torneo Momy (Categorie U9, U12, Open, Gironi Sinner & Alcaraz e Tabellone)
 
 class TournamentManager {
   constructor(state) {
     this.state = state;
+    this.ensureCategories();
+  }
+
+  // Categorie ufficiali del Torneo Momy
+  static get CATEGORIES() {
+    return ["U9", "U12", "Open"];
   }
 
   getPlayer(id) {
     if (!id) return null;
     return this.state.players.find(p => p.id === id) || null;
+  }
+
+  // Rileva o restituisce la categoria dell'atleta (U9, U12 o Open)
+  getPlayerCategory(player) {
+    if (!player) return "U12";
+    if (player.category && ["U9", "U12", "Open"].includes(player.category)) {
+      return player.category;
+    }
+    // Calcolo automatico in base ad anno di nascita
+    let year = null;
+    if (player.birthDate) {
+      const d = new Date(player.birthDate);
+      if (!isNaN(d.getFullYear())) year = d.getFullYear();
+    } else if (player.year) {
+      year = parseInt(player.year, 10);
+    }
+    if (year && !isNaN(year)) {
+      if (year >= 2017) return "U9";
+      if (year >= 2014) return "U12";
+      return "Open";
+    }
+    return "U12";
+  }
+
+  // Restituisce la lista di giocatori filtrata per categoria
+  getPlayersByCategory(category) {
+    if (!category || category === "all") return this.state.players || [];
+    return (this.state.players || []).filter(p => this.getPlayerCategory(p) === category);
+  }
+
+  // Inizializza e migra la struttura multi-categoria
+  ensureCategories() {
+    if (!this.state.categoryGroups) {
+      this.state.categoryGroups = {};
+    }
+    // Migrazione gironi pregressi verso U12
+    if (this.state.groups && !this.state.categoryGroups["U12"]) {
+      this.state.categoryGroups["U12"] = this.state.groups;
+    }
+
+    ["U9", "U12", "Open"].forEach(cat => {
+      if (!this.state.categoryGroups[cat]) {
+        this.state.categoryGroups[cat] = {
+          sinner: { id: "sinner", name: `Girone Sinner (${cat})`, playerIds: [], matches: [] },
+          alcaraz: { id: "alcaraz", name: `Girone Alcaraz (${cat})`, playerIds: [], matches: [] }
+        };
+      } else {
+        if (!this.state.categoryGroups[cat].sinner) {
+          this.state.categoryGroups[cat].sinner = { id: "sinner", name: `Girone Sinner (${cat})`, playerIds: [], matches: [] };
+        }
+        if (!this.state.categoryGroups[cat].alcaraz) {
+          this.state.categoryGroups[cat].alcaraz = { id: "alcaraz", name: `Girone Alcaraz (${cat})`, playerIds: [], matches: [] };
+        }
+      }
+    });
+
+    if (!this.state.categoryBrackets) {
+      this.state.categoryBrackets = {};
+    }
+    // Migrazione tabellone pregresso verso U12
+    if (this.state.bracket && !this.state.categoryBrackets["U12"]) {
+      this.state.categoryBrackets["U12"] = this.state.bracket;
+    }
+
+    // Assicura categoria su tutti i giocatori
+    if (this.state.players) {
+      this.state.players.forEach(p => {
+        if (!p.category) {
+          p.category = this.getPlayerCategory(p);
+        }
+      });
+    }
   }
 
   // Valuta la forza della classifica FITP per comporre gli accoppiamenti
@@ -24,14 +102,28 @@ class TournamentManager {
     return 1;
   }
 
-  // Genera un tabellone a eliminazione diretta
-  generateBracket(playersList) {
-    const players = playersList || this.state.players;
+  // ==========================================
+  // METODI GESTIONE TABELLONE FINALE PER CATEGORIA
+  // ==========================================
+  ensureBrackets(category = "U12") {
+    this.ensureCategories();
+    const cat = category || "U12";
+    this.state.bracket = this.state.categoryBrackets[cat] || null;
+    return this.state.categoryBrackets[cat] || null;
+  }
+
+  // Genera un tabellone a eliminazione diretta per una categoria
+  generateBracket(playersList = null, category = "U12") {
+    this.ensureCategories();
+    const cat = category || "U12";
+    const rawPlayers = playersList || this.state.players;
+    const players = rawPlayers.filter(p => this.getPlayerCategory(p) === cat);
+
     if (!players || players.length < 2) {
-      throw new Error("Servono almeno 2 atleti iscritti per comporre il tabellone finale.");
+      throw new Error(`Servono almeno 2 atleti iscritti nella categoria ${cat} per comporre il tabellone finale.`);
     }
 
-    // Ordina i partecipanti in base alla classifica FITP (i migliori piazzati nelle posizioni cardine)
+    // Ordina i partecipanti in base alla classifica FITP
     const sortedPlayers = [...players].sort((a, b) => {
       const weightA = this.getRankingWeight(a.ranking);
       const weightB = this.getRankingWeight(b.ranking);
@@ -41,7 +133,6 @@ class TournamentManager {
       return Math.random() - 0.5;
     });
 
-    // Dimensione minima potenza di 2 (4, 8, 16, 32)
     let bracketSize = 4;
     if (sortedPlayers.length > 16) bracketSize = 32;
     else if (sortedPlayers.length > 8) bracketSize = 16;
@@ -50,7 +141,6 @@ class TournamentManager {
 
     const slots = new Array(bracketSize).fill(null);
 
-    // Schema di posizionamento giocatori secondo ranking standard tennis
     let seedPositions = [];
     if (bracketSize === 4) {
       seedPositions = [0, 3, 1, 2];
@@ -90,13 +180,12 @@ class TournamentManager {
     for (let i = 0; i < bracketSize; i += 2) {
       const p1 = slots[i];
       const p2 = slots[i + 1];
-      const matchId = `m-r1-${(i / 2) + 1}`;
+      const matchId = `m-${cat.toLowerCase()}-r1-${(i / 2) + 1}`;
       
       let winnerId = null;
       let status = "in_programma";
       let scores = "";
 
-      // Gestione automatica BYE
       if (p1 === "BYE" && p2 && p2 !== "BYE") {
         winnerId = p2;
         status = "completato";
@@ -109,6 +198,7 @@ class TournamentManager {
 
       r1Matches.push({
         id: matchId,
+        category: cat,
         player1Id: p1 === "BYE" ? null : p1,
         player2Id: p2 === "BYE" ? null : p2,
         scores: scores,
@@ -136,9 +226,10 @@ class TournamentManager {
         const p1 = parent1.winnerId || null;
         const p2 = parent2.winnerId || null;
 
-        const matchId = `m-r${r + 1}-${m + 1}`;
+        const matchId = `m-${cat.toLowerCase()}-r${r + 1}-${m + 1}`;
         currentMatches.push({
           id: matchId,
+          category: cat,
           player1Id: p1,
           player2Id: p2,
           scores: "",
@@ -157,109 +248,116 @@ class TournamentManager {
     }
 
     const bracket = {
+      category: cat,
       rounds: rounds,
       createdAt: new Date().toISOString()
     };
 
+    this.state.categoryBrackets[cat] = bracket;
     this.state.bracket = bracket;
     return bracket;
   }
 
   // Aggiorna punteggio ed avanza il vincitore nel tabellone
-  updateBracketMatch(matchId, updateData) {
-    const bracket = this.state.bracket;
-    if (!bracket) return false;
+  updateBracketMatch(matchId, updateData, category = null) {
+    this.ensureCategories();
+    const cats = category ? [category] : ["U9", "U12", "Open"];
 
-    let roundIndex = -1;
-    let matchIndex = -1;
-    let targetMatch = null;
+    for (let cat of cats) {
+      const bracket = this.state.categoryBrackets[cat];
+      if (!bracket || !bracket.rounds) continue;
 
-    for (let r = 0; r < bracket.rounds.length; r++) {
-      const idx = bracket.rounds[r].matches.findIndex(m => m.id === matchId);
-      if (idx !== -1) {
-        roundIndex = r;
-        matchIndex = idx;
-        targetMatch = bracket.rounds[r].matches[idx];
-        break;
-      }
-    }
+      let roundIndex = -1;
+      let matchIndex = -1;
+      let targetMatch = null;
 
-    if (!targetMatch) return false;
-
-    const oldWinnerId = targetMatch.winnerId;
-
-    if (updateData.scores !== undefined) targetMatch.scores = updateData.scores;
-    if (updateData.winnerId !== undefined) targetMatch.winnerId = updateData.winnerId;
-    if (updateData.court !== undefined) targetMatch.court = updateData.court;
-    if (updateData.dateTime !== undefined) targetMatch.dateTime = updateData.dateTime;
-    if (updateData.status !== undefined) targetMatch.status = updateData.status;
-
-    // Se c'è un round successivo, avanza il vincitore
-    if (roundIndex < bracket.rounds.length - 1) {
-      const nextRound = bracket.rounds[roundIndex + 1];
-      const nextMatchIndex = Math.floor(matchIndex / 2);
-      const isPlayer1 = matchIndex % 2 === 0;
-
-      const nextMatch = nextRound.matches[nextMatchIndex];
-      if (nextMatch) {
-        const newWinner = targetMatch.winnerId;
-        if (isPlayer1) {
-          nextMatch.player1Id = newWinner;
-        } else {
-          nextMatch.player2Id = newWinner;
-        }
-
-        if (oldWinnerId && oldWinnerId !== newWinner) {
-          nextMatch.winnerId = null;
-          nextMatch.scores = "";
-          nextMatch.status = "in_programma";
+      for (let r = 0; r < bracket.rounds.length; r++) {
+        const idx = bracket.rounds[r].matches.findIndex(m => m.id === matchId);
+        if (idx !== -1) {
+          roundIndex = r;
+          matchIndex = idx;
+          targetMatch = bracket.rounds[r].matches[idx];
+          break;
         }
       }
-    }
 
-    const isFinal = roundIndex === bracket.rounds.length - 1;
-    const isChampionDecided = isFinal && targetMatch.winnerId && targetMatch.status === "completato";
+      if (!targetMatch) continue;
 
-    return {
-      success: true,
-      isChampionDecided: isChampionDecided,
-      winner: isChampionDecided ? this.getPlayer(targetMatch.winnerId) : null
-    };
-  }
+      const oldWinnerId = targetMatch.winnerId;
 
-  // ==========================================
-  // METODI GESTIONE FASE A GIRONI (SINNER & ALCARAZ)
-  // ==========================================
-  ensureGroups() {
-    if (!this.state.groups) {
-      this.state.groups = {
-        sinner: { id: "sinner", name: "Girone Sinner", playerIds: [], matches: [] },
-        alcaraz: { id: "alcaraz", name: "Girone Alcaraz", playerIds: [], matches: [] }
+      if (updateData.scores !== undefined) targetMatch.scores = updateData.scores;
+      if (updateData.winnerId !== undefined) targetMatch.winnerId = updateData.winnerId;
+      if (updateData.court !== undefined) targetMatch.court = updateData.court;
+      if (updateData.dateTime !== undefined) targetMatch.dateTime = updateData.dateTime;
+      if (updateData.status !== undefined) targetMatch.status = updateData.status;
+
+      // Avanzamento al round successivo
+      if (roundIndex < bracket.rounds.length - 1) {
+        const nextRound = bracket.rounds[roundIndex + 1];
+        const nextMatchIndex = Math.floor(matchIndex / 2);
+        const isPlayer1 = matchIndex % 2 === 0;
+
+        const nextMatch = nextRound.matches[nextMatchIndex];
+        if (nextMatch) {
+          const newWinner = targetMatch.winnerId;
+          if (isPlayer1) {
+            nextMatch.player1Id = newWinner;
+          } else {
+            nextMatch.player2Id = newWinner;
+          }
+
+          if (oldWinnerId && oldWinnerId !== newWinner) {
+            nextMatch.winnerId = null;
+            nextMatch.scores = "";
+            nextMatch.status = "in_programma";
+          }
+        }
+      }
+
+      const isFinal = roundIndex === bracket.rounds.length - 1;
+      const isChampionDecided = isFinal && targetMatch.winnerId && targetMatch.status === "completato";
+
+      return {
+        success: true,
+        category: cat,
+        isChampionDecided: isChampionDecided,
+        winner: isChampionDecided ? this.getPlayer(targetMatch.winnerId) : null
       };
-    } else {
-      if (!this.state.groups.sinner) {
-        this.state.groups.sinner = { id: "sinner", name: "Girone Sinner", playerIds: [], matches: [] };
-      }
-      if (!this.state.groups.alcaraz) {
-        this.state.groups.alcaraz = { id: "alcaraz", name: "Girone Alcaraz", playerIds: [], matches: [] };
-      }
     }
-    return this.state.groups;
+
+    return false;
   }
 
-  autoAssignGroups() {
-    this.ensureGroups();
-    const players = [...this.state.players].sort((a, b) => {
-      const weightA = this.getRankingWeight(a.ranking);
-      const weightB = this.getRankingWeight(b.ranking);
-      if (weightA !== weightB) return weightB - weightA;
-      return (a.lastName || "").localeCompare(b.lastName || "");
-    });
+  // ==========================================
+  // METODI GESTIONE FASE A GIRONI PER CATEGORIA
+  // ==========================================
+  ensureGroups(category = "U12") {
+    this.ensureCategories();
+    const cat = category || "U12";
+    const catGroup = this.state.categoryGroups[cat];
+    this.state.groups = catGroup;
+    return catGroup;
+  }
+
+  autoAssignGroups(category = "U12") {
+    this.ensureCategories();
+    const cat = category || "U12";
+    const group = this.state.categoryGroups[cat];
+
+    // Filtra solo gli atleti appartenenti a questa categoria!
+    const players = this.state.players
+      .filter(p => this.getPlayerCategory(p) === cat)
+      .sort((a, b) => {
+        const weightA = this.getRankingWeight(a.ranking);
+        const weightB = this.getRankingWeight(b.ranking);
+        if (weightA !== weightB) return weightB - weightA;
+        return (a.lastName || "").localeCompare(b.lastName || "");
+      });
 
     const sinnerIds = [];
     const alcarazIds = [];
 
-    // Metodo a serpentina (snake draft) per bilanciare i due gironi
+    // Snake draft serpentina
     players.forEach((p, idx) => {
       const cycle = Math.floor(idx / 2) % 2;
       if (cycle === 0) {
@@ -271,29 +369,35 @@ class TournamentManager {
       }
     });
 
-    this.state.groups.sinner.playerIds = sinnerIds;
-    this.state.groups.alcaraz.playerIds = alcarazIds;
+    group.sinner.playerIds = sinnerIds;
+    group.alcaraz.playerIds = alcarazIds;
 
-    this.generateGroupMatches("sinner");
-    this.generateGroupMatches("alcaraz");
+    this.generateGroupMatches("sinner", cat);
+    this.generateGroupMatches("alcaraz", cat);
 
-    return this.state.groups;
+    this.state.groups = group;
+    return group;
   }
 
-  assignPlayerToGroup(playerId, targetGroupKey) {
-    this.ensureGroups();
-    this.state.groups.sinner.playerIds = this.state.groups.sinner.playerIds.filter(id => id !== playerId);
-    this.state.groups.alcaraz.playerIds = this.state.groups.alcaraz.playerIds.filter(id => id !== playerId);
+  assignPlayerToGroup(playerId, targetGroupKey, category = "U12") {
+    this.ensureCategories();
+    const cat = category || "U12";
+    const group = this.state.categoryGroups[cat];
+
+    group.sinner.playerIds = group.sinner.playerIds.filter(id => id !== playerId);
+    group.alcaraz.playerIds = group.alcaraz.playerIds.filter(id => id !== playerId);
 
     if (targetGroupKey === "sinner" || targetGroupKey === "alcaraz") {
-      this.state.groups[targetGroupKey].playerIds.push(playerId);
-      this.generateGroupMatches(targetGroupKey);
+      group[targetGroupKey].playerIds.push(playerId);
+      this.generateGroupMatches(targetGroupKey, cat);
     }
   }
 
-  generateGroupMatches(groupKey) {
-    this.ensureGroups();
-    const group = this.state.groups[groupKey];
+  generateGroupMatches(groupKey, category = "U12") {
+    this.ensureCategories();
+    const cat = category || "U12";
+    const catGroup = this.state.categoryGroups[cat];
+    const group = catGroup[groupKey];
     if (!group) return [];
 
     const playerIds = group.playerIds.filter(id => this.getPlayer(id) !== null);
@@ -315,8 +419,9 @@ class TournamentManager {
           newMatches.push(existing);
         } else {
           newMatches.push({
-            id: `gm-${groupKey}-${matchCount}`,
+            id: `gm-${cat.toLowerCase()}-${groupKey}-${matchCount}`,
             groupKey: groupKey,
+            category: cat,
             player1Id: p1Id,
             player2Id: p2Id,
             games1: null,
@@ -337,49 +442,55 @@ class TournamentManager {
     return newMatches;
   }
 
-  updateGroupMatch(groupKey, matchId, matchData) {
-    this.ensureGroups();
-    const group = this.state.groups[groupKey];
-    if (!group) return false;
+  updateGroupMatch(groupKey, matchId, matchData, category = null) {
+    this.ensureCategories();
+    const cats = category ? [category] : ["U9", "U12", "Open"];
 
-    const match = group.matches.find(m => m.id === matchId);
-    if (!match) return false;
+    for (let cat of cats) {
+      const catGroup = this.state.categoryGroups[cat];
+      if (!catGroup) continue;
+      const group = catGroup[groupKey];
+      if (!group) continue;
 
-    if (matchData.court !== undefined) match.court = matchData.court;
-    if (matchData.dateTime !== undefined) match.dateTime = matchData.dateTime;
+      const match = group.matches.find(m => m.id === matchId);
+      if (!match) continue;
 
-    const g1 = matchData.games1 !== undefined && matchData.games1 !== null && matchData.games1 !== "" ? parseInt(matchData.games1, 10) : null;
-    const g2 = matchData.games2 !== undefined && matchData.games2 !== null && matchData.games2 !== "" ? parseInt(matchData.games2, 10) : null;
+      if (matchData.court !== undefined) match.court = matchData.court;
+      if (matchData.dateTime !== undefined) match.dateTime = matchData.dateTime;
 
-    match.games1 = isNaN(g1) ? null : g1;
-    match.games2 = isNaN(g2) ? null : g2;
+      const g1 = matchData.games1 !== undefined && matchData.games1 !== null && matchData.games1 !== "" ? parseInt(matchData.games1, 10) : null;
+      const g2 = matchData.games2 !== undefined && matchData.games2 !== null && matchData.games2 !== "" ? parseInt(matchData.games2, 10) : null;
 
-    if (match.games1 !== null && match.games2 !== null) {
-      match.scores = `${match.games1} - ${match.games2}`;
-      match.status = matchData.status || "completato";
+      match.games1 = isNaN(g1) ? null : g1;
+      match.games2 = isNaN(g2) ? null : g2;
 
-      if (match.games1 > match.games2) {
-        match.winnerId = match.player1Id;
-        match.isDraw = false;
-      } else if (match.games2 > match.games1) {
-        match.winnerId = match.player2Id;
-        match.isDraw = false;
+      if (match.games1 !== null && match.games2 !== null) {
+        match.scores = `${match.games1} - ${match.games2}`;
+        match.status = matchData.status || "completato";
+
+        if (match.games1 > match.games2) {
+          match.winnerId = match.player1Id;
+          match.isDraw = false;
+        } else if (match.games2 > match.games1) {
+          match.winnerId = match.player2Id;
+          match.isDraw = false;
+        } else {
+          match.winnerId = null;
+          match.isDraw = true;
+        }
       } else {
-        // Regolamento Momy: Al suono della campana rimane il pareggio nella fase a gironi
-        match.winnerId = null;
-        match.isDraw = true;
+        match.scores = matchData.scores || "";
+        match.winnerId = matchData.winnerId || null;
+        match.isDraw = false;
+        match.status = matchData.status || "in_programma";
       }
-    } else {
-      match.scores = matchData.scores || "";
-      match.winnerId = matchData.winnerId || null;
-      match.isDraw = false;
-      match.status = matchData.status || "in_programma";
+
+      return true;
     }
 
-    return true;
+    return false;
   }
 
-  // Verifica il vincitore dello scontro diretto tra due atleti nel girone
   getHeadToHeadWinner(matches, p1Id, p2Id) {
     if (!matches || matches.length === 0) return null;
     const m = matches.find(match =>
@@ -392,9 +503,12 @@ class TournamentManager {
     return m.winnerId || null;
   }
 
-  getGroupStandings(groupKey) {
-    this.ensureGroups();
-    const group = this.state.groups[groupKey];
+  getGroupStandings(groupKey, category = "U12") {
+    this.ensureCategories();
+    const cat = category || "U12";
+    const catGroup = this.state.categoryGroups[cat];
+    if (!catGroup) return [];
+    const group = catGroup[groupKey];
     if (!group) return [];
 
     const statsMap = {};
@@ -407,11 +521,11 @@ class TournamentManager {
           played: 0,
           won: 0,
           drawn: 0,
-          lost: 0,          // Set Persi (ogni match è 1 set continuo)
-          gamesFor: 0,      // Game Vinti
-          gamesAgainst: 0,  // Game Persi
-          diff: 0,          // Differenza Game Vinti/Persi
-          points: 0         // Punti (V: 3, P: 1, S: 0)
+          lost: 0,
+          gamesFor: 0,
+          gamesAgainst: 0,
+          diff: 0,
+          points: 0
         };
       }
     });
@@ -452,11 +566,6 @@ class TournamentManager {
       s.diff = s.gamesFor - s.gamesAgainst;
     });
 
-    // Criteri di ordinamento ufficiali Torneo Momy:
-    // 1. Punti
-    // 2. Scontro diretto (se sono in due a pari punti)
-    // 3. Differenza game vinti/persi
-    // 4. Numero di game vinti
     const pointsMap = {};
     standings.forEach(s => {
       const pt = s.points;
@@ -472,7 +581,6 @@ class TournamentManager {
       if (cluster.length === 1) {
         sortedStandings.push(cluster[0]);
       } else if (cluster.length === 2) {
-        // Se sono in due: scontro diretto tra i due
         const p1 = cluster[0];
         const p2 = cluster[1];
         const h2h = this.getHeadToHeadWinner(group.matches || [], p1.player.id, p2.player.id);
@@ -481,7 +589,6 @@ class TournamentManager {
         } else if (h2h === p2.player.id) {
           sortedStandings.push(p2, p1);
         } else {
-          // Scontro diretto in parità o non ancora giocato: differenza game vinti/persi, poi game vinti
           cluster.sort((a, b) => {
             if (b.diff !== a.diff) return b.diff - a.diff;
             if (b.gamesFor !== a.gamesFor) return b.gamesFor - a.gamesFor;
@@ -490,7 +597,6 @@ class TournamentManager {
           sortedStandings.push(...cluster);
         }
       } else {
-        // Se sono più di due: differenza game vinti/persi, poi numero di game vinti
         cluster.sort((a, b) => {
           if (b.diff !== a.diff) return b.diff - a.diff;
           if (b.gamesFor !== a.gamesFor) return b.gamesFor - a.gamesFor;
@@ -506,7 +612,6 @@ class TournamentManager {
     return sortedStandings;
   }
 
-  // Schema standard per accoppiamenti incrociati Girone Sinner (semi dispari) vs Girone Alcaraz (semi pari)
   getCrossGroupSeedOrder(bracketSize) {
     if (bracketSize === 4) {
       return [1, 4, 3, 2];
@@ -529,34 +634,29 @@ class TournamentManager {
     return Array.from({ length: bracketSize }, (_, i) => i + 1);
   }
 
-  // Genera il tabellone finale qualificando TUTTI i giocatori dei gironi in base alla classifica finale
-  generateBracketFromGroups() {
-    this.ensureGroups();
-    const standingsSinner = this.getGroupStandings("sinner");
-    const standingsAlcaraz = this.getGroupStandings("alcaraz");
+  generateBracketFromGroups(category = "U12") {
+    this.ensureCategories();
+    const cat = category || "U12";
+    const standingsSinner = this.getGroupStandings("sinner", cat);
+    const standingsAlcaraz = this.getGroupStandings("alcaraz", cat);
 
     const totalInGroups = standingsSinner.length + standingsAlcaraz.length;
     if (totalInGroups < 2) {
-      throw new Error("Servono almeno 2 atleti inseriti nei gironi per poter comporre il tabellone finale.");
+      throw new Error(`Servono almeno 2 atleti inseriti nei gironi ${cat} per poter comporre il tabellone finale.`);
     }
 
-    // Calcolo dimensione tabellone (potenza di 2 più vicina)
     let bracketSize = 4;
     if (totalInGroups > 16) bracketSize = 32;
     else if (totalInGroups > 8) bracketSize = 16;
     else if (totalInGroups > 4) bracketSize = 8;
     else bracketSize = 4;
 
-    // Assegnazione teste di serie incrociate:
-    // Dispari = Girone Sinner (1° Sinner -> Seed 1, 2° Sinner -> Seed 3, 3° Sinner -> Seed 5...)
-    // Pari = Girone Alcaraz (1° Alcaraz -> Seed 2, 2° Alcaraz -> Seed 4, 3° Alcaraz -> Seed 6...)
     const seedMap = {};
     let sIdx = 0;
     let aIdx = 0;
 
     for (let seed = 1; seed <= bracketSize; seed++) {
       if (seed % 2 === 1) {
-        // Sinner slot
         if (sIdx < standingsSinner.length) {
           seedMap[seed] = standingsSinner[sIdx].player.id;
           sIdx++;
@@ -567,7 +667,6 @@ class TournamentManager {
           seedMap[seed] = "BYE";
         }
       } else {
-        // Alcaraz slot
         if (aIdx < standingsAlcaraz.length) {
           seedMap[seed] = standingsAlcaraz[aIdx].player.id;
           aIdx++;
@@ -597,12 +696,11 @@ class TournamentManager {
     };
     const names = roundNamesMap[totalRounds] || ["Turno 1", "Turno 2", "Semifinali", "Finale"];
 
-    // Round 1
     const r1Matches = [];
     for (let i = 0; i < bracketSize; i += 2) {
       const p1 = slots[i];
       const p2 = slots[i + 1];
-      const matchId = `m-r1-${(i / 2) + 1}`;
+      const matchId = `m-${cat.toLowerCase()}-r1-${(i / 2) + 1}`;
 
       let winnerId = null;
       let status = "in_programma";
@@ -620,6 +718,7 @@ class TournamentManager {
 
       r1Matches.push({
         id: matchId,
+        category: cat,
         player1Id: p1 === "BYE" ? null : p1,
         player2Id: p2 === "BYE" ? null : p2,
         scores: scores,
@@ -635,7 +734,6 @@ class TournamentManager {
       matches: r1Matches
     }];
 
-    // Round successivi
     let prevMatches = r1Matches;
     for (let r = 1; r < totalRounds; r++) {
       const currentMatches = [];
@@ -647,9 +745,10 @@ class TournamentManager {
         const p1 = parent1.winnerId || null;
         const p2 = parent2.winnerId || null;
 
-        const matchId = `m-r${r + 1}-${m + 1}`;
+        const matchId = `m-${cat.toLowerCase()}-r${r + 1}-${m + 1}`;
         currentMatches.push({
           id: matchId,
+          category: cat,
           player1Id: p1,
           player2Id: p2,
           scores: "",
@@ -668,11 +767,13 @@ class TournamentManager {
     }
 
     const bracket = {
+      category: cat,
       rounds: rounds,
       source: "groups",
       createdAt: new Date().toISOString()
     };
 
+    this.state.categoryBrackets[cat] = bracket;
     this.state.bracket = bracket;
     return bracket;
   }
