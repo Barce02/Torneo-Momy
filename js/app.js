@@ -20,7 +20,7 @@ class App {
     this.currentEditingMatchId = null;
     this.revealedPasswords = {};
 
-    this.selectedCategory = "U12"; // "all", "U9", "U12", "Open"
+    this.selectedCategory = "U12"; // "all", "U10", "U12", "Open"
     this.pendingPasswordReset = this.loadPendingPasswordReset();
 
     // Filtri calendario
@@ -152,7 +152,64 @@ class App {
     this.render();
   }
 
+  // Sincronizza automaticamente gli account registrati nell'elenco atleti per la propria categoria
+  syncAccountsToPlayers() {
+    try {
+      const accounts = this.loadAccounts();
+      if (!this.state.players) this.state.players = [];
+      let stateChanged = false;
+
+      Object.values(accounts).forEach(acc => {
+        if (!acc || !acc.email) return;
+        if (acc.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) return;
+        if (acc.role === "admin") return;
+
+        const emailKey = acc.email.toLowerCase().trim();
+        const existing = this.state.players.find(p =>
+          (p.email && p.email.toLowerCase().trim() === emailKey) ||
+          (p.userId && p.userId.toLowerCase().trim() === emailKey)
+        );
+
+        let cat = acc.category;
+        if (cat === "U9") cat = "U10";
+        if (!cat) cat = this.tournamentManager.getPlayerCategory(acc);
+
+        if (!existing) {
+          const newPlayer = {
+            id: `p-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            firstName: acc.firstName || (acc.name ? acc.name.split(" ")[0] : ""),
+            lastName: acc.lastName || (acc.name ? acc.name.split(" ").slice(1).join(" ") : ""),
+            name: acc.name || `${acc.firstName || ''} ${acc.lastName || ''}`.trim(),
+            birthDate: acc.birthDate || "",
+            ranking: acc.ranking || "NC",
+            category: cat,
+            notes: "",
+            email: emailKey,
+            userId: emailKey,
+            photoUrl: acc.photoUrl || "",
+            status: "confermato"
+          };
+          this.state.players.push(newPlayer);
+          stateChanged = true;
+        } else {
+          if (existing.category === "U9") {
+            existing.category = "U10";
+            stateChanged = true;
+          }
+        }
+      });
+
+      if (stateChanged) {
+        this.tournamentManager.ensureCategories();
+        localStorage.setItem(DATA_KEY, JSON.stringify(this.state));
+      }
+    } catch (e) {
+      console.warn("Errore syncAccountsToPlayers", e);
+    }
+  }
+
   init() {
+    this.syncAccountsToPlayers();
     this.bindEvents();
     this.renderUserBadge();
     this.render();
@@ -246,7 +303,7 @@ class App {
           const val = e.target.value;
           if (val) {
             const year = new Date(val).getFullYear();
-            if (year >= 2017) cEl.value = "U9";
+            if (year >= 2016) cEl.value = "U10";
             else if (year >= 2014) cEl.value = "U12";
             else cEl.value = "Open";
           }
@@ -572,7 +629,8 @@ class App {
       return;
     }
 
-    const category = document.getElementById("register-category-select")?.value || this.tournamentManager.getPlayerCategory({ birthDate });
+    const rawCategory = document.getElementById("register-category-select")?.value;
+    const category = (rawCategory === "U9" ? "U10" : rawCategory) || this.tournamentManager.getPlayerCategory({ birthDate });
 
     const accountObj = {
       firstName,
@@ -591,13 +649,49 @@ class App {
     this.saveAccounts(accounts);
     localStorage.setItem(LAST_EMAIL_KEY, email);
 
+    // Inserisci direttamente il giocatore nella sua specifica categoria di età nel torneo
+    if (!isAdmin) {
+      if (!this.state.players) this.state.players = [];
+      const cleanEmail = email.toLowerCase().trim();
+      const existingPlayer = this.state.players.find(p =>
+        (p.email && p.email.toLowerCase().trim() === cleanEmail) ||
+        (p.userId && p.userId.toLowerCase().trim() === cleanEmail)
+      );
+      if (!existingPlayer) {
+        const newPlayer = {
+          id: `p-${Date.now()}`,
+          firstName,
+          lastName,
+          name: accountObj.name,
+          birthDate,
+          ranking,
+          category,
+          notes: "",
+          email: cleanEmail,
+          userId: cleanEmail,
+          photoUrl: "",
+          status: "confermato"
+        };
+        this.state.players.push(newPlayer);
+      } else {
+        existingPlayer.firstName = firstName;
+        existingPlayer.lastName = lastName;
+        existingPlayer.name = accountObj.name;
+        existingPlayer.birthDate = birthDate;
+        existingPlayer.ranking = ranking;
+        existingPlayer.category = category;
+      }
+      this.tournamentManager.ensureCategories();
+      this.saveState();
+    }
+
     this.saveUser(accountObj);
     this.closeModal("modal-login");
 
     if (isAdmin) {
       this.showToast("Benvenuto Amministratore!", "success");
     } else {
-      this.showToast(`Benvenuto ${accountObj.name}! Account registrato.`, "success");
+      this.showToast(`Benvenuto ${accountObj.name}! Registrato con successo nella categoria ${category}.`, "success");
     }
   }
 
@@ -961,6 +1055,25 @@ class App {
       this.state.players[playerIdx].ranking = ranking;
       this.state.players[playerIdx].category = category;
       if (this.user.photoUrl) this.state.players[playerIdx].photoUrl = this.user.photoUrl;
+      this.tournamentManager.ensureCategories();
+      this.saveState();
+    } else if (this.user.role !== "admin") {
+      const newPlayer = {
+        id: `p-${Date.now()}`,
+        firstName,
+        lastName,
+        name: fullName,
+        birthDate,
+        ranking,
+        category,
+        notes: "",
+        email: emailKey,
+        userId: emailKey,
+        photoUrl: this.user.photoUrl || "",
+        status: "confermato"
+      };
+      this.state.players.push(newPlayer);
+      this.tournamentManager.ensureCategories();
       this.saveState();
     }
 
@@ -1021,7 +1134,7 @@ class App {
   }
 
   // ==========================================
-  // GESTIONE SELETTORE CATEGORIA (U9, U12, OPEN)
+  // GESTIONE SELETTORE CATEGORIA (U10, U12, OPEN)
   // ==========================================
   setCategory(cat) {
     this.selectedCategory = cat;
@@ -1035,17 +1148,17 @@ class App {
 
     const cats = [
       { id: "all", label: "Tutte", full: "Tutte le Categorie" },
-      { id: "U9", label: "U9", full: "Under 9" },
+      { id: "U10", label: "U10", full: "Under 10" },
       { id: "U12", label: "U12", full: "Under 12" },
       { id: "Open", label: "Open", full: "Categoria Open" }
     ];
 
     const countAll = this.state.players.length;
-    const countU9 = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === "U9").length;
+    const countU10 = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === "U10").length;
     const countU12 = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === "U12").length;
     const countOpen = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === "Open").length;
 
-    const counts = { all: countAll, U9: countU9, U12: countU12, Open: countOpen };
+    const counts = { all: countAll, U10: countU10, U12: countU12, Open: countOpen };
 
     // In Gironi e Tabellone, "all" non ha senso
     if ((this.currentTab === "groups" || this.currentTab === "bracket") && this.selectedCategory === "all") {
@@ -1083,8 +1196,8 @@ class App {
 
   getCategoryBadgeMarkup(category) {
     const cat = category || "U12";
-    if (cat === "U9") {
-      return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">Under 9</span>`;
+    if (cat === "U10" || cat === "U9") {
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">Under 10</span>`;
     } else if (cat === "U12") {
       return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-300">Under 12</span>`;
     } else if (cat === "Open") {
@@ -1134,56 +1247,10 @@ class App {
 
     this.renderCategorySelector();
 
-    // Aggiorna contatori header nav
+    // Aggiorna contatore iscritti nell'header nav
     const playersCount = this.state.players.length;
     const navCount = document.getElementById("nav-players-count");
     if (navCount) navCount.textContent = playersCount;
-
-    // Aggiorna indicatore gironi
-    const navGroups = document.getElementById("nav-groups-status");
-    if (navGroups && this.state.categoryGroups) {
-      const activeCat = this.selectedCategory === "all" ? "U12" : this.selectedCategory;
-      const catGroup = this.state.categoryGroups[activeCat];
-      const sCount = (catGroup?.sinner?.playerIds || []).length;
-      const aCount = (catGroup?.alcaraz?.playerIds || []).length;
-      if (sCount > 0 || aCount > 0) {
-        navGroups.textContent = `${activeCat}: ${sCount + aCount} atleti`;
-        navGroups.className = "bg-yellow-400 text-blue-950 text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-sm";
-      } else {
-        navGroups.textContent = `${activeCat}: Sinner & Alcaraz`;
-        navGroups.className = "bg-blue-100 text-blue-900 text-[10px] font-bold px-1.5 py-0.2 rounded-full";
-      }
-    }
-
-    // Aggiorna indicatore calendario
-    const navScheduleCount = document.getElementById("nav-schedule-count");
-    if (navScheduleCount) {
-      const allMatches = this.getAllMatches();
-      const scheduledCount = allMatches.filter(m => m.match && m.match.dateTime).length;
-      if (allMatches.length > 0) {
-        navScheduleCount.textContent = `${scheduledCount}/${allMatches.length} fissati`;
-        navScheduleCount.className = scheduledCount > 0
-          ? "bg-yellow-400 text-blue-950 text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-sm"
-          : "bg-blue-100 text-blue-900 text-[10px] font-bold px-1.5 py-0.2 rounded-full";
-      } else {
-        navScheduleCount.textContent = "Orari & Campi";
-        navScheduleCount.className = "bg-blue-100 text-blue-900 text-[10px] font-bold px-1.5 py-0.2 rounded-full";
-      }
-    }
-
-    // Aggiorna indicatore tabellone
-    const navBracketStatus = document.getElementById("nav-bracket-status");
-    if (navBracketStatus) {
-      const activeCat = this.selectedCategory === "all" ? "U12" : this.selectedCategory;
-      const catBracket = this.state.categoryBrackets ? this.state.categoryBrackets[activeCat] : this.state.bracket;
-      if (catBracket && catBracket.rounds && catBracket.rounds.length > 0) {
-        navBracketStatus.textContent = `${activeCat}: Attivo`;
-        navBracketStatus.className = "bg-yellow-400 text-blue-950 text-[10px] font-black px-1.5 py-0.2 rounded-full";
-      } else {
-        navBracketStatus.textContent = `${activeCat}: Non generato`;
-        navBracketStatus.className = "bg-gray-100 text-gray-600 text-[10px] font-medium px-1.5 py-0.2 rounded-full";
-      }
-    }
 
     this.renderTabContent();
   }
@@ -1227,15 +1294,6 @@ class App {
             <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
               Partite da <strong>1 ora</strong> continua fino al suono della campana. Se in parità al suono della campana, <strong>rimane il pareggio (1 punto ciascuno)</strong>. Vittoria: 3 pt • Pareggio: 1 pt • Sconfitta: 0 pt.
             </p>
-            <!-- Switcher Rapido Categoria nei Gironi -->
-            <div class="flex items-center gap-2 mt-3 flex-wrap">
-              <span class="text-[11px] font-bold text-yellow-300">Cambia Categoria:</span>
-              ${["U9", "U12", "Open"].map(c => `
-                <button type="button" onclick="app.setCategory('${c}')" class="px-2.5 py-1 rounded-lg text-xs font-bold border transition cursor-pointer ${cat === c ? 'bg-yellow-400 text-blue-950 border-yellow-300 shadow font-black ring-2 ring-yellow-400/40' : 'bg-white/10 hover:bg-white/20 text-white border-white/20'}">
-                  ${c}
-                </button>
-              `).join('')}
-            </div>
           </div>
 
           <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
@@ -2534,7 +2592,7 @@ class App {
   // ==========================================
   getAllMatches() {
     this.tournamentManager.ensureCategories();
-    const categories = ["U9", "U12", "Open"];
+    const categories = ["U10", "U12", "Open"];
     const all = [];
 
     categories.forEach(cat => {
@@ -3095,15 +3153,6 @@ class App {
               <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
                 Visualizzazione del tabellone a eliminazione diretta per la categoria <strong>${cat}</strong>.
               </p>
-              <!-- Switcher Rapido Categoria nel Tabellone -->
-              <div class="flex items-center gap-2 mt-3 flex-wrap">
-                <span class="text-[11px] font-bold text-yellow-300">Cambia Categoria:</span>
-                ${["U9", "U12", "Open"].map(c => `
-                  <button type="button" onclick="app.setCategory('${c}')" class="px-2.5 py-1 rounded-lg text-xs font-bold border transition cursor-pointer ${cat === c ? 'bg-yellow-400 text-blue-950 border-yellow-300 shadow font-black ring-2 ring-yellow-400/40' : 'bg-white/10 hover:bg-white/20 text-white border-white/20'}">
-                    ${c}
-                  </button>
-                `).join('')}
-              </div>
             </div>
           </div>
 
@@ -3163,15 +3212,6 @@ class App {
           <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Tabellone Finale ad Eliminazione Diretta (${cat})</h2>
           <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">Incontri ufficiali, risultati e progressione del torneo per la categoria <strong>${cat}</strong>.</p>
           
-          <!-- Switcher Rapido Categoria nel Tabellone -->
-          <div class="flex items-center gap-2 mt-3 flex-wrap">
-            <span class="text-[11px] font-bold text-yellow-300">Cambia Categoria:</span>
-            ${["U9", "U12", "Open"].map(c => `
-              <button type="button" onclick="app.setCategory('${c}')" class="px-2.5 py-1 rounded-lg text-xs font-bold border transition cursor-pointer ${cat === c ? 'bg-yellow-400 text-blue-950 border-yellow-300 shadow font-black ring-2 ring-yellow-400/40' : 'bg-white/10 hover:bg-white/20 text-white border-white/20'}">
-                ${c}
-              </button>
-            `).join('')}
-          </div>
         </div>
         <div class="flex items-center gap-2 flex-wrap w-full md:w-auto">
           <button onclick="window.print()" title="Stampa Tabellone Finale per Bacheca Circolo" class="w-full sm:w-auto bg-white/15 hover:bg-white/25 text-white font-semibold text-xs px-4 py-2.5 rounded-xl border border-white/30 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm">
@@ -3707,7 +3747,7 @@ class App {
               <div>
                 <label class="block text-xs font-bold text-gray-700 mb-1">Categoria di Gioco *</label>
                 <select id="account-page-category-select" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
-                  <option value="U9" ${(u.category || this.tournamentManager.getPlayerCategory(u)) === 'U9' ? 'selected' : ''}>Under 9 (U9)</option>
+                  <option value="U10" ${(u.category || this.tournamentManager.getPlayerCategory(u)) === 'U10' || (u.category || this.tournamentManager.getPlayerCategory(u)) === 'U9' ? 'selected' : ''}>Under 10 (U10)</option>
                   <option value="U12" ${(u.category || this.tournamentManager.getPlayerCategory(u)) === 'U12' ? 'selected' : ''}>Under 12 (U12)</option>
                   <option value="Open" ${(u.category || this.tournamentManager.getPlayerCategory(u)) === 'Open' ? 'selected' : ''}>Open</option>
                 </select>

@@ -1,4 +1,4 @@
-// Gestione Logica Torneo Momy (Categorie U9, U12, Open, Gironi Sinner & Alcaraz e Tabellone)
+// Gestione Logica Torneo Momy (Categorie U10, U12, Open, Gironi Sinner & Alcaraz e Tabellone)
 
 class TournamentManager {
   constructor(state) {
@@ -8,7 +8,7 @@ class TournamentManager {
 
   // Categorie ufficiali del Torneo Momy
   static get CATEGORIES() {
-    return ["U9", "U12", "Open"];
+    return ["U10", "U12", "Open"];
   }
 
   getPlayer(id) {
@@ -16,13 +16,14 @@ class TournamentManager {
     return this.state.players.find(p => p.id === id) || null;
   }
 
-  // Rileva o restituisce la categoria dell'atleta (U9, U12 o Open)
+  // Rileva o restituisce la categoria dell'atleta (U10, U12 o Open)
   getPlayerCategory(player) {
     if (!player) return "U12";
-    if (player.category && ["U9", "U12", "Open"].includes(player.category)) {
+    if (player.category === "U9") return "U10";
+    if (player.category && ["U10", "U12", "Open"].includes(player.category)) {
       return player.category;
     }
-    // Calcolo automatico in base ad anno di nascita
+    // Calcolo automatico in base ad anno di nascita (U10: nati 2016 o dopo; U12: 2014-2015; Open: <= 2013)
     let year = null;
     if (player.birthDate) {
       const d = new Date(player.birthDate);
@@ -31,7 +32,7 @@ class TournamentManager {
       year = parseInt(player.year, 10);
     }
     if (year && !isNaN(year)) {
-      if (year >= 2017) return "U9";
+      if (year >= 2016) return "U10";
       if (year >= 2014) return "U12";
       return "Open";
     }
@@ -49,12 +50,19 @@ class TournamentManager {
     if (!this.state.categoryGroups) {
       this.state.categoryGroups = {};
     }
+    // Migrazione gironi pregressi U9 -> U10
+    if (this.state.categoryGroups["U9"]) {
+      if (!this.state.categoryGroups["U10"]) {
+        this.state.categoryGroups["U10"] = this.state.categoryGroups["U9"];
+      }
+      delete this.state.categoryGroups["U9"];
+    }
     // Migrazione gironi pregressi verso U12
     if (this.state.groups && !this.state.categoryGroups["U12"]) {
       this.state.categoryGroups["U12"] = this.state.groups;
     }
 
-    ["U9", "U12", "Open"].forEach(cat => {
+    ["U10", "U12", "Open"].forEach(cat => {
       if (!this.state.categoryGroups[cat]) {
         this.state.categoryGroups[cat] = {
           sinner: { id: "sinner", name: `Girone Sinner (${cat})`, playerIds: [], matches: [] },
@@ -63,9 +71,13 @@ class TournamentManager {
       } else {
         if (!this.state.categoryGroups[cat].sinner) {
           this.state.categoryGroups[cat].sinner = { id: "sinner", name: `Girone Sinner (${cat})`, playerIds: [], matches: [] };
+        } else {
+          this.state.categoryGroups[cat].sinner.name = `Girone Sinner (${cat})`;
         }
         if (!this.state.categoryGroups[cat].alcaraz) {
           this.state.categoryGroups[cat].alcaraz = { id: "alcaraz", name: `Girone Alcaraz (${cat})`, playerIds: [], matches: [] };
+        } else {
+          this.state.categoryGroups[cat].alcaraz.name = `Girone Alcaraz (${cat})`;
         }
       }
     });
@@ -73,19 +85,48 @@ class TournamentManager {
     if (!this.state.categoryBrackets) {
       this.state.categoryBrackets = {};
     }
+    // Migrazione tabellone pregresso U9 -> U10
+    if (this.state.categoryBrackets["U9"]) {
+      if (!this.state.categoryBrackets["U10"]) {
+        this.state.categoryBrackets["U10"] = this.state.categoryBrackets["U9"];
+      }
+      delete this.state.categoryBrackets["U9"];
+    }
     // Migrazione tabellone pregresso verso U12
     if (this.state.bracket && !this.state.categoryBrackets["U12"]) {
       this.state.categoryBrackets["U12"] = this.state.bracket;
     }
 
-    // Assicura categoria su tutti i giocatori
+    // Assicura categoria su tutti i giocatori e migra U9 -> U10
     if (this.state.players) {
       this.state.players.forEach(p => {
+        if (p.category === "U9") {
+          p.category = "U10";
+        }
         if (!p.category) {
           p.category = this.getPlayerCategory(p);
         }
       });
     }
+
+    // Pulisce i gironi affinché contengano esclusivamente giocatori della categoria corrispondente
+    ["U10", "U12", "Open"].forEach(cat => {
+      const catGroup = this.state.categoryGroups[cat];
+      if (catGroup) {
+        if (catGroup.sinner && Array.isArray(catGroup.sinner.playerIds)) {
+          catGroup.sinner.playerIds = catGroup.sinner.playerIds.filter(pid => {
+            const p = this.getPlayer(pid);
+            return p && this.getPlayerCategory(p) === cat;
+          });
+        }
+        if (catGroup.alcaraz && Array.isArray(catGroup.alcaraz.playerIds)) {
+          catGroup.alcaraz.playerIds = catGroup.alcaraz.playerIds.filter(pid => {
+            const p = this.getPlayer(pid);
+            return p && this.getPlayerCategory(p) === cat;
+          });
+        }
+      }
+    });
   }
 
   // Valuta la forza della classifica FITP per comporre gli accoppiamenti
@@ -261,7 +302,7 @@ class TournamentManager {
   // Aggiorna punteggio ed avanza il vincitore nel tabellone
   updateBracketMatch(matchId, updateData, category = null) {
     this.ensureCategories();
-    const cats = category ? [category] : ["U9", "U12", "Open"];
+    const cats = category ? [category] : ["U10", "U12", "Open"];
 
     for (let cat of cats) {
       const bracket = this.state.categoryBrackets[cat];
@@ -444,7 +485,7 @@ class TournamentManager {
 
   updateGroupMatch(groupKey, matchId, matchData, category = null) {
     this.ensureCategories();
-    const cats = category ? [category] : ["U9", "U12", "Open"];
+    const cats = category ? [category] : ["U10", "U12", "Open"];
 
     for (let cat of cats) {
       const catGroup = this.state.categoryGroups[cat];
