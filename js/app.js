@@ -13,9 +13,12 @@ class App {
     this.state = this.loadState();
     this.tournamentManager = new TournamentManager(this.state);
     this.currentTab = "players";
+    this.playersSubTab = "players";
     this.authMode = "login";
     this.searchQuery = "";
+    this.accountsSearchQuery = "";
     this.currentEditingMatchId = null;
+    this.revealedPasswords = {};
 
     // Filtri calendario
     this.schedulePhaseFilter = "all";
@@ -228,6 +231,15 @@ class App {
       });
     }
 
+    // Form Gestione Account (Admin)
+    const adminAccountForm = document.getElementById("admin-account-form");
+    if (adminAccountForm) {
+      adminAccountForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        this.handleSaveAdminAccount();
+      });
+    }
+
     // Ricerca live
     const searchInput = document.getElementById("search-input");
     if (searchInput) {
@@ -241,6 +253,41 @@ class App {
   // ==========================================
   // GESTIONE AUTENTICAZIONE, PASSWORD & BIOMETRICA
   // ==========================================
+  togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const isPassword = input.type === "password";
+    input.type = isPassword ? "text" : "password";
+    if (btn) {
+      const showIcon = btn.querySelector(".eye-icon-show");
+      const hideIcon = btn.querySelector(".eye-icon-hide");
+      if (showIcon && hideIcon) {
+        if (isPassword) {
+          showIcon.classList.add("hidden");
+          hideIcon.classList.remove("hidden");
+        } else {
+          showIcon.classList.remove("hidden");
+          hideIcon.classList.add("hidden");
+        }
+      }
+    }
+  }
+
+  toggleTablePassword(emailSafe, actualPassword) {
+    const el = document.getElementById(`pwd-display-${emailSafe}`);
+    if (!el) return;
+    const isMasked = el.textContent.includes("•");
+    if (isMasked) {
+      el.textContent = actualPassword || "(Nessuna)";
+      el.classList.remove("text-gray-800");
+      el.classList.add("text-blue-900", "font-bold");
+    } else {
+      el.textContent = "••••••••";
+      el.classList.remove("text-blue-900", "font-bold");
+      el.classList.add("text-gray-800");
+    }
+  }
+
   switchAuthMode(mode) {
     this.authMode = mode;
     const tabLogin = document.getElementById("tab-auth-login");
@@ -348,6 +395,16 @@ class App {
     const isAdmin = email === ADMIN_EMAIL.toLowerCase();
 
     const accounts = this.loadAccounts();
+
+    // CONTROLLO UNICITÀ EMAIL: non possono esistere due o più account con la stessa mail
+    if (accounts[email]) {
+      alert(`Attenzione: un account con l'indirizzo email "${email}" risulta già registrato.\n\nNon possono esistere due o più account con la stessa mail. Se è il tuo account, effettua l'accesso inserendo la password, oppure usa "Password dimenticata?" per recuperarla.`);
+      this.switchAuthMode("login");
+      const loginEmail = document.getElementById("login-email-input");
+      if (loginEmail) loginEmail.value = email;
+      return;
+    }
+
     const accountObj = {
       firstName,
       lastName,
@@ -420,7 +477,7 @@ class App {
     }
 
     if (account.password && account.password !== password) {
-      alert("Password errata. Riprova.");
+      alert(`Password errata per l'account "${email}".\n\nPuoi visualizzare la password digitata cliccando sull'icona con l'occhio 👁️, oppure reimpostarla tramite il link "Password dimenticata?".`);
       return;
     }
 
@@ -514,7 +571,10 @@ class App {
       emailInput.value = lastEmail || (this.user && this.user.email !== "ospite@torneo.it" ? this.user.email : "");
     }
     const passInput = document.getElementById("login-password-input");
-    if (passInput) passInput.value = "";
+    if (passInput) {
+      passInput.value = "";
+      passInput.type = "password";
+    }
 
     const mode = defaultMode || (hasAccounts ? "login" : "register");
     this.openModal("modal-login");
@@ -525,6 +585,8 @@ class App {
     const badge = document.getElementById("user-profile-badge");
     const logoutBtn = document.getElementById("btn-logout");
     const headerAvatar = document.getElementById("header-avatar-circle");
+    const adminAccountsBtn = document.getElementById("btn-admin-accounts-header");
+    const adminAccountsCount = document.getElementById("header-accounts-count");
     if (!badge) return;
 
     if (!this.user || this.user.email === "ospite@torneo.it") {
@@ -542,6 +604,10 @@ class App {
         `;
       }
       if (logoutBtn) logoutBtn.classList.add("hidden");
+      if (adminAccountsBtn) {
+        adminAccountsBtn.classList.add("hidden");
+        adminAccountsBtn.classList.remove("flex");
+      }
       return;
     }
 
@@ -555,6 +621,21 @@ class App {
 
     if (headerAvatar) {
       headerAvatar.innerHTML = avatarHtml;
+    }
+
+    // Aggiorna pulsante gestione account per Admin
+    if (adminAccountsBtn) {
+      if (this.isAdmin) {
+        adminAccountsBtn.classList.remove("hidden");
+        adminAccountsBtn.classList.add("flex");
+        if (adminAccountsCount) {
+          const accounts = this.loadAccounts();
+          adminAccountsCount.textContent = Object.keys(accounts).length;
+        }
+      } else {
+        adminAccountsBtn.classList.add("hidden");
+        adminAccountsBtn.classList.remove("flex");
+      }
     }
 
     if (this.isAdmin) {
@@ -1189,11 +1270,70 @@ class App {
   }
 
   // ==========================================
-  // SEZIONE 1: ISCRITTI
+  // SEZIONE 1: ISCRITTI & GESTIONE ACCOUNT
   // ==========================================
+  switchPlayersSubTab(subTab) {
+    this.playersSubTab = subTab;
+    this.renderPlayersView();
+  }
+
+  showAdminAccounts() {
+    this.switchTab("players");
+    this.playersSubTab = "accounts";
+    this.renderPlayersView();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  getPlayerForAccount(account) {
+    if (!account) return null;
+    const email = (account.email || "").toLowerCase().trim();
+    const fn = (account.firstName || "").toLowerCase().trim();
+    const ln = (account.lastName || "").toLowerCase().trim();
+    return (this.state.players || []).find(p => {
+      const pEmail = (p.email || p.userId || "").toLowerCase().trim();
+      if (email && pEmail && pEmail === email) return true;
+      const pFn = (p.firstName || (p.name ? p.name.split(" ")[0] : "")).toLowerCase().trim();
+      const pLn = (p.lastName || (p.name ? p.name.split(" ").slice(1).join(" ") : "")).toLowerCase().trim();
+      if (fn && ln && pFn && pLn && fn === pFn && ln === pLn) return true;
+      return false;
+    }) || null;
+  }
+
+  getAccountForPlayer(player) {
+    if (!player) return null;
+    const accounts = this.loadAccounts();
+    const email = (player.email || player.userId || "").toLowerCase().trim();
+    const fn = (player.firstName || (player.name ? player.name.split(" ")[0] : "")).toLowerCase().trim();
+    const ln = (player.lastName || (player.name ? player.name.split(" ").slice(1).join(" ") : "")).toLowerCase().trim();
+    return Object.values(accounts).find(acc => {
+      const aEmail = (acc.email || "").toLowerCase().trim();
+      if (email && aEmail && email === aEmail) return true;
+      const aFn = (acc.firstName || (acc.name ? acc.name.split(" ")[0] : "")).toLowerCase().trim();
+      const aLn = (acc.lastName || (acc.name ? acc.name.split(" ").slice(1).join(" ") : "")).toLowerCase().trim();
+      if (fn && ln && aFn && aLn && fn === aFn && ln === aLn) return true;
+      return false;
+    }) || null;
+  }
+
   renderPlayersView() {
     const container = document.getElementById("players-container");
     if (!container) return;
+
+    // Se l'admin ha selezionato la vista "Tutti gli Account"
+    if (this.isAdmin && this.playersSubTab === "accounts") {
+      this.renderAdminAccountsView(container);
+      return;
+    }
 
     const players = this.state.players;
     const filtered = players.filter(p => {
@@ -1209,15 +1349,7 @@ class App {
       );
     });
 
-    const myRegisteredPlayer = (this.user && this.user.email !== "ospite@torneo.it")
-      ? this.state.players.find(p =>
-          (p.userId && p.userId === this.user.email) ||
-          (p.email && p.email.toLowerCase() === this.user.email.toLowerCase()) ||
-          (p.firstName && p.lastName && this.user.firstName && this.user.lastName &&
-           p.firstName.toLowerCase() === this.user.firstName.toLowerCase() &&
-           p.lastName.toLowerCase() === this.user.lastName.toLowerCase())
-        )
-      : null;
+    const accountsCount = Object.keys(this.loadAccounts()).length;
 
     let html = `
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
@@ -1226,10 +1358,24 @@ class App {
         ${this.isAdmin ? `
           <div class="bg-blue-50 border border-blue-200 rounded-xl p-3.5 mb-5 flex flex-wrap items-center justify-between gap-3">
             <div class="text-xs text-blue-950">
-              <strong>Accesso Amministratore (Barcello Luca):</strong> puoi inserire, modificare o eliminare atleti, gestire i gironi e comporre il tabellone finale.
+              <strong>Accesso Amministratore (Barcello Luca):</strong> puoi inserire, modificare o eliminare atleti, consultare e gestire tutti gli account registrati, organizzare i gironi e comporre il tabellone finale.
             </div>
-            <button onclick="app.openNewPlayerModal(false)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
-              + Inserisci Atleta
+            <div class="flex items-center gap-2">
+              <button onclick="app.openNewPlayerModal(false)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
+                + Inserisci Atleta
+              </button>
+            </div>
+          </div>
+
+          <!-- Sub-Tabs Switcher per Admin -->
+          <div class="flex border-b border-gray-200 mb-5 text-xs sm:text-sm font-semibold">
+            <button type="button" onclick="app.switchPlayersSubTab('players')" class="py-2.5 px-4 text-center border-b-2 border-blue-600 text-blue-700 font-bold transition flex items-center gap-2">
+              <span>🎾 Atleti nel Torneo</span>
+              <span class="bg-blue-100 text-blue-900 text-xs px-2 py-0.5 rounded-full font-bold">${players.length}</span>
+            </button>
+            <button type="button" onclick="app.switchPlayersSubTab('accounts')" class="py-2.5 px-4 text-center border-b-2 border-transparent text-gray-500 hover:text-gray-800 transition flex items-center gap-2">
+              <span>👥 Tutti gli Account Registrati</span>
+              <span class="bg-yellow-400 text-blue-950 text-xs px-2 py-0.5 rounded-full font-black shadow-sm">${accountsCount}</span>
             </button>
           </div>
         ` : `
@@ -1248,12 +1394,12 @@ class App {
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-5 border-b border-gray-100">
           <div>
             <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <span>Elenco Iscritti Ufficiale</span>
+              <span>Elenco Atleti nel Torneo</span>
               <span class="bg-blue-100 text-blue-900 text-xs font-bold px-2.5 py-0.5 rounded-full">
                 ${players.length} ${players.length === 1 ? 'iscritto' : 'iscritti'}
               </span>
             </h2>
-            <p class="text-xs text-gray-500 mt-0.5">Atleti partecipanti al Torneo Momy</p>
+            <p class="text-xs text-gray-500 mt-0.5">Atleti attivi inseriti nei gironi e nel tabellone</p>
           </div>
 
           <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
@@ -1285,13 +1431,18 @@ class App {
           <h3 class="text-base sm:text-lg font-bold text-gray-800 mb-1">Nessun atleta iscritto al momento</h3>
           <p class="text-xs sm:text-sm text-gray-500 max-w-sm mx-auto mb-5">
             ${this.isAdmin
-              ? "L'elenco partecipanti del Torneo Momy è attualmente vuoto. Inserisci i ragazzi che parteciperanno alla competizione."
+              ? "L'elenco partecipanti del Torneo Momy è attualmente vuoto. Inserisci i ragazzi che parteciperanno alla competizione, oppure consulta la scheda 'Tutti gli Account Registrati' per inserire gli account già creati."
               : "L'elenco partecipanti del Torneo Momy è attualmente vuoto. L'amministratore ufficiale (Barcello Luca) provvederà all'inserimento degli iscritti."}
           </p>
           ${this.isAdmin ? `
-            <button onclick="app.openNewPlayerModal(false)" class="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl shadow transition">
-              + Inserisci Atleta
-            </button>
+            <div class="flex flex-wrap justify-center gap-3">
+              <button onclick="app.openNewPlayerModal(false)" class="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl shadow transition">
+                + Inserisci Atleta
+              </button>
+              <button onclick="app.switchPlayersSubTab('accounts')" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl shadow transition">
+                👥 Gestisci Account (${accountsCount})
+              </button>
+            </div>
           ` : ''}
         </div>
       `;
@@ -1356,6 +1507,597 @@ class App {
         this.renderPlayersView();
       });
     }
+  }
+
+  // Vista esclusiva Admin: Tutti gli Account Registrati (anche non inseriti nel gioco)
+  renderAdminAccountsView(container) {
+    const accounts = this.loadAccounts();
+    const accountsList = Object.values(accounts);
+
+    // Calcola quanti sono già nel torneo e quanti no
+    let inTournamentCount = 0;
+    accountsList.forEach(acc => {
+      if (this.getPlayerForAccount(acc)) inTournamentCount++;
+    });
+    const notInTournamentCount = accountsList.length - inTournamentCount;
+
+    const filteredAccounts = accountsList.filter(acc => {
+      if (!this.accountsSearchQuery) return true;
+      const q = this.accountsSearchQuery.toLowerCase();
+      return (
+        (acc.firstName && acc.firstName.toLowerCase().includes(q)) ||
+        (acc.lastName && acc.lastName.toLowerCase().includes(q)) ||
+        (acc.name && acc.name.toLowerCase().includes(q)) ||
+        (acc.email && acc.email.toLowerCase().includes(q)) ||
+        (acc.ranking && acc.ranking.toLowerCase().includes(q))
+      );
+    });
+
+    let html = `
+      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
+        
+        <!-- Banner Amministratore -->
+        <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-white rounded-xl p-4 mb-5 border border-yellow-400/30 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-yellow-400 text-blue-950 flex items-center justify-center font-black flex-shrink-0 shadow">
+              <svg class="w-5 h-5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-yellow-300">Pannello Amministrazione Globale Account</h3>
+              <p class="text-xs text-blue-100 mt-0.5">Tutti gli account registrati (anche chi non ha ancora inserito il giocatore). Puoi visualizzare/copiare le password, modificare anagrafica e credenziali, eliminarli o sincronizzarli tra dispositivi.</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button onclick="app.exportBackupData()" title="Esporta tutti gli account e i dati del torneo in un file JSON" class="bg-white/10 hover:bg-white/20 text-white font-semibold text-xs px-3 py-2 rounded-xl border border-white/20 shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+              <svg class="w-3.5 h-3.5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              <span>Esporta Backup</span>
+            </button>
+            <label title="Importa file JSON con account e torneo da un altro dispositivo" class="bg-white/10 hover:bg-white/20 text-white font-semibold text-xs px-3 py-2 rounded-xl border border-white/20 shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+              <svg class="w-3.5 h-3.5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/>
+              </svg>
+              <span>Importa Backup</span>
+              <input type="file" id="backup-file-input" accept=".json,application/json" class="hidden" onchange="app.importBackupData(event)">
+            </label>
+            <button onclick="app.openAdminAccountModal()" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2 rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+              </svg>
+              <span>+ Crea Account</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sub-Tabs Switcher per Admin -->
+        <div class="flex border-b border-gray-200 mb-5 text-xs sm:text-sm font-semibold">
+          <button type="button" onclick="app.switchPlayersSubTab('players')" class="py-2.5 px-4 text-center border-b-2 border-transparent text-gray-500 hover:text-gray-800 transition flex items-center gap-2">
+            <span>🎾 Atleti nel Torneo</span>
+            <span class="bg-blue-100 text-blue-900 text-xs px-2 py-0.5 rounded-full font-bold">${this.state.players.length}</span>
+          </button>
+          <button type="button" onclick="app.switchPlayersSubTab('accounts')" class="py-2.5 px-4 text-center border-b-2 border-blue-600 text-blue-700 font-bold transition flex items-center gap-2">
+            <span>👥 Tutti gli Account Registrati</span>
+            <span class="bg-yellow-400 text-blue-950 text-xs px-2 py-0.5 rounded-full font-black shadow-sm">${accountsList.length}</span>
+          </button>
+        </div>
+
+        <!-- Barra Statistiche & Ricerca -->
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-5 border-b border-gray-100">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs font-bold text-gray-700">Riepilogo:</span>
+            <span class="bg-blue-100 text-blue-900 text-xs font-bold px-2.5 py-1 rounded-lg">
+              ${accountsList.length} account totali
+            </span>
+            <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1">
+              ✓ ${inTournamentCount} inseriti nel gioco
+            </span>
+            ${notInTournamentCount > 0 ? `
+              <span class="bg-amber-100 text-amber-900 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1">
+                ⏳ ${notInTournamentCount} non ancora inseriti
+              </span>
+            ` : `
+              <span class="bg-slate-100 text-slate-700 text-xs font-medium px-2.5 py-1 rounded-lg">
+                Tutti inseriti nel gioco
+              </span>
+            `}
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+            <div class="relative w-full sm:w-72">
+              <input type="text" id="accounts-search-input" value="${this.accountsSearchQuery}" placeholder="Cerca per nome, email o classifica..." class="w-full text-xs sm:text-sm pl-8 pr-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
+              <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+            </div>
+            <button onclick="app.openAdminAccountModal()" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-3.5 py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer">
+              + Nuovo Account
+            </button>
+          </div>
+        </div>
+    `;
+
+    if (filteredAccounts.length === 0) {
+      html += `
+        <div class="text-center py-12 bg-gray-50/50 rounded-xl border border-dashed border-gray-300 p-8 my-6">
+          <div class="w-12 h-12 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+            </svg>
+          </div>
+          <h3 class="text-base font-bold text-gray-800 mb-1">Nessun account trovato</h3>
+          <p class="text-xs text-gray-500 max-w-sm mx-auto mb-4">
+            ${this.accountsSearchQuery ? `Nessun account corrisponde a "${this.accountsSearchQuery}".` : "Non ci sono account registrati nel sistema."}
+          </p>
+          <button onclick="app.openAdminAccountModal()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow transition">
+            + Crea Nuovo Account
+          </button>
+        </div>
+      `;
+    } else {
+      html += `
+        <div class="overflow-x-auto mt-4">
+          <table class="w-full text-left text-xs sm:text-sm border-collapse">
+            <thead>
+              <tr class="bg-gray-50 text-gray-600 uppercase text-[11px] font-semibold border-b border-gray-200">
+                <th class="py-3 px-3 w-10 text-center">#</th>
+                <th class="py-3 px-3">Utente</th>
+                <th class="py-3 px-3">Email (Unica)</th>
+                <th class="py-3 px-3">Password</th>
+                <th class="py-3 px-3">Nascita</th>
+                <th class="py-3 px-3">Classifica</th>
+                <th class="py-3 px-3">Ruolo</th>
+                <th class="py-3 px-3">Stato nel Torneo</th>
+                <th class="py-3 px-3 text-right">Azioni</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              ${filteredAccounts.map((acc, idx) => {
+                const linkedPlayer = this.getPlayerForAccount(acc);
+                const safeEmail = (acc.email || "").toLowerCase().replace(/[^a-z0-9]/g, "_");
+                const avatarHtml = this.getAvatarMarkup(acc, "w-6 h-6", "text-[10px]");
+
+                return `
+                  <tr class="hover:bg-gray-50/80 transition ${!linkedPlayer ? 'bg-amber-50/25' : ''}">
+                    <td class="py-3 px-3 font-mono text-center text-gray-400 font-semibold">${idx + 1}</td>
+                    <td class="py-3 px-3 font-bold text-gray-900">
+                      <div class="flex items-center gap-2">
+                        <div class="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-blue-900 text-yellow-300">
+                          ${avatarHtml}
+                        </div>
+                        <span class="truncate max-w-[140px]">${acc.name || `${acc.firstName || ''} ${acc.lastName || ''}`.trim() || 'Utente'}</span>
+                      </div>
+                    </td>
+                    <td class="py-3 px-3 font-medium text-gray-800 font-mono text-xs">
+                      <span class="truncate max-w-[170px] inline-block" title="${acc.email}">${acc.email}</span>
+                    </td>
+                    <td class="py-3 px-3 font-mono text-xs">
+                      <div class="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 max-w-fit">
+                        <span id="pwd-display-${safeEmail}" class="tracking-wider text-gray-700">••••••••</span>
+                        <button type="button" onclick="app.toggleTablePassword('${safeEmail}', '${this.escapeHtml(acc.password || '')}')" title="Mostra/Nascondi password" class="text-gray-400 hover:text-blue-700 p-0.5 transition cursor-pointer">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                    <td class="py-3 px-3 text-gray-600 font-mono text-xs">${this.formatDate(acc.birthDate)}</td>
+                    <td class="py-3 px-3">
+                      <span class="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-semibold">
+                        ${acc.ranking || 'NC'}
+                      </span>
+                    </td>
+                    <td class="py-3 px-3">
+                      ${acc.role === 'admin' ? `
+                        <span class="bg-yellow-400 text-blue-950 font-black text-[10px] uppercase px-2 py-0.5 rounded shadow-sm">Admin</span>
+                      ` : `
+                        <span class="bg-slate-100 text-slate-600 font-medium text-[10px] uppercase px-2 py-0.5 rounded">Giocatore</span>
+                      `}
+                    </td>
+                    <td class="py-3 px-3">
+                      ${linkedPlayer ? `
+                        <span class="bg-emerald-100 text-emerald-800 font-bold text-xs px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                          <svg class="w-3 h-3 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                          <span>Nel Torneo</span>
+                        </span>
+                      ` : `
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                          <span class="bg-amber-100 text-amber-900 font-semibold text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap">
+                            Non nel gioco
+                          </span>
+                          <button onclick="app.insertAccountIntoTournament('${acc.email}')" title="Inserisci questo account come atleta nel torneo" class="bg-yellow-400 hover:bg-yellow-500 text-blue-950 font-black text-[11px] px-2 py-0.5 rounded-lg shadow-sm transition whitespace-nowrap cursor-pointer">
+                            + Inserisci nel Gioco
+                          </button>
+                        </div>
+                      `}
+                    </td>
+                    <td class="py-3 px-3 text-right space-x-1 whitespace-nowrap">
+                      <button onclick="app.openAdminAccountModal('${acc.email}')" class="text-xs text-blue-700 hover:text-blue-900 font-medium px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 transition cursor-pointer">
+                        Modifica
+                      </button>
+                      <button onclick="app.deleteAccount('${acc.email}')" class="text-xs text-rose-600 hover:text-rose-800 font-medium px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 transition cursor-pointer">
+                        Elimina
+                      </button>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    html += `</div>`;
+    container.innerHTML = html;
+
+    // Ricollega ricerca live accounts
+    const accSearch = document.getElementById("accounts-search-input");
+    if (accSearch) {
+      accSearch.addEventListener("input", (e) => {
+        this.accountsSearchQuery = e.target.value.toLowerCase().trim();
+        this.renderAdminAccountsView(container);
+      });
+    }
+  }
+
+  // Modale per Admin: Modifica o Crea Account
+  openAdminAccountModal(email = null) {
+    if (!this.isAdmin) {
+      this.showToast("Solo l'amministratore può gestire gli account.", "error");
+      return;
+    }
+
+    const titleEl = document.getElementById("admin-account-modal-title");
+    const submitBtn = document.getElementById("admin-account-submit-btn");
+    const origEmailInput = document.getElementById("admin-account-orig-email");
+    const fnInput = document.getElementById("admin-account-firstname-input");
+    const lnInput = document.getElementById("admin-account-lastname-input");
+    const emInput = document.getElementById("admin-account-email-input");
+    const pwInput = document.getElementById("admin-account-password-input");
+    const bdInput = document.getElementById("admin-account-birthdate-input");
+    const rkInput = document.getElementById("admin-account-ranking-input");
+    const roleSelect = document.getElementById("admin-account-role-select");
+    const alsoPlayerWrapper = document.getElementById("admin-account-also-player-wrapper");
+    const alsoPlayerCheckbox = document.getElementById("admin-account-also-player");
+
+    if (pwInput) pwInput.type = "password";
+
+    if (email) {
+      const accounts = this.loadAccounts();
+      const acc = accounts[email.toLowerCase().trim()];
+      if (!acc) {
+        this.showToast("Account non trovato.", "error");
+        return;
+      }
+      if (titleEl) titleEl.textContent = `Modifica Account (${acc.name || acc.email})`;
+      if (submitBtn) submitBtn.textContent = "Salva Modifiche";
+      if (origEmailInput) origEmailInput.value = acc.email;
+      if (fnInput) fnInput.value = acc.firstName || (acc.name ? acc.name.split(" ")[0] : "");
+      if (lnInput) lnInput.value = acc.lastName || (acc.name ? acc.name.split(" ").slice(1).join(" ") : "");
+      if (emInput) emInput.value = acc.email || "";
+      if (pwInput) pwInput.value = acc.password || "";
+      if (bdInput) bdInput.value = acc.birthDate || "";
+      if (rkInput) rkInput.value = acc.ranking || "NC";
+      if (roleSelect) roleSelect.value = acc.role || "player";
+
+      const linkedPlayer = this.getPlayerForAccount(acc);
+      if (alsoPlayerWrapper) {
+        if (linkedPlayer) {
+          alsoPlayerWrapper.classList.add("hidden");
+          if (alsoPlayerCheckbox) alsoPlayerCheckbox.checked = false;
+        } else {
+          alsoPlayerWrapper.classList.remove("hidden");
+          if (alsoPlayerCheckbox) alsoPlayerCheckbox.checked = true;
+        }
+      }
+    } else {
+      if (titleEl) titleEl.textContent = "Crea Nuovo Account";
+      if (submitBtn) submitBtn.textContent = "Crea Account";
+      if (origEmailInput) origEmailInput.value = "";
+      if (fnInput) fnInput.value = "";
+      if (lnInput) lnInput.value = "";
+      if (emInput) emInput.value = "";
+      if (pwInput) pwInput.value = "";
+      if (bdInput) bdInput.value = "";
+      if (rkInput) rkInput.value = "NC";
+      if (roleSelect) roleSelect.value = "player";
+      if (alsoPlayerWrapper) alsoPlayerWrapper.classList.remove("hidden");
+      if (alsoPlayerCheckbox) alsoPlayerCheckbox.checked = true;
+    }
+
+    this.openModal("modal-admin-account");
+    setTimeout(() => {
+      if (fnInput) fnInput.focus();
+    }, 150);
+  }
+
+  // Salvataggio Account da parte dell'Admin (con controllo tassativo unicità email)
+  handleSaveAdminAccount() {
+    if (!this.isAdmin) return;
+
+    const origEmail = (document.getElementById("admin-account-orig-email")?.value || "").trim().toLowerCase();
+    const firstName = document.getElementById("admin-account-firstname-input")?.value.trim() || "";
+    const lastName = document.getElementById("admin-account-lastname-input")?.value.trim() || "";
+    const email = (document.getElementById("admin-account-email-input")?.value || "").trim().toLowerCase();
+    const password = document.getElementById("admin-account-password-input")?.value || "";
+    const birthDate = document.getElementById("admin-account-birthdate-input")?.value.trim() || "";
+    const ranking = document.getElementById("admin-account-ranking-input")?.value.trim() || "NC";
+    const role = document.getElementById("admin-account-role-select")?.value || "player";
+    const alsoPlayer = document.getElementById("admin-account-also-player")?.checked ?? false;
+
+    if (!firstName || !lastName) {
+      alert("Inserisci sia il Nome che il Cognome.");
+      return;
+    }
+    if (!email) {
+      alert("Inserisci un indirizzo email valido.");
+      return;
+    }
+    if (!password || password.length < 4) {
+      alert("La password deve contenere almeno 4 caratteri.");
+      return;
+    }
+    if (!birthDate) {
+      alert("Inserisci la data di nascita.");
+      return;
+    }
+
+    const accounts = this.loadAccounts();
+
+    // CONTROLLO UNICITÀ EMAIL: non possono esistere due o più account con la stessa mail
+    if (!origEmail && accounts[email]) {
+      alert(`Errore: esiste già un account registrato con l'email "${email}".\n\nNon possono esistere due o più account con la stessa mail.`);
+      return;
+    }
+    if (origEmail && email !== origEmail && accounts[email]) {
+      alert(`Errore: l'email "${email}" appartiene già a un altro account registrato.\n\nNon possono esistere due o più account con la stessa mail.`);
+      return;
+    }
+
+    // Se l'email è stata modificata, cancella la vecchia chiave
+    if (origEmail && email !== origEmail) {
+      delete accounts[origEmail];
+    }
+
+    const fullName = `${firstName} ${lastName}`.trim();
+    const prevAcc = origEmail ? (this.accounts[origEmail] || {}) : {};
+
+    const updatedAccount = {
+      ...prevAcc,
+      firstName,
+      lastName,
+      name: fullName,
+      email,
+      password,
+      birthDate,
+      ranking,
+      role: email === ADMIN_EMAIL.toLowerCase() ? "admin" : role,
+      biometricsEnabled: prevAcc.biometricsEnabled ?? true
+    };
+
+    accounts[email] = updatedAccount;
+    this.saveAccounts(accounts);
+
+    // Se l'admin sta modificando il proprio account attualmente loggato
+    if (this.user && (this.user.email.toLowerCase() === origEmail || this.user.email.toLowerCase() === email)) {
+      this.user = { ...this.user, ...updatedAccount };
+      this.saveUser(this.user);
+    }
+
+    // Aggiorna anche l'eventuale atleta collegato nel torneo
+    const linkedPlayer = this.getPlayerForAccount(updatedAccount) || (origEmail ? this.state.players.find(p => (p.email && p.email.toLowerCase() === origEmail) || (p.userId && p.userId.toLowerCase() === origEmail)) : null);
+    if (linkedPlayer) {
+      linkedPlayer.firstName = firstName;
+      linkedPlayer.lastName = lastName;
+      linkedPlayer.name = fullName;
+      linkedPlayer.birthDate = birthDate;
+      linkedPlayer.ranking = ranking;
+      linkedPlayer.email = email;
+      linkedPlayer.userId = email;
+      this.saveState();
+    } else if (alsoPlayer) {
+      const newPlayer = {
+        id: `p-${Date.now()}`,
+        firstName,
+        lastName,
+        name: fullName,
+        birthDate,
+        ranking,
+        notes: "",
+        email,
+        userId: email,
+        photoUrl: "",
+        status: "confermato"
+      };
+      this.state.players.push(newPlayer);
+      this.saveState();
+    }
+
+    this.closeModal("modal-admin-account");
+    this.showToast(origEmail ? `Account "${fullName}" aggiornato!` : `Account "${fullName}" creato con successo!`, "success");
+    this.render();
+  }
+
+  // Eliminazione account da parte dell'Admin
+  deleteAccount(email) {
+    if (!this.isAdmin) {
+      this.showToast("Solo l'amministratore può eliminare account.", "error");
+      return;
+    }
+    const cleanEmail = (email || "").toLowerCase().trim();
+    const accounts = this.loadAccounts();
+    const acc = accounts[cleanEmail];
+    if (!acc) {
+      this.showToast("Account non trovato.", "error");
+      return;
+    }
+
+    if (cleanEmail === ADMIN_EMAIL.toLowerCase() && this.user && this.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+      if (!confirm("ATTENZIONE: Stai per eliminare il tuo stesso account di Super Amministratore. Sei sicuro di voler procedere?")) {
+        return;
+      }
+    } else {
+      if (!confirm(`Sei sicuro di voler eliminare l'account di ${acc.name || acc.email} (${acc.email})?\n\nQuesta operazione cancellerà le relative credenziali di accesso.`)) {
+        return;
+      }
+    }
+
+    const linkedPlayer = this.getPlayerForAccount(acc);
+    if (linkedPlayer) {
+      if (confirm(`L'account "${acc.name || acc.email}" è anche presente come atleta nel torneo.\n\nVuoi rimuovere anche l'atleta dall'elenco iscritti del torneo?\n\n- Premi OK per eliminare sia l'account che l'atleta\n- Premi Annulla per eliminare solo l'account e mantenere l'atleta`)) {
+        this.state.players = this.state.players.filter(p => p.id !== linkedPlayer.id);
+        this.saveState();
+      }
+    }
+
+    delete accounts[cleanEmail];
+    this.saveAccounts(accounts);
+
+    if (this.user && this.user.email.toLowerCase() === cleanEmail) {
+      this.logout();
+      return;
+    }
+
+    this.showToast(`Account di "${acc.name || acc.email}" eliminato.`, "info");
+    this.render();
+  }
+
+  // Inserisce un account registrato tra gli atleti ufficiali del torneo con 1 click
+  insertAccountIntoTournament(email) {
+    if (!this.isAdmin) {
+      this.showToast("Solo l'amministratore può inserire giocatori nel torneo.", "error");
+      return;
+    }
+    const cleanEmail = (email || "").toLowerCase().trim();
+    const accounts = this.loadAccounts();
+    const acc = accounts[cleanEmail];
+    if (!acc) {
+      this.showToast("Account non trovato.", "error");
+      return;
+    }
+
+    const existingPlayer = this.getPlayerForAccount(acc);
+    if (existingPlayer) {
+      this.showToast(`L'atleta "${acc.name}" è già inserito nel torneo.`, "info");
+      return;
+    }
+
+    const firstName = acc.firstName || (acc.name ? acc.name.split(" ")[0] : "");
+    const lastName = acc.lastName || (acc.name ? acc.name.split(" ").slice(1).join(" ") : "");
+    const fullName = acc.name || `${firstName} ${lastName}`.trim();
+
+    const newPlayer = {
+      id: `p-${Date.now()}`,
+      firstName,
+      lastName,
+      name: fullName,
+      birthDate: acc.birthDate || "",
+      ranking: acc.ranking || "NC",
+      notes: "",
+      email: acc.email,
+      userId: acc.email,
+      photoUrl: acc.photoUrl || "",
+      status: "confermato"
+    };
+
+    this.state.players.push(newPlayer);
+    this.saveState();
+    this.showToast(`Atleta "${fullName}" inserito con successo nel torneo!`, "success");
+    this.render();
+  }
+
+  // Esporta tutti i dati (Account registrati e Torneo) in formato JSON
+  exportBackupData() {
+    try {
+      const accounts = this.loadAccounts();
+      const accountsList = Object.values(accounts);
+      const data = {
+        version: "torneo-momy-v7",
+        exportedAt: new Date().toISOString(),
+        accountsCount: accountsList.length,
+        playersCount: this.state.players ? this.state.players.length : 0,
+        accounts: accounts,
+        state: this.state
+      };
+      const jsonStr = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const dateStr = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `torneo_momy_backup_${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      this.showToast(`Backup esportato con successo! (${accountsList.length} account)`, "success");
+    } catch (e) {
+      console.error("Errore esportazione", e);
+      alert("Errore durante l'esportazione del backup: " + e.message);
+    }
+  }
+
+  // Importa i dati da un file JSON (permette di trasferire account e giocatori tra telefono e desktop)
+  importBackupData(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target.result;
+        const data = JSON.parse(content);
+
+        if (!data.accounts && !data.state) {
+          alert("Formato file non valido: il file selezionato non sembra essere un backup del Torneo Momy.");
+          return;
+        }
+
+        const countAccounts = data.accounts ? Object.keys(data.accounts).length : 0;
+        const countPlayers = (data.state && Array.isArray(data.state.players)) ? data.state.players.length : 0;
+
+        if (confirm(`Confermi il ripristino di questo backup?\n\n- Account trovati nel file: ${countAccounts}\n- Atleti nel torneo: ${countPlayers}\n\nI dati verranno integrati con quelli attuali del dispositivo.`)) {
+          // Unisci account
+          if (data.accounts && typeof data.accounts === "object") {
+            const currentAccounts = this.loadAccounts();
+            const mergedAccounts = { ...currentAccounts, ...data.accounts };
+            this.saveAccounts(mergedAccounts);
+          }
+
+          // Unisci dati del torneo (giocatori, tabellone, ecc.)
+          if (data.state && typeof data.state === "object") {
+            if (Array.isArray(data.state.players)) {
+              const currentPlayers = Array.isArray(this.state.players) ? this.state.players : [];
+              const playerMap = new Map();
+              currentPlayers.forEach(p => playerMap.set(p.id || p.email || p.name, p));
+              data.state.players.forEach(p => playerMap.set(p.id || p.email || p.name, p));
+              this.state.players = Array.from(playerMap.values());
+            }
+            if (data.state.bracket) {
+              this.state.bracket = data.state.bracket;
+            }
+            if (data.state.tournament) {
+              this.state.tournament = { ...this.state.tournament, ...data.state.tournament };
+            }
+            this.saveState();
+            this.tournamentManager = new TournamentManager(this.state);
+          }
+
+          this.showToast("Dati importati e sincronizzati con successo!", "success");
+          this.render();
+        }
+      } catch (err) {
+        console.error("Errore lettura file backup", err);
+        alert("Errore durante la lettura del file: " + err.message);
+      } finally {
+        event.target.value = "";
+      }
+    };
+    reader.readAsText(file);
   }
 
   openNewPlayerModal(fromProfile = false) {

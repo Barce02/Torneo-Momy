@@ -4,7 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Torneo Momy 26/27 - Tennis Giovanile</title>
-  <link rel="icon" type="image/jpeg" href="assets/logo.jpg">
+  <link rel="icon" type="image/png" href="assets/apple-touch-icon.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="assets/icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="assets/icon-512.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Torneo Momy">
+  <meta name="application-name" content="Torneo Momy">
+  <meta name="theme-color" content="#0f172a">
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -72,6 +82,15 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
             </svg>
             <span class="hidden sm:inline">Esci</span>
+          </button>
+
+          <!-- Tasto Gestione Account per Admin -->
+          <button id="btn-admin-accounts-header" onclick="app.showAdminAccounts()" title="Tutti gli Account Registrati (Admin)" class="hidden bg-yellow-400 hover:bg-yellow-300 text-blue-950 text-xs px-2.5 py-1.5 rounded-xl border border-yellow-300 transition items-center gap-1.5 font-bold shadow-sm cursor-pointer">
+            <svg class="w-3.5 h-3.5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+            </svg>
+            <span class="hidden sm:inline">Tutti gli Account</span>
+            <span id="header-accounts-count" class="bg-blue-950 text-yellow-300 text-[10px] px-1.5 py-0.2 rounded-full font-black">0</span>
           </button>
 
           <!-- Tasto Account / Profilo Personalizzato -->
@@ -232,7 +251,7 @@
         <form id="login-form" class="space-y-3">
           <div>
             <label class="block text-xs font-semibold text-gray-700 mb-1">Indirizzo Email</label>
-            <input type="email" id="login-email-input" placeholder="es. atleta@email.com" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+            <input type="email" id="login-email-input" name="email" autocomplete="username" placeholder="es. atleta@email.com" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
           </div>
 
           <div>
@@ -242,7 +261,18 @@
                 Password dimenticata?
               </button>
             </div>
-            <input type="password" id="login-password-input" placeholder="Inserisci la password" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+            <div class="relative">
+              <input type="password" id="login-password-input" name="password" autocomplete="current-password" placeholder="Inserisci la password" class="w-full text-xs sm:text-sm pl-3.5 pr-10 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+              <button type="button" onclick="app.togglePasswordVisibility('login-password-input', this)" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition" title="Mostra/Nascondi password" aria-label="Mostra/Nascondi password">
+                <svg class="w-4 h-4 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                <svg class="w-4 h-4 eye-icon-hide hidden text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/>
+                </svg>
+              </button>
+            </div>
           </div>
 
           <button type="submit" class="w-full py-2.5 text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow transition mt-1">
@@ -274,12 +304,23 @@
 
           <div>
             <label class="block text-xs font-semibold text-gray-700 mb-1">Indirizzo Email *</label>
-            <input type="email" id="register-email-input" placeholder="es. mario.rossi@email.com" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+            <input type="email" id="register-email-input" name="email" autocomplete="username" placeholder="es. mario.rossi@email.com" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
           </div>
 
           <div>
             <label class="block text-xs font-semibold text-gray-700 mb-1">Crea Password *</label>
-            <input type="password" id="register-password-input" placeholder="Minimo 4 caratteri" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required minlength="4">
+            <div class="relative">
+              <input type="password" id="register-password-input" name="new-password" autocomplete="new-password" placeholder="Minimo 4 caratteri" class="w-full text-xs sm:text-sm pl-3 pr-10 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required minlength="4">
+              <button type="button" onclick="app.togglePasswordVisibility('register-password-input', this)" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition" title="Mostra/Nascondi password" aria-label="Mostra/Nascondi password">
+                <svg class="w-4 h-4 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                <svg class="w-4 h-4 eye-icon-hide hidden text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/>
+                </svg>
+              </button>
+            </div>
           </div>
 
           <!-- Data di Nascita e Classifica FITP -->
@@ -345,17 +386,39 @@
         <form id="forgot-form" class="space-y-3">
           <div>
             <label class="block text-xs font-semibold text-gray-700 mb-1">Indirizzo Email dell'Account *</label>
-            <input type="email" id="forgot-email-input" placeholder="es. mario.rossi@email.com" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+            <input type="email" id="forgot-email-input" name="email" autocomplete="username" placeholder="es. mario.rossi@email.com" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
           </div>
 
           <div>
             <label class="block text-xs font-semibold text-gray-700 mb-1">Nuova Password *</label>
-            <input type="password" id="forgot-new-password-input" placeholder="Minimo 4 caratteri" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" minlength="4" required>
+            <div class="relative">
+              <input type="password" id="forgot-new-password-input" name="new-password" autocomplete="new-password" placeholder="Minimo 4 caratteri" class="w-full text-xs sm:text-sm pl-3.5 pr-10 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" minlength="4" required>
+              <button type="button" onclick="app.togglePasswordVisibility('forgot-new-password-input', this)" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition" title="Mostra/Nascondi password" aria-label="Mostra/Nascondi password">
+                <svg class="w-4 h-4 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                <svg class="w-4 h-4 eye-icon-hide hidden text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/>
+                </svg>
+              </button>
+            </div>
           </div>
 
           <div>
             <label class="block text-xs font-semibold text-gray-700 mb-1">Conferma Nuova Password *</label>
-            <input type="password" id="forgot-confirm-password-input" placeholder="Ripeti la nuova password" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" minlength="4" required>
+            <div class="relative">
+              <input type="password" id="forgot-confirm-password-input" name="confirm-password" autocomplete="new-password" placeholder="Ripeti la nuova password" class="w-full text-xs sm:text-sm pl-3.5 pr-10 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" minlength="4" required>
+              <button type="button" onclick="app.togglePasswordVisibility('forgot-confirm-password-input', this)" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition" title="Mostra/Nascondi password" aria-label="Mostra/Nascondi password">
+                <svg class="w-4 h-4 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                <svg class="w-4 h-4 eye-icon-hide hidden text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/>
+                </svg>
+              </button>
+            </div>
           </div>
 
           <button type="submit" class="w-full py-2.5 text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow transition mt-1">
@@ -655,11 +718,33 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-[11px] font-semibold text-gray-700 mb-1">Nuova Password</label>
-              <input type="password" id="account-newpassword-input" placeholder="Nuova password" minlength="4" class="w-full text-xs px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 bg-white">
+              <div class="relative">
+                <input type="password" id="account-newpassword-input" name="new-password" autocomplete="new-password" placeholder="Nuova password" minlength="4" class="w-full text-xs pl-3 pr-9 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 bg-white">
+                <button type="button" onclick="app.togglePasswordVisibility('account-newpassword-input', this)" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition" title="Mostra/Nascondi password" aria-label="Mostra/Nascondi password">
+                  <svg class="w-3.5 h-3.5 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                  </svg>
+                  <svg class="w-3.5 h-3.5 eye-icon-hide hidden text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/>
+                  </svg>
+                </button>
+              </div>
             </div>
             <div>
               <label class="block text-[11px] font-semibold text-gray-700 mb-1">Conferma Nuova Password</label>
-              <input type="password" id="account-confirmpassword-input" placeholder="Ripeti nuova password" minlength="4" class="w-full text-xs px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 bg-white">
+              <div class="relative">
+                <input type="password" id="account-confirmpassword-input" name="confirm-password" autocomplete="new-password" placeholder="Ripeti nuova password" minlength="4" class="w-full text-xs pl-3 pr-9 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 bg-white">
+                <button type="button" onclick="app.togglePasswordVisibility('account-confirmpassword-input', this)" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition" title="Mostra/Nascondi password" aria-label="Mostra/Nascondi password">
+                  <svg class="w-3.5 h-3.5 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                  </svg>
+                  <svg class="w-3.5 h-3.5 eye-icon-hide hidden text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/>
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -844,6 +929,115 @@
         <div class="flex gap-2 pt-2 border-t">
           <button type="button" onclick="app.closeModal('modal-schedule-match')" class="w-1/2 py-2 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl">Annulla</button>
           <button type="submit" class="w-1/2 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow">Salva Programmazione</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALE: GESTIONE ACCOUNT UTENTI (PER ADMIN) -->
+  <!-- ======================================================== -->
+  <div id="modal-admin-account" class="fixed inset-0 bg-slate-950/75 modal-backdrop z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-200 max-h-[92vh] overflow-y-auto">
+      <div class="flex justify-between items-center pb-3 mb-4 border-b">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-yellow-100 text-yellow-900 flex items-center justify-center font-bold text-xs">
+            <svg class="w-4 h-4 text-yellow-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+          </div>
+          <h3 id="admin-account-modal-title" class="font-bold text-base text-gray-900">Modifica Account</h3>
+        </div>
+        <button type="button" onclick="app.closeModal('modal-admin-account')" class="text-gray-400 hover:text-gray-600 text-sm font-bold">Chiudi</button>
+      </div>
+
+      <form id="admin-account-form" class="space-y-3.5" onsubmit="event.preventDefault(); app.handleSaveAdminAccount();">
+        <input type="hidden" id="admin-account-orig-email">
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Nome *</label>
+            <input type="text" id="admin-account-firstname-input" placeholder="es. Mario" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Cognome *</label>
+            <input type="text" id="admin-account-lastname-input" placeholder="es. Rossi" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Indirizzo Email * (Unico)</label>
+          <input type="email" id="admin-account-email-input" name="email" autocomplete="username" placeholder="es. atleta@email.com" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+          <p class="text-[10px] text-gray-500 mt-0.5">Non possono esistere due o più account con la stessa mail.</p>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Password *</label>
+          <div class="relative">
+            <input type="password" id="admin-account-password-input" name="password" autocomplete="new-password" placeholder="Minimo 4 caratteri" class="w-full text-xs sm:text-sm pl-3 pr-9 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono" required minlength="4">
+            <button type="button" onclick="app.togglePasswordVisibility('admin-account-password-input', this)" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition" title="Mostra/Nascondi password" aria-label="Mostra/Nascondi password">
+              <svg class="w-3.5 h-3.5 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+              <svg class="w-3.5 h-3.5 eye-icon-hide hidden text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Data di Nascita *</label>
+            <input type="date" id="admin-account-birthdate-input" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white" required>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Classifica FITP *</label>
+            <select id="admin-account-ranking-input" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white" required>
+              <option value="NC" selected>NC</option>
+              <option value="4.6">4.6</option>
+              <option value="4.5">4.5</option>
+              <option value="4.4">4.4</option>
+              <option value="4.3">4.3</option>
+              <option value="4.2">4.2</option>
+              <option value="4.1">4.1</option>
+              <option value="3.5">3.5</option>
+              <option value="3.4">3.4</option>
+              <option value="3.3">3.3</option>
+              <option value="3.2">3.2</option>
+              <option value="3.1">3.1</option>
+              <option value="2.8">2.8</option>
+              <option value="2.7">2.7</option>
+              <option value="2.6">2.6</option>
+              <option value="2.5">2.5</option>
+              <option value="2.4">2.4</option>
+              <option value="2.3">2.3</option>
+              <option value="2.2">2.2</option>
+              <option value="2.1">2.1</option>
+              <option value="1">1</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Ruolo Account</label>
+          <select id="admin-account-role-select" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+            <option value="player">Giocatore / Utente</option>
+            <option value="admin">Amministratore</option>
+          </select>
+        </div>
+
+        <div id="admin-account-also-player-wrapper" class="bg-blue-50/70 border border-blue-200 rounded-xl p-2.5 flex items-center gap-2">
+          <input type="checkbox" id="admin-account-also-player" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+          <label for="admin-account-also-player" class="text-xs text-blue-900 font-medium cursor-pointer">
+            Inserisci subito anche tra gli atleti del torneo
+          </label>
+        </div>
+
+        <div class="flex gap-2 pt-2 border-t">
+          <button type="button" onclick="app.closeModal('modal-admin-account')" class="w-1/2 py-2 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl">Annulla</button>
+          <button type="submit" id="admin-account-submit-btn" class="w-1/2 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow">Salva Account</button>
         </div>
       </form>
     </div>
