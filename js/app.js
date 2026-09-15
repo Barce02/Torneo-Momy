@@ -868,6 +868,7 @@ class App {
       if (navAccountLabel) {
         navAccountLabel.textContent = "Account";
       }
+      this.updateScheduleBadge();
       return;
     }
 
@@ -884,6 +885,55 @@ class App {
     if (navAccountLabel) {
       const displayName = this.user.firstName || "Account";
       navAccountLabel.textContent = displayName;
+    }
+
+    this.updateScheduleBadge();
+  }
+
+  getCurrentPlayer() {
+    if (!this.user) return null;
+    const email = (this.user.email || "").toLowerCase().trim();
+    const fullName = (this.user.name || `${this.user.firstName || ''} ${this.user.lastName || ''}`).toLowerCase().trim();
+    const firstName = (this.user.firstName || "").toLowerCase().trim();
+    const lastName = (this.user.lastName || "").toLowerCase().trim();
+
+    return (this.state.players || []).find(p => {
+      if (p.userId && p.userId.toLowerCase().trim() === email) return true;
+      if (p.email && p.email.toLowerCase().trim() === email) return true;
+      const pName = (p.name || "").toLowerCase().trim();
+      if (pName && fullName && pName === fullName) return true;
+      if (firstName && lastName && pName.includes(firstName) && pName.includes(lastName)) return true;
+      return false;
+    }) || null;
+  }
+
+  getPendingScheduleMatchesForUser() {
+    const cp = this.getCurrentPlayer();
+    if (!cp) return [];
+
+    const allMatches = this.getAllMatches();
+    return allMatches.filter(item => {
+      const m = item.match;
+      if (!m.dateTime || m.status === "completato") return false;
+      const isP1 = m.player1Id === cp.id;
+      const isP2 = m.player2Id === cp.id;
+      if (!isP1 && !isP2) return false;
+
+      if (isP1 && (!m.p1Acceptance || m.p1Acceptance === "pending")) return true;
+      if (isP2 && (!m.p2Acceptance || m.p2Acceptance === "pending")) return true;
+      return false;
+    });
+  }
+
+  updateScheduleBadge() {
+    const badge = document.getElementById("schedule-nav-badge");
+    if (!badge) return;
+    const pending = this.getPendingScheduleMatchesForUser();
+    if (pending.length > 0) {
+      badge.textContent = `${pending.length}`;
+      badge.classList.remove("hidden");
+    } else {
+      badge.classList.add("hidden");
     }
   }
 
@@ -1242,6 +1292,8 @@ class App {
     const navCount = document.getElementById("nav-players-count");
     if (navCount) navCount.textContent = playersCount;
 
+    this.updateScheduleBadge();
+
     this.renderTabContent();
   }
 
@@ -1476,7 +1528,16 @@ class App {
 
                     <div class="flex items-center justify-between text-[11px] text-gray-500 pt-1.5 border-t border-gray-100">
                       <span>${m.court || 'Campo da definire'}</span>
-                      <span>${m.dateTime ? this.formatShortDate(m.dateTime) : '1 ora di gioco'}</span>
+                      <div class="flex items-center gap-1.5">
+                        ${m.dateTime ? (
+                          m.p1Acceptance === 'accepted' && m.p2Acceptance === 'accepted'
+                            ? `<span class="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">✓ Confermato</span>`
+                            : (m.p1Acceptance === 'rejected' || m.p2Acceptance === 'rejected')
+                              ? `<span class="text-[9px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">✕ Rifiutato</span>`
+                              : `<span class="text-[9px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">⏳ In attesa</span>`
+                        ) : ''}
+                        <span>${m.dateTime ? this.formatShortDate(m.dateTime) : '1 ora di gioco'}</span>
+                      </div>
                     </div>
                   </div>
                 `;
@@ -2649,6 +2710,9 @@ class App {
     const allMatches = this.getAllMatches();
     const scheduledMatches = allMatches.filter(x => x.match.dateTime);
     const completedMatches = allMatches.filter(x => x.match.status === "completato");
+    const confirmedMatches = allMatches.filter(x => x.match.dateTime && x.match.p1Acceptance === "accepted" && x.match.p2Acceptance === "accepted");
+    const pendingMatches = allMatches.filter(x => x.match.dateTime && x.match.status !== "completato" && x.match.p1Acceptance !== "rejected" && x.match.p2Acceptance !== "rejected" && !(x.match.p1Acceptance === "accepted" && x.match.p2Acceptance === "accepted"));
+    const rejectedMatches = allMatches.filter(x => x.match.dateTime && (x.match.p1Acceptance === "rejected" || x.match.p2Acceptance === "rejected"));
 
     // Filtraggio
     const filtered = allMatches.filter(item => {
@@ -2676,6 +2740,15 @@ class App {
       if (this.scheduleStatusFilter === "unscheduled" && m.dateTime) return false;
       if (this.scheduleStatusFilter === "live" && m.status !== "in_corso") return false;
       if (this.scheduleStatusFilter === "completed" && m.status !== "completato") return false;
+      if (this.scheduleStatusFilter === "confirmed") {
+        if (!m.dateTime || m.p1Acceptance !== "accepted" || m.p2Acceptance !== "accepted") return false;
+      }
+      if (this.scheduleStatusFilter === "pending_acceptance") {
+        if (!m.dateTime || m.status === "completato" || m.p1Acceptance === "rejected" || m.p2Acceptance === "rejected" || (m.p1Acceptance === "accepted" && m.p2Acceptance === "accepted")) return false;
+      }
+      if (this.scheduleStatusFilter === "rejected") {
+        if (!m.dateTime || (m.p1Acceptance !== "rejected" && m.p2Acceptance !== "rejected")) return false;
+      }
 
       // Ricerca Atleta
       if (this.scheduleSearchQuery) {
@@ -2694,6 +2767,8 @@ class App {
       return a.phase.localeCompare(b.phase);
     });
 
+    const myPendingMatches = this.getPendingScheduleMatchesForUser();
+
     let html = `
       <div class="space-y-6">
 
@@ -2706,7 +2781,7 @@ class App {
             </div>
             <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Calendario Incontri & Campi</h2>
             <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
-              Date, orari e campi di gioco stabiliti dall'Amministratore (Barcello Luca) per la Fase a Gironi (Sinner & Alcaraz) e il Tabellone Finale.
+              Date, orari e campi programmati dall'Amministratore (<strong>Barcello Luca</strong>). Entrambi gli atleti devono confermare o rifiutare l'orario per la disputa dell'incontro.
             </p>
           </div>
 
@@ -2719,10 +2794,25 @@ class App {
             </div>
           ` : `
             <div class="text-xs text-blue-200 bg-white/10 px-3.5 py-2 rounded-xl border border-white/20">
-              Orari e campi gestiti dall'Amministratore Barcello Luca
+              Orari programmati dall'Amministratore Barcello Luca
             </div>
           `}
         </div>
+
+        ${myPendingMatches.length > 0 ? `
+          <!-- Banner Notifica Atleta Partite da Confermare -->
+          <div class="bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-slate-950 p-4 rounded-2xl shadow-md border border-amber-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-pulse">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-white text-amber-900 flex items-center justify-center font-black text-lg shadow-sm flex-shrink-0">
+                🔔
+              </div>
+              <div>
+                <h4 class="font-extrabold text-sm sm:text-base">Hai ${myPendingMatches.length} ${myPendingMatches.length === 1 ? 'partita in programma in attesa' : 'partite in programma in attesa'} della tua conferma orario!</h4>
+                <p class="text-xs text-slate-900/85 mt-0.5">L'organizzatore ha proposto data e ora. Clicca su <strong>"Accetta Orario"</strong> o <strong>"Rifiuta Orario"</strong> sulla tua partita per confermare la tua presenza.</p>
+              </div>
+            </div>
+          </div>
+        ` : ''}
 
         <!-- Box Statistiche Incontri -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -2731,16 +2821,20 @@ class App {
             <div class="text-xl sm:text-2xl font-black text-gray-900 mt-0.5">${allMatches.length}</div>
           </div>
           <div class="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm text-center">
-            <div class="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Programmati</div>
-            <div class="text-xl sm:text-2xl font-black text-blue-900 mt-0.5">${scheduledMatches.length}</div>
+            <div class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Confermati (2/2)</div>
+            <div class="text-xl sm:text-2xl font-black text-emerald-700 mt-0.5">${confirmedMatches.length}</div>
           </div>
           <div class="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm text-center">
-            <div class="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Da Fissare</div>
-            <div class="text-xl sm:text-2xl font-black text-amber-900 mt-0.5">${allMatches.length - scheduledMatches.length}</div>
+            <div class="text-[11px] font-bold text-amber-600 uppercase tracking-wider">In Attesa Risposta</div>
+            <div class="text-xl sm:text-2xl font-black text-amber-900 mt-0.5">${pendingMatches.length}</div>
           </div>
           <div class="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm text-center">
-            <div class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Completati</div>
-            <div class="text-xl sm:text-2xl font-black text-emerald-700 mt-0.5">${completedMatches.length}</div>
+            <div class="text-[11px] font-bold ${rejectedMatches.length > 0 ? 'text-rose-600' : 'text-blue-600'} uppercase tracking-wider">
+              ${rejectedMatches.length > 0 ? 'Da Riprogrammare' : 'Da Fissare'}
+            </div>
+            <div class="text-xl sm:text-2xl font-black ${rejectedMatches.length > 0 ? 'text-rose-700' : 'text-blue-900'} mt-0.5">
+              ${rejectedMatches.length > 0 ? rejectedMatches.length : (allMatches.length - scheduledMatches.length)}
+            </div>
           </div>
         </div>
 
@@ -2796,7 +2890,10 @@ class App {
               <label class="font-bold text-gray-600">Stato:</label>
               <select onchange="app.setScheduleFilter('status', this.value)" class="text-xs border rounded-lg px-2.5 py-1 bg-white font-medium">
                 <option value="all" ${this.scheduleStatusFilter === 'all' ? 'selected' : ''}>Tutti gli stati</option>
-                <option value="scheduled" ${this.scheduleStatusFilter === 'scheduled' ? 'selected' : ''}>Con data/ora fissata</option>
+                <option value="confirmed" ${this.scheduleStatusFilter === 'confirmed' ? 'selected' : ''}>✅ Accettati da entrambi (Confermati)</option>
+                <option value="pending_acceptance" ${this.scheduleStatusFilter === 'pending_acceptance' ? 'selected' : ''}>⏳ In attesa di accettazione</option>
+                <option value="rejected" ${this.scheduleStatusFilter === 'rejected' ? 'selected' : ''}>❌ Rifiutati (Da riprogrammare)</option>
+                <option value="scheduled" ${this.scheduleStatusFilter === 'scheduled' ? 'selected' : ''}>Tutti con data/ora fissata</option>
                 <option value="unscheduled" ${this.scheduleStatusFilter === 'unscheduled' ? 'selected' : ''}>Da programmare</option>
                 <option value="live" ${this.scheduleStatusFilter === 'live' ? 'selected' : ''}>In corso (Live)</option>
                 <option value="completed" ${this.scheduleStatusFilter === 'completed' ? 'selected' : ''}>Completati</option>
@@ -2859,6 +2956,19 @@ class App {
           const isLive = m.status === "in_corso";
           const hasDateTime = !!m.dateTime;
 
+          const p1Acc = m.p1Acceptance || (hasDateTime ? "pending" : null);
+          const p2Acc = m.p2Acceptance || (hasDateTime ? "pending" : null);
+          const isBothAccepted = hasDateTime && p1Acc === "accepted" && p2Acc === "accepted";
+          const isAnyRejected = hasDateTime && (p1Acc === "rejected" || p2Acc === "rejected");
+          const acceptedCount = (p1Acc === "accepted" ? 1 : 0) + (p2Acc === "accepted" ? 1 : 0);
+
+          const currentPlayer = this.getCurrentPlayer();
+          const isMeP1 = currentPlayer && p1 && (currentPlayer.id === p1.id || (currentPlayer.email && p1.email && currentPlayer.email.toLowerCase() === p1.email.toLowerCase()));
+          const isMeP2 = currentPlayer && p2 && (currentPlayer.id === p2.id || (currentPlayer.email && p2.email && currentPlayer.email.toLowerCase() === p2.email.toLowerCase()));
+          const isMyMatch = isMeP1 || isMeP2;
+          const myRole = isMeP1 ? "p1" : (isMeP2 ? "p2" : null);
+          const myAcc = isMeP1 ? p1Acc : (isMeP2 ? p2Acc : null);
+
           const isGroup = item.type === "group";
           const phaseColor = isGroup
             ? (item.groupKey === "sinner" ? "bg-blue-100 text-blue-900 border-blue-200" : "bg-indigo-100 text-indigo-900 border-indigo-200")
@@ -2866,11 +2976,65 @@ class App {
 
           const courtBadge = m.court || "Campo da definire";
 
+          // Badge di stato principale
+          let scheduleStatusBadge = "";
+          if (isLive) {
+            scheduleStatusBadge = `
+              <span class="inline-flex items-center gap-1 bg-amber-100 text-amber-900 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-amber-300">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse"></span>
+                <span>Live in corso</span>
+              </span>`;
+          } else if (isCompleted) {
+            scheduleStatusBadge = `
+              <span class="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
+                Completato
+              </span>`;
+          } else if (hasDateTime) {
+            if (isBothAccepted) {
+              scheduleStatusBadge = `
+                <span class="bg-emerald-100 text-emerald-950 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-300 shadow-2xs flex items-center gap-1">
+                  <span>✓</span> <span>Confermato (2/2)</span>
+                </span>`;
+            } else if (isAnyRejected) {
+              scheduleStatusBadge = `
+                <span class="bg-rose-100 text-rose-950 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-rose-300 shadow-2xs flex items-center gap-1">
+                  <span>✕</span> <span>Orario Rifiutato</span>
+                </span>`;
+            } else {
+              scheduleStatusBadge = `
+                <span class="bg-amber-100 text-amber-950 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-amber-300 flex items-center gap-1">
+                  <span>⏳</span> <span>In attesa (${acceptedCount}/2)</span>
+                </span>`;
+            }
+          } else {
+            scheduleStatusBadge = `
+              <span class="bg-gray-100 text-gray-600 text-[10px] font-medium px-2 py-0.5 rounded-full border border-gray-200">
+                Da fissare
+              </span>`;
+          }
+
+          // Badge accettazione singoli atleti
+          const p1StatusBadge = !hasDateTime ? '' : (
+            p1Acc === 'accepted'
+              ? `<span class="text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md border border-emerald-300 flex items-center gap-1 shadow-2xs"><span>✓</span> <span>Accettato</span></span>`
+              : p1Acc === 'rejected'
+                ? `<span class="text-[10px] font-bold text-rose-800 bg-rose-100/90 px-2 py-0.5 rounded-md border border-rose-300 flex items-center gap-1 shadow-2xs"><span>✕</span> <span>Rifiutato</span></span>`
+                : `<span class="text-[10px] font-medium text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-300 flex items-center gap-1"><span>⏳</span> <span>In attesa</span></span>`
+          );
+
+          const p2StatusBadge = !hasDateTime ? '' : (
+            p2Acc === 'accepted'
+              ? `<span class="text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md border border-emerald-300 flex items-center gap-1 shadow-2xs"><span>✓</span> <span>Accettato</span></span>`
+              : p2Acc === 'rejected'
+                ? `<span class="text-[10px] font-bold text-rose-800 bg-rose-100/90 px-2 py-0.5 rounded-md border border-rose-300 flex items-center gap-1 shadow-2xs"><span>✕</span> <span>Rifiutato</span></span>`
+                : `<span class="text-[10px] font-medium text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-300 flex items-center gap-1"><span>⏳</span> <span>In attesa</span></span>`
+          );
+
           return `
-            <div class="bg-white rounded-2xl border ${hasDateTime ? 'border-gray-200' : 'border-dashed border-gray-300'} shadow-sm hover:shadow-md transition overflow-hidden flex flex-col justify-between">
+            <div class="bg-white rounded-2xl border ${hasDateTime ? (isBothAccepted ? 'border-emerald-300 ring-1 ring-emerald-100' : isAnyRejected ? 'border-rose-300 ring-1 ring-rose-100' : 'border-gray-200') : 'border-dashed border-gray-300'} shadow-sm hover:shadow-md transition overflow-hidden flex flex-col justify-between">
               
               <!-- Barra Superiore Incontro -->
-              <div class="p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/60">
+              <div class="p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/70">
                 <div class="flex items-center gap-2 flex-wrap">
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${phaseColor}">
                     ${item.phase}
@@ -2885,24 +3049,7 @@ class App {
                 </div>
 
                 <div>
-                  ${isLive ? `
-                    <span class="inline-flex items-center gap-1 bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                      <span class="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse"></span>
-                      <span>Live in corso</span>
-                    </span>
-                  ` : isCompleted ? `
-                    <span class="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                      Completato
-                    </span>
-                  ` : hasDateTime ? `
-                    <span class="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
-                      In programma
-                    </span>
-                  ` : `
-                    <span class="bg-gray-100 text-gray-500 text-[10px] font-medium px-2 py-0.5 rounded-full">
-                      Da fissare
-                    </span>
-                  `}
+                  ${scheduleStatusBadge}
                 </div>
               </div>
 
@@ -2910,16 +3057,23 @@ class App {
               <div class="p-4 sm:p-5 flex-grow space-y-3">
                 
                 <!-- Box Data & Orario -->
-                <div class="flex items-center gap-2.5 p-2.5 rounded-xl ${hasDateTime ? 'bg-blue-50/70 border border-blue-200' : 'bg-amber-50/50 border border-amber-200/60'}">
-                  <div class="w-7 h-7 rounded-lg ${hasDateTime ? 'bg-blue-600 text-white' : 'bg-amber-100 text-amber-800'} flex items-center justify-center flex-shrink-0">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
+                <div class="flex items-center gap-2.5 p-3 rounded-xl ${hasDateTime ? (isBothAccepted ? 'bg-emerald-50/80 border border-emerald-200' : isAnyRejected ? 'bg-rose-50/80 border border-rose-200' : 'bg-blue-50/70 border border-blue-200') : 'bg-amber-50/50 border border-amber-200/60'}">
+                  <div class="w-8 h-8 rounded-lg ${hasDateTime ? (isBothAccepted ? 'bg-emerald-600 text-white' : isAnyRejected ? 'bg-rose-600 text-white' : 'bg-blue-600 text-white') : 'bg-amber-100 text-amber-800'} flex items-center justify-center flex-shrink-0 font-bold text-sm shadow-xs">
+                    ${hasDateTime ? (isBothAccepted ? '✓' : isAnyRejected ? '✕' : '📅') : '⏳'}
                   </div>
                   <div class="text-xs">
                     ${hasDateTime ? `
-                      <span class="font-bold text-blue-950">${this.formatScheduleDateTime(m.dateTime)}</span>
-                      <span class="text-blue-700 text-[11px] block">Durata: 1 ora fino alla campana</span>
+                      <span class="font-black text-gray-900 text-xs sm:text-sm block">${this.formatScheduleDateTime(m.dateTime)}</span>
+                      <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span class="text-gray-500 text-[11px]">Durata: 1 ora fino alla campana</span>
+                        ${isBothAccepted ? `
+                          <span class="text-[11px] font-extrabold text-emerald-700">• Orario accettato da entrambi</span>
+                        ` : isAnyRejected ? `
+                          <span class="text-[11px] font-extrabold text-rose-700">• Orario rifiutato da un atleta</span>
+                        ` : `
+                          <span class="text-[11px] font-semibold text-amber-800">• Proposto dall'admin • In attesa di risposta (${acceptedCount}/2)</span>
+                        `}
+                      </div>
                     ` : `
                       <span class="font-semibold text-amber-900 italic">Data e ora non ancora fissate</span>
                       <span class="text-amber-700 text-[11px] block">In attesa di programmazione da parte dell'admin</span>
@@ -2927,12 +3081,12 @@ class App {
                   </div>
                 </div>
 
-                <!-- Atleti a Confronto -->
-                <div class="space-y-1.5 pt-1">
+                <!-- Atleti a Confronto con Stato Accettazione -->
+                <div class="space-y-2 pt-1">
                   <!-- Giocatore 1 -->
-                  <div class="flex items-center justify-between p-2 rounded-lg ${m.winnerId && m.winnerId === m.player1Id ? 'bg-blue-50/90 font-bold border border-blue-200' : 'bg-gray-50'}">
+                  <div class="flex items-center justify-between p-2.5 rounded-xl ${m.winnerId && m.winnerId === m.player1Id ? 'bg-blue-50/90 font-bold border border-blue-200' : 'bg-gray-50'} border border-gray-100">
                     <div class="flex items-center gap-2 truncate">
-                      <span class="text-xs font-bold ${m.winnerId && m.winnerId === m.player1Id ? 'text-blue-950' : 'text-gray-800'} truncate">
+                      <span class="text-xs font-bold ${m.winnerId && m.winnerId === m.player1Id ? 'text-blue-950' : 'text-gray-900'} truncate">
                         ${p1 ? p1.name : (m.player1Id ? m.player1Id : 'In attesa')}
                       </span>
                       ${p1 && p1.ranking ? `
@@ -2940,20 +3094,25 @@ class App {
                           ${p1.ranking}
                         </span>
                       ` : ''}
+                      ${isMeP1 ? `<span class="text-[10px] bg-blue-600 text-white font-black px-1.5 py-0.2 rounded">TU</span>` : ''}
                     </div>
-                    ${m.games1 !== null && m.games1 !== undefined ? `
-                      <span class="font-mono text-xs font-black text-blue-900 bg-white px-2 py-0.5 rounded border">
-                        ${m.games1}
-                      </span>
-                    ` : (isCompleted && m.scores ? `
-                      <span class="font-mono text-xs font-bold text-blue-900">${m.scores}</span>
-                    ` : '')}
+
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                      ${p1StatusBadge}
+                      ${m.games1 !== null && m.games1 !== undefined ? `
+                        <span class="font-mono text-xs font-black text-blue-900 bg-white px-2 py-0.5 rounded border">
+                          ${m.games1}
+                        </span>
+                      ` : (isCompleted && m.scores ? `
+                        <span class="font-mono text-xs font-bold text-blue-900">${m.scores}</span>
+                      ` : '')}
+                    </div>
                   </div>
 
                   <!-- Giocatore 2 -->
-                  <div class="flex items-center justify-between p-2 rounded-lg ${m.winnerId && m.winnerId === m.player2Id ? 'bg-blue-50/90 font-bold border border-blue-200' : 'bg-gray-50'}">
+                  <div class="flex items-center justify-between p-2.5 rounded-xl ${m.winnerId && m.winnerId === m.player2Id ? 'bg-blue-50/90 font-bold border border-blue-200' : 'bg-gray-50'} border border-gray-100">
                     <div class="flex items-center gap-2 truncate">
-                      <span class="text-xs font-bold ${m.winnerId && m.winnerId === m.player2Id ? 'text-blue-950' : 'text-gray-800'} truncate">
+                      <span class="text-xs font-bold ${m.winnerId && m.winnerId === m.player2Id ? 'text-blue-950' : 'text-gray-900'} truncate">
                         ${p2 ? p2.name : (m.player2Id ? m.player2Id : 'In attesa')}
                       </span>
                       ${p2 && p2.ranking ? `
@@ -2961,27 +3120,72 @@ class App {
                           ${p2.ranking}
                         </span>
                       ` : ''}
+                      ${isMeP2 ? `<span class="text-[10px] bg-blue-600 text-white font-black px-1.5 py-0.2 rounded">TU</span>` : ''}
                     </div>
-                    ${m.games2 !== null && m.games2 !== undefined ? `
-                      <span class="font-mono text-xs font-black text-blue-900 bg-white px-2 py-0.5 rounded border">
-                        ${m.games2}
-                      </span>
-                    ` : ''}
+
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                      ${p2StatusBadge}
+                      ${m.games2 !== null && m.games2 !== undefined ? `
+                        <span class="font-mono text-xs font-black text-blue-900 bg-white px-2 py-0.5 rounded border">
+                          ${m.games2}
+                        </span>
+                      ` : ''}
+                    </div>
                   </div>
                 </div>
+
+                <!-- Box Azione Accetta / Rifiuta per l'Atleta Coinvolto -->
+                ${isMyMatch && hasDateTime && !isCompleted ? `
+                  <div class="mt-2 p-3 rounded-xl border ${myAcc === 'accepted' ? 'bg-emerald-50/90 border-emerald-300' : myAcc === 'rejected' ? 'bg-rose-50/90 border-rose-300' : 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-300'} space-y-2">
+                    <div class="flex items-center justify-between text-xs">
+                      <span class="font-extrabold ${myAcc === 'accepted' ? 'text-emerald-950' : myAcc === 'rejected' ? 'text-rose-950' : 'text-amber-950'}">
+                        ${myAcc === 'accepted' ? '✓ Hai confermato questo orario' : myAcc === 'rejected' ? '✕ Hai rifiutato questo orario' : '👉 Conferma la tua presenza per questo orario:'}
+                      </span>
+                      <span class="text-[10px] font-black uppercase tracking-wider text-gray-500">Tua Risposta</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                      <button onclick="app.respondMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}', '${myRole}', 'accepted')"
+                              class="py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm ${myAcc === 'accepted' ? 'bg-emerald-600 text-white ring-2 ring-emerald-400' : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300'}">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        <span>${myAcc === 'accepted' ? 'Orario Accettato' : 'Accetta Orario'}</span>
+                      </button>
+                      <button onclick="app.respondMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}', '${myRole}', 'rejected')"
+                              class="py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm ${myAcc === 'rejected' ? 'bg-rose-600 text-white ring-2 ring-rose-400' : 'bg-white hover:bg-rose-50 text-rose-700 border border-rose-300'}">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        <span>${myAcc === 'rejected' ? 'Orario Rifiutato' : 'Rifiuta Orario'}</span>
+                      </button>
+                    </div>
+                  </div>
+                ` : (!this.user || this.user.email === 'ospite@torneo.it') && hasDateTime && !isCompleted ? `
+                  <div class="text-[11px] text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100 flex items-center justify-between">
+                    <span>Sei uno dei due giocatori?</span>
+                    <button onclick="app.openLoginModal('login')" class="text-blue-600 font-bold hover:underline">Accedi per confermare</button>
+                  </div>
+                ` : ''}
 
               </div>
 
               <!-- Footer con Azioni Admin -->
               ${this.isAdmin ? `
-                <div class="p-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                  <span class="text-[11px] text-gray-400">ID: ${m.id}</span>
-                  <button onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                    </svg>
-                    <span>Imposta Data, Ora & Campo</span>
-                  </button>
+                <div class="p-3 bg-gray-50 border-t border-gray-100 space-y-2">
+                  ${isAnyRejected ? `
+                    <div class="text-[11px] font-bold text-rose-800 bg-rose-50 p-2 rounded-lg border border-rose-200 flex items-center gap-1.5">
+                      <svg class="w-4 h-4 text-rose-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                      </svg>
+                      <span>L'orario è stato rifiutato. Proponi una nuova data e ora agli atleti.</span>
+                    </div>
+                  ` : ''}
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] text-gray-400">ID: ${m.id}</span>
+                    <button onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                      </svg>
+                      <span>${hasDateTime ? 'Modifica Data, Ora & Conferme' : 'Imposta Data, Ora & Campo'}</span>
+                    </button>
+                  </div>
                 </div>
               ` : ''}
 
@@ -3069,6 +3273,17 @@ class App {
     document.getElementById("schedule-match-p1-name").textContent = p1 ? p1.name : "In attesa";
     document.getElementById("schedule-match-p2-name").textContent = p2 ? p2.name : "In attesa";
 
+    // Etichette atleti per le conferme
+    const p1Label = document.getElementById("schedule-modal-p1-label");
+    if (p1Label) p1Label.textContent = p1 ? p1.name : "Atleta 1";
+    const p2Label = document.getElementById("schedule-modal-p2-label");
+    if (p2Label) p2Label.textContent = p2 ? p2.name : "Atleta 2";
+
+    const p1Acc = document.getElementById("schedule-match-p1-acceptance");
+    if (p1Acc) p1Acc.value = targetMatch.p1Acceptance || "pending";
+    const p2Acc = document.getElementById("schedule-match-p2-acceptance");
+    if (p2Acc) p2Acc.value = targetMatch.p2Acceptance || "pending";
+
     document.getElementById("schedule-match-datetime").value = targetMatch.dateTime || "";
     document.getElementById("schedule-match-court").value = targetMatch.court || "Campo 0 (Terra)";
     document.getElementById("schedule-match-status").value = targetMatch.status || "in_programma";
@@ -3087,25 +3302,59 @@ class App {
     const court = document.getElementById("schedule-match-court").value;
     const status = document.getElementById("schedule-match-status").value;
 
+    const p1Acceptance = document.getElementById("schedule-match-p1-acceptance")?.value || "pending";
+    const p2Acceptance = document.getElementById("schedule-match-p2-acceptance")?.value || "pending";
+
+    const updatePayload = {
+      dateTime,
+      court,
+      status,
+      p1Acceptance: dateTime ? p1Acceptance : null,
+      p2Acceptance: dateTime ? p2Acceptance : null
+    };
+
     if (type === "group") {
       this.tournamentManager.ensureGroups(category);
-      this.tournamentManager.updateGroupMatch(groupKeyOrRound, matchId, {
-        dateTime,
-        court,
-        status
-      }, category);
+      this.tournamentManager.updateGroupMatch(groupKeyOrRound, matchId, updatePayload, category);
     } else if (type === "bracket") {
-      this.tournamentManager.updateBracketMatch(matchId, {
-        dateTime,
-        court,
-        status
-      }, category);
+      this.tournamentManager.updateBracketMatch(matchId, updatePayload, category);
     }
 
     this.saveState();
     this.closeModal("modal-schedule-match");
     this.render();
-    this.showToast("Data, ora e campo impostati con successo!", "success");
+    this.showToast("Data, orario e campo programmati con successo!", "success");
+  }
+
+  respondMatchSchedule(type, groupKeyOrRound, matchId, category, role, response) {
+    if (!this.user || this.user.email === "ospite@torneo.it") {
+      this.showToast("Effettua l'accesso con il tuo account per confermare o rifiutare l'orario.", "warning");
+      this.openLoginModal("login");
+      return;
+    }
+
+    const updatePayload = {};
+    if (role === "p1") updatePayload.p1Acceptance = response;
+    if (role === "p2") updatePayload.p2Acceptance = response;
+
+    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "U12");
+
+    if (type === "group") {
+      this.tournamentManager.ensureGroups(cat);
+      this.tournamentManager.updateGroupMatch(groupKeyOrRound, matchId, updatePayload, cat);
+    } else if (type === "bracket") {
+      this.tournamentManager.ensureBrackets(cat);
+      this.tournamentManager.updateBracketMatch(matchId, updatePayload, cat);
+    }
+
+    this.saveState();
+    this.render();
+
+    if (response === "accepted") {
+      this.showToast("Disponibilità per l'orario CONFERMATA! 👍", "success");
+    } else {
+      this.showToast("Orario RIFIUTATO. L'organizzatore Luca Barcello proporrà una nuova data/ora.", "info");
+    }
   }
 
   // ==========================================

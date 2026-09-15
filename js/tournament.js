@@ -246,6 +246,8 @@ class TournamentManager {
         winnerId: winnerId,
         court: (i / 2) % 2 === 0 ? "Campo 0 (Terra)" : "Campo 1 (Terra)",
         dateTime: "",
+        p1Acceptance: null,
+        p2Acceptance: null,
         status: status
       });
     }
@@ -277,6 +279,8 @@ class TournamentManager {
           winnerId: null,
           court: "Campo 0 (Terra)",
           dateTime: "",
+          p1Acceptance: null,
+          p2Acceptance: null,
           status: "in_programma"
         });
       }
@@ -331,6 +335,8 @@ class TournamentManager {
       if (updateData.court !== undefined) targetMatch.court = updateData.court;
       if (updateData.dateTime !== undefined) targetMatch.dateTime = updateData.dateTime;
       if (updateData.status !== undefined) targetMatch.status = updateData.status;
+      if (updateData.p1Acceptance !== undefined) targetMatch.p1Acceptance = updateData.p1Acceptance;
+      if (updateData.p2Acceptance !== undefined) targetMatch.p2Acceptance = updateData.p2Acceptance;
 
       // Avanzamento al round successivo
       if (roundIndex < bracket.rounds.length - 1) {
@@ -472,6 +478,8 @@ class TournamentManager {
             isDraw: false,
             court: groupKey === "sinner" ? "Campo 0 (Terra)" : "Campo 1 (Terra)",
             dateTime: "",
+            p1Acceptance: null,
+            p2Acceptance: null,
             status: "in_programma"
           });
         }
@@ -498,6 +506,8 @@ class TournamentManager {
 
       if (matchData.court !== undefined) match.court = matchData.court;
       if (matchData.dateTime !== undefined) match.dateTime = matchData.dateTime;
+      if (matchData.p1Acceptance !== undefined) match.p1Acceptance = matchData.p1Acceptance;
+      if (matchData.p2Acceptance !== undefined) match.p2Acceptance = matchData.p2Acceptance;
 
       const g1 = matchData.games1 !== undefined && matchData.games1 !== null && matchData.games1 !== "" ? parseInt(matchData.games1, 10) : null;
       const g2 = matchData.games2 !== undefined && matchData.games2 !== null && matchData.games2 !== "" ? parseInt(matchData.games2, 10) : null;

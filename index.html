@@ -111,6 +111,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
           </svg>
           <span>Calendario</span>
+          <span id="schedule-nav-badge" class="hidden ml-1 px-1.5 py-0.5 bg-amber-400 text-blue-950 font-black text-[10px] rounded-full shadow-sm animate-pulse"></span>
         </button>
 
         <!-- Tab 4: Tabellone Finale -->
@@ -992,6 +993,41 @@
             <option value="in_corso">In corso (Live)</option>
             <option value="completato">Completato</option>
           </select>
+        </div>
+
+        <!-- Box Conferma Orario da parte degli Atleti -->
+        <div class="bg-blue-50/60 p-3.5 rounded-xl border border-blue-200/80 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-extrabold text-blue-950 flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              Conferma Orario Atleti
+            </span>
+            <span class="text-[10px] text-blue-800 font-semibold bg-blue-100/80 px-2 py-0.5 rounded">Entrambi devono accettare</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <label id="schedule-modal-p1-label" class="block text-[11px] font-bold text-gray-700 truncate mb-1">Atleta 1</label>
+              <select id="schedule-match-p1-acceptance" class="w-full text-xs px-2.5 py-2 border rounded-lg bg-white font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <option value="pending">⏳ In attesa di risposta</option>
+                <option value="accepted">✅ Ha accettato l'orario</option>
+                <option value="rejected">❌ Ha rifiutato l'orario</option>
+              </select>
+            </div>
+            <div>
+              <label id="schedule-modal-p2-label" class="block text-[11px] font-bold text-gray-700 truncate mb-1">Atleta 2</label>
+              <select id="schedule-match-p2-acceptance" class="w-full text-xs px-2.5 py-2 border rounded-lg bg-white font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <option value="pending">⏳ In attesa di risposta</option>
+                <option value="accepted">✅ Ha accettato l'orario</option>
+                <option value="rejected">❌ Ha rifiutato l'orario</option>
+              </select>
+            </div>
+          </div>
+          <p class="text-[10.5px] text-gray-500 leading-tight">
+            Gli atleti possono confermare o rifiutare direttamente dal loro account nel Calendario. Come admin puoi anche registrare manualmente la loro risposta qui.
+          </p>
         </div>
 
         <div class="flex gap-2 pt-2 border-t">
