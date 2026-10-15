@@ -1359,8 +1359,8 @@ class App {
   switchTab(tab) {
     this.currentTab = tab;
 
-    // Se si naviga in Gironi o Tabellone e la categoria attiva è "all", imposta Pre Agonistica U12 di default
-    if ((tab === "groups" || tab === "bracket") && this.selectedCategory === "all") {
+    // Se si naviga in Gironi e la categoria attiva è "all", imposta Pre Agonistica U12 di default
+    if (tab === "groups" && this.selectedCategory === "all") {
       this.selectedCategory = "Pre Agonistica U12";
     }
 
@@ -1417,14 +1417,19 @@ class App {
       counts[c] = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === c).length;
     });
 
-    // In Gironi e Tabellone, "all" o "Da Assegnare" non ha senso
-    if ((this.currentTab === "groups" || this.currentTab === "bracket") && (this.selectedCategory === "all" || this.selectedCategory === "Da Assegnare")) {
+    // In Gironi "all" non è ammesso, ma in Tabellone "all" permette di visualizzare tutti i tabelloni divisi per categoria
+    if (this.currentTab === "groups" && (this.selectedCategory === "all" || this.selectedCategory === "Da Assegnare")) {
       this.selectedCategory = "Pre Agonistica U12";
+    } else if (this.currentTab === "bracket" && this.selectedCategory === "Da Assegnare") {
+      this.selectedCategory = "all";
     }
 
     let html = "";
     cats.forEach(c => {
-      if ((this.currentTab === "groups" || this.currentTab === "bracket") && (c.id === "all" || c.id === "Da Assegnare")) {
+      if (this.currentTab === "groups" && (c.id === "all" || c.id === "Da Assegnare")) {
+        return;
+      }
+      if (this.currentTab === "bracket" && c.id === "Da Assegnare") {
         return;
       }
 
@@ -1488,7 +1493,7 @@ class App {
         type: "sat",
         durationText: "1 ora (60 min)",
         shortDuration: "1h",
-        formula: "1 ora a tempo fino alla campana",
+        formula: "1 ora suono della campana",
         summary: "Partite da 1 ora continua fino al suono della campana",
         badgeColor: "bg-sky-100 text-sky-900 border-sky-300"
       };
@@ -1849,6 +1854,13 @@ class App {
     document.getElementById("group-match-group-key").value = groupKey;
     document.getElementById("group-match-id").value = matchId;
     document.getElementById("group-match-header-label").textContent = group.name;
+
+    const matchCat = match.category || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
+    const formatInfo = this.getCategoryFormatInfo(matchCat);
+    const subtitleEl = document.getElementById("group-match-formula-subtitle");
+    if (subtitleEl) {
+      subtitleEl.textContent = formatInfo.summary;
+    }
 
     document.getElementById("group-match-p1-name").textContent = p1 ? p1.name : "Atleta 1";
     document.getElementById("group-match-p2-name").textContent = p2 ? p2.name : "Atleta 2";
@@ -3638,116 +3650,165 @@ class App {
     const container = document.getElementById("bracket-container");
     if (!container) return;
 
-    if (this.selectedCategory === "all") {
-      this.selectedCategory = "Pre Agonistica U12";
-    }
-    const cat = this.selectedCategory;
-
     this.tournamentManager.ensureCategories();
-    this.tournamentManager.ensureBrackets(cat);
+    const categories = TournamentManager.CATEGORIES; // ["Pre Agonistica U12", "Pre Agonistica", "SAT U14", "SAT"]
+    const currentCat = this.selectedCategory || "all";
 
-    const bracket = this.state.categoryBrackets?.[cat] || (cat === "Pre Agonistica U12" ? this.state.bracket : null);
-    const categoryPlayers = this.tournamentManager.getPlayersByCategory(cat);
+    // Calcolo statistiche per ciascuna categoria
+    const stats = {};
+    categories.forEach(cat => {
+      this.tournamentManager.ensureBrackets(cat);
+      const players = this.tournamentManager.getPlayersByCategory(cat);
+      const bracket = this.state.categoryBrackets?.[cat] || (cat === "Pre Agonistica U12" ? this.state.bracket : null);
+      const isGenerated = !!(bracket && bracket.rounds && bracket.rounds.length > 0);
+      stats[cat] = {
+        playersCount: players.length,
+        isGenerated,
+        bracket
+      };
+    });
 
-    let html = "";
-
-    // Se il tabellone non è ancora generato per questa categoria
-    if (!bracket || !bracket.rounds || bracket.rounds.length === 0) {
-      html += `
-        <div class="space-y-6">
-          <!-- Banner Categoria -->
-          <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 rounded-2xl p-5 sm:p-6 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div>
-              <div class="flex items-center gap-2 mb-1">
-                <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
-                <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Tabellone Finale • Categoria ${cat}</span>
-              </div>
-              <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Tabellone Eliminazione Diretta (${cat})</h2>
-              <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
-                Visualizzazione del tabellone a eliminazione diretta per la categoria <strong>${cat}</strong>.
-              </p>
+    let html = `
+      <div class="space-y-6">
+        <!-- Barra di Navigazione Rapida Categorie Tabellone -->
+        <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
+              <span class="text-xs font-black uppercase tracking-wider text-blue-950">Tabelloni Finali • Divisione per Categoria</span>
             </div>
+            <p class="text-xs text-gray-500 mt-0.5">
+              Visualizza tutti i tabelloni del torneo o naviga tra le singole categorie.
+            </p>
           </div>
 
-          <div class="text-center py-16 bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
-            <div class="w-14 h-14 bg-blue-50 border border-blue-200 text-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-              </svg>
-            </div>
-            <h3 class="text-lg font-bold text-gray-800 mb-1">Tabellone Finale (${cat}) non ancora composto</h3>
-            
-            <div class="max-w-md mx-auto mb-6">
-              <p class="text-sm text-gray-500 mb-2">
-                ${categoryPlayers.length === 0
-                  ? `Nessun atleta è ancora registrato nella categoria ${cat}. Aggiungi gli iscritti prima di generare il tabellone.`
-                  : `Al momento ci sono <strong>${categoryPlayers.length}</strong> atleti registrati nella categoria <strong>${cat}</strong>.`}
-              </p>
-              ${categoryPlayers.length === 1 ? `
-                <p class="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
-                  Servono almeno 2 iscritti nella categoria ${cat} per poter comporre gli incontri a eliminazione diretta.
-                </p>
-              ` : ''}
-            </div>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <button onclick="app.setCategory('all')" 
+                    class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${currentCat === 'all' ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400/50' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}">
+              <span>Tutti i Tabelloni</span>
+            </button>
+            ${categories.map(cat => {
+              const isActive = currentCat === cat;
+              const catStat = stats[cat];
+              return `
+                <button onclick="app.setCategory('${cat}')" 
+                        class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${isActive ? 'bg-yellow-400 text-blue-950 shadow-sm ring-2 ring-yellow-400/50' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}">
+                  <span>${cat}</span>
+                  <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold ${isActive ? 'bg-blue-950 text-yellow-300' : 'bg-gray-200 text-gray-700'}">${catStat.playersCount}</span>
+                  ${catStat.isGenerated 
+                    ? `<span class="w-2 h-2 rounded-full bg-emerald-500 shadow-xs" title="Tabellone attivo"></span>` 
+                    : `<span class="w-2 h-2 rounded-full bg-gray-300" title="Tabellone da comporre"></span>`}
+                </button>
+              `;
+            }).join("")}
+          </div>
+        </div>
+    `;
 
-            <div class="flex flex-wrap justify-center gap-3">
-              ${this.isAdmin ? `
+    if (currentCat === "all") {
+      // Mostra tutte le 4 categorie divise ordinatamente
+      categories.forEach(cat => {
+        html += this.renderCategoryBracketBlock(cat, stats[cat]);
+      });
+    } else {
+      // Mostra la singola categoria selezionata
+      html += this.renderCategoryBracketBlock(currentCat, stats[currentCat]);
+    }
+
+    html += `</div>`;
+    container.innerHTML = html;
+  }
+
+  renderCategoryBracketBlock(cat, stat) {
+    const bracket = stat ? stat.bracket : (this.state.categoryBrackets?.[cat] || (cat === "Pre Agonistica U12" ? this.state.bracket : null));
+    const categoryPlayers = this.tournamentManager.getPlayersByCategory(cat);
+    const formatInfo = this.getCategoryFormatInfo(cat);
+    const isGenerated = bracket && bracket.rounds && bracket.rounds.length > 0;
+
+    let html = `
+      <div class="space-y-4 bg-gray-50/60 p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs">
+        <!-- Banner Intestazione Categoria -->
+        <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 rounded-2xl p-5 sm:p-6 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1 flex-wrap">
+              <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
+              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Tabellone Finale • Categoria ${cat}</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-md font-bold bg-white/20 text-yellow-200">${formatInfo.shortDuration} • ${formatInfo.formula}</span>
+            </div>
+            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Tabellone Eliminazione Diretta (${cat})</h2>
+            <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
+              Formula: <strong>${formatInfo.durationText}</strong> (${formatInfo.formula}). Progressioni e risultati per <strong>${cat}</strong> (${categoryPlayers.length} iscritti).
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2 flex-wrap w-full md:w-auto">
+            ${isGenerated ? `
+              <button onclick="window.print()" title="Stampa Tabellone Finale per Bacheca Circolo" class="w-full sm:w-auto bg-white/15 hover:bg-white/25 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-white/30 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm">
+                <svg class="w-4 h-4 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                </svg>
+                <span>Stampa (${cat})</span>
+              </button>
+            ` : ''}
+
+            ${this.isAdmin ? `
+              ${isGenerated ? `
+                <button onclick="app.handleGenerateBracket('${cat}')" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition cursor-pointer">
+                  Rigenera Tabellone (${cat})
+                </button>
+                <button onclick="app.handleResetBracket('${cat}')" class="w-full sm:w-auto bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium text-xs px-3 py-2.5 rounded-xl border border-rose-200 transition cursor-pointer">
+                  Azzera (${cat})
+                </button>
+              ` : `
                 ${categoryPlayers.length >= 2 ? `
-                  <button onclick="app.handleGenerateBracket('${cat}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
-                    Genera Tabellone Finale ${cat} (${categoryPlayers.length} Partecipanti)
+                  <button onclick="app.handleGenerateBracket('${cat}')" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-4 py-2.5 rounded-xl shadow transition cursor-pointer">
+                    + Genera Tabellone ${cat} (${categoryPlayers.length} Atleti)
                   </button>
                 ` : `
-                  <button onclick="app.switchTab('players')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
+                  <button onclick="app.switchTab('players')" class="bg-white/20 hover:bg-white/30 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-white/30 transition cursor-pointer">
                     Vai a Iscritti per Aggiungere Giocatori
                   </button>
                 `}
-              ` : `
-                <p class="text-xs text-gray-500 italic">
-                  Il tabellone ufficiale delle partite verrà pubblicato dall'amministrazione del torneo.
-                </p>
               `}
-            </div>
+            ` : ''}
           </div>
         </div>
-      `;
-      container.innerHTML = html;
-      return;
-    }
+    `;
 
-    // Barra Intestazione Tabellone con Tasto Stampa e Switcher Categorie
-    html += `
-      <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 rounded-2xl p-5 sm:p-6 mb-5 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div class="flex items-center gap-2 mb-1">
-            <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
-            <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Tabellone Ufficiale • Categoria ${cat}</span>
-          </div>
-          <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Tabellone Finale ad Eliminazione Diretta (${cat})</h2>
-          <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">Incontri ufficiali, risultati e progressione del torneo per la categoria <strong>${cat}</strong>.</p>
-          
-        </div>
-        <div class="flex items-center gap-2 flex-wrap w-full md:w-auto">
-          <button onclick="window.print()" title="Stampa Tabellone Finale per Bacheca Circolo" class="w-full sm:w-auto bg-white/15 hover:bg-white/25 text-white font-semibold text-xs px-4 py-2.5 rounded-xl border border-white/30 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm">
-            <svg class="w-4 h-4 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+    // Se non generato per questa categoria
+    if (!isGenerated) {
+      html += `
+        <div class="text-center py-12 bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+          <div class="w-12 h-12 bg-blue-50 border border-blue-200 text-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-3">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
             </svg>
-            <span>Stampa Tabellone (${cat})</span>
-          </button>
-          ${this.isAdmin ? `
-            <button onclick="app.handleGenerateBracket('${cat}')" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition cursor-pointer">
-              Rigenera Tabellone (${cat})
-            </button>
-            <button onclick="app.handleResetBracket('${cat}')" class="w-full sm:w-auto bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium text-xs px-3.5 py-2.5 rounded-xl border border-rose-200 transition cursor-pointer">
-              Azzera (${cat})
-            </button>
+          </div>
+          <h3 class="text-base font-bold text-gray-800 mb-1">Tabellone Finale (${cat}) non ancora composto</h3>
+          <div class="max-w-md mx-auto mb-4">
+            <p class="text-xs text-gray-500 mb-2">
+              ${categoryPlayers.length === 0
+                ? `Nessun atleta è ancora registrato nella categoria <strong>${cat}</strong>. Aggiungi gli iscritti prima di generare il tabellone.`
+                : `Al momento ci sono <strong>${categoryPlayers.length}</strong> atleti registrati nella categoria <strong>${cat}</strong>.`}
+            </p>
+            ${categoryPlayers.length === 1 ? `
+              <p class="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                Servono almeno 2 iscritti nella categoria ${cat} per poter comporre gli incontri a eliminazione diretta.
+              </p>
+            ` : ''}
+          </div>
+          ${!this.isAdmin ? `
+            <p class="text-xs text-gray-500 italic">Il tabellone ufficiale delle partite verrà pubblicato dall'amministrazione del torneo.</p>
           ` : ''}
         </div>
       </div>
-    `;
+      `;
+      return html;
+    }
 
-    // Render visivo ad albero
+    // Se generato: albero del tabellone
     html += `
-      <div class="overflow-x-auto pb-6">
+      <div class="overflow-x-auto pb-4">
         <div class="bracket-tree flex gap-8 items-stretch min-w-max px-2 py-4">
     `;
 
@@ -3835,9 +3896,10 @@ class App {
     html += `
         </div>
       </div>
+    </div>
     `;
 
-    container.innerHTML = html;
+    return html;
   }
 
   handleGenerateBracket(category = null) {
@@ -3890,6 +3952,11 @@ class App {
 
     const p1 = this.tournamentManager.getPlayer(targetMatch.player1Id);
     const p2 = this.tournamentManager.getPlayer(targetMatch.player2Id);
+
+    const modalTitle = document.querySelector("#modal-match-score h3");
+    if (modalTitle) {
+      modalTitle.textContent = `Aggiorna Incontro Tabellone (${cat})`;
+    }
 
     document.getElementById("score-p1-name").textContent = p1 ? p1.name : "In attesa";
     document.getElementById("score-p2-name").textContent = p2 ? p2.name : "In attesa";
@@ -3961,43 +4028,16 @@ class App {
             </p>
           </div>
 
-          <!-- SEZIONE CATEGORIE SAT -->
-          <div class="border-2 border-sky-300 bg-sky-50/70 p-5 rounded-2xl space-y-3">
-            <div class="flex items-center justify-between flex-wrap gap-2">
-              <h3 class="font-extrabold text-sky-950 text-base flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full bg-sky-600"></span>
-                <span>Categorie SAT (SAT U14 & SAT)</span>
-              </h3>
-              <span class="text-xs font-extrabold px-2.5 py-1 rounded-lg bg-sky-200 text-sky-900 border border-sky-300">
-                1 Ora • Suono della Campana
-              </span>
-            </div>
-            <div class="text-xs text-sky-950 leading-relaxed space-y-2">
-              <p>
-                <strong>Durata e Formula:</strong> Le partite hanno una durata prefissata di <strong>1 ora (60 minuti)</strong>. Si disputa un <strong>set unico continuo fino al suono della campana</strong>: al termine dell'ora, chi è avanti nel conteggio dei game vince l'incontro.
-              </p>
-              <div class="bg-white/95 p-3.5 rounded-xl border border-sky-200 space-y-2 shadow-xs">
-                <div class="font-bold text-sky-900 flex items-center gap-1.5">
-                  <span>🔔 Regola del Pareggio al Suono della Campana (SAT):</span>
-                </div>
-                <ul class="list-disc list-inside space-y-1.5 text-sky-950 pl-1">
-                  <li><strong>Fase a Gironi (Girone Sinner & Girone Alcaraz):</strong> se al suono della campana il punteggio è in parità (es. 4-4, 5-5), <strong>la partita termina con il pareggio</strong>. A ciascun atleta viene assegnato <strong>1 punto</strong> in classifica (Vittoria: 3 punti, Pareggio: 1 punto, Sconfitta: 0 punti).</li>
-                  <li><strong>Fase Finale a Eliminazione Diretta (Tabellone):</strong> nel tabellone finale non sono ammessi pareggi; se al suono della campana si è in parità, si disputa subito un <strong>rapido tie-break ai 5 punti</strong> per decretare il vincitore che passa al turno successivo.</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
           <!-- SEZIONE CATEGORIE PRE AGONISTICA -->
           <div class="border-2 border-purple-300 bg-purple-50/70 p-5 rounded-2xl space-y-3">
-            <div class="flex items-center justify-between flex-wrap gap-2">
+            <div>
               <h3 class="font-extrabold text-purple-950 text-base flex items-center gap-2">
                 <span class="w-3 h-3 rounded-full bg-purple-600"></span>
-                <span>Categorie Pre Agonistica (Pre Agonistica U12 & Pre Agonistica)</span>
+                <span>Pre Agonistica (Pre Agonistica U12 & Pre Agonistica)</span>
               </h3>
-              <span class="text-xs font-extrabold px-2.5 py-1 rounded-lg bg-purple-200 text-purple-900 border border-purple-300">
-                1 Ora e Mezza (90 min) • Long-Set ai 9
-              </span>
+              <div class="text-xs font-extrabold text-purple-800 mt-1 flex items-center gap-1.5">
+                <span class="bg-purple-200 text-purple-900 px-2.5 py-0.5 rounded-lg border border-purple-300 inline-block">1 ora e mezza (90 min) • Long-Set ai 9</span>
+              </div>
             </div>
             <div class="text-xs text-purple-950 leading-relaxed space-y-2">
               <p>
@@ -4011,6 +4051,33 @@ class App {
                   <li>Se allo scadere del tempo di 1 ora e mezza la partita non si è conclusa a 9 game, <strong>vince chi si trova in vantaggio nel computo dei game</strong>.</li>
                   <li><strong>Fase a Gironi:</strong> se allo scadere del tempo il punteggio è in parità (es. 6-6, 7-7), la partita termina con il <strong>pareggio</strong> (1 punto ciascuno in classifica).</li>
                   <li><strong>Fase Finale (Tabellone):</strong> se allo scadere del tempo il punteggio è in parità, si gioca un <strong>tie-break di spareggio</strong> per decretare il vincitore che accede al turno successivo.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- SEZIONE CATEGORIE SAT -->
+          <div class="border-2 border-sky-300 bg-sky-50/70 p-5 rounded-2xl space-y-3">
+            <div>
+              <h3 class="font-extrabold text-sky-950 text-base flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-sky-600"></span>
+                <span>SAT (SAT U14 & SAT)</span>
+              </h3>
+              <div class="text-xs font-extrabold text-sky-800 mt-1 flex items-center gap-1.5">
+                <span class="bg-sky-200 text-sky-900 px-2.5 py-0.5 rounded-lg border border-sky-300 inline-block">1 ora suono della campana</span>
+              </div>
+            </div>
+            <div class="text-xs text-sky-950 leading-relaxed space-y-2">
+              <p>
+                <strong>Durata e Formula:</strong> Le partite hanno una durata prefissata di <strong>1 ora (60 minuti)</strong>. Si disputa un <strong>set unico continuo fino al suono della campana</strong>: al termine dell'ora, chi è avanti nel conteggio dei game vince l'incontro.
+              </p>
+              <div class="bg-white/95 p-3.5 rounded-xl border border-sky-200 space-y-2 shadow-xs">
+                <div class="font-bold text-sky-900 flex items-center gap-1.5">
+                  <span>🔔 Regola del Pareggio al Suono della Campana (SAT):</span>
+                </div>
+                <ul class="list-disc list-inside space-y-1.5 text-sky-950 pl-1">
+                  <li><strong>Fase a Gironi (Girone Sinner & Girone Alcaraz):</strong> se al suono della campana il punteggio è in parità (es. 4-4, 5-5), <strong>la partita termina con il pareggio</strong>. A ciascun atleta viene assegnato <strong>1 punto</strong> in classifica (Vittoria: 3 punti, Pareggio: 1 punto, Sconfitta: 0 punti).</li>
+                  <li><strong>Fase Finale a Eliminazione Diretta (Tabellone):</strong> nel tabellone finale non sono ammessi pareggi; se al suono della campana si è in parità, si disputa subito un <strong>rapido tie-break ai 5 punti</strong> per decretare il vincitore che passa al turno successivo.</li>
                 </ul>
               </div>
             </div>
@@ -4065,8 +4132,8 @@ class App {
               <div><strong>Categorie:</strong> Pre Agonistica U12, Pre Agonistica, SAT U14, SAT</div>
               <div><strong>Gironi:</strong> Girone Sinner • Girone Alcaraz</div>
               <div><strong>Fase Finale:</strong> Tutti qualificati al Tabellone</div>
-              <div><strong>Formula SAT:</strong> 1 ora continua fino alla campana</div>
               <div><strong>Formula Pre Agonistica:</strong> 1h 30m • Long-Set ai 9</div>
+              <div><strong>Formula SAT:</strong> 1 ora • Suono della campana</div>
               <div><strong>Campi da Gioco:</strong> Campi 0-2 (Terra), 3-4 (Greenset), 5-7 (Terra)</div>
             </div>
           </div>
