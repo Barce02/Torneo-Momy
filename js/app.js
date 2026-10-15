@@ -6,8 +6,21 @@ const ACCOUNTS_KEY = "torneo_momy_accounts_v7";
 const DATA_KEY = "torneo_momy_store_v7";
 const LAST_EMAIL_KEY = "torneo_momy_last_email_v7";
 
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCz0k_RAHKUlixi-DTvB0ROt5zbB0EIThs",
+  authDomain: "torneo-momy.firebaseapp.com",
+  databaseURL: "https://torneo-momy-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "torneo-momy",
+  storageBucket: "torneo-momy.firebasestorage.app",
+  messagingSenderId: "644726025570",
+  appId: "1:644726025570:web:81d60a7924289950afd03b",
+  measurementId: "G-Y8XYP8RE4C"
+};
+
 class App {
   constructor() {
+    this.db = null;
+    this.isRemoteUpdate = false;
     this.accounts = this.loadAccounts();
     this.user = this.loadUser();
     this.state = this.loadState();
@@ -58,6 +71,7 @@ class App {
     try {
       localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
       this.accounts = accounts;
+      this.pushAccountsToFirebase(accounts);
     } catch (e) {
       console.error("Errore salvataggio accounts", e);
     }
@@ -150,6 +164,9 @@ class App {
     } catch (e) {
       console.error("Errore salvataggio dati", e);
     }
+    if (!this.isRemoteUpdate) {
+      this.pushStateToFirebase(this.state);
+    }
     this.render();
   }
 
@@ -209,7 +226,168 @@ class App {
     }
   }
 
+  // ==========================================
+  // SINCRONIZZAZIONE CLOUD FIREBASE REALTIME
+  // ==========================================
+
+  encodeEmailKey(email) {
+    return (email || "").toLowerCase().trim().replace(/[.#$\[\]/]/g, '_');
+  }
+
+  updateSyncStatus(status, text) {
+    const dot = document.getElementById("cloud-sync-dot");
+    const label = document.getElementById("cloud-sync-text");
+    const badge = document.getElementById("cloud-sync-badge");
+    if (!dot || !label) return;
+
+    label.textContent = text;
+    dot.className = "w-2.5 h-2.5 rounded-full";
+
+    if (status === "online") {
+      dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50";
+      if (badge) {
+        badge.className = "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-emerald-950/70 text-emerald-300 border border-emerald-500/40 shadow-sm";
+        badge.title = "Cloud sincronizzato in tempo reale con Firebase";
+        badge.onclick = null;
+      }
+    } else if (status === "connecting" || status === "syncing") {
+      dot.className = "w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse";
+      if (badge) {
+        badge.className = "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-amber-950/70 text-amber-300 border border-amber-500/40 shadow-sm";
+        badge.title = "Connessione a Firebase in corso...";
+        badge.onclick = null;
+      }
+    } else if (status === "error") {
+      dot.className = "w-2.5 h-2.5 rounded-full bg-rose-500";
+      if (badge) {
+        badge.className = "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/40 shadow-sm cursor-pointer";
+        badge.title = "Errore permessi o connessione: Clicca per verificare";
+        badge.onclick = () => {
+          alert(`Stato Sincronizzazione Firebase: ${text}\n\nSe l'errore è 'Permesso negato' (Permission denied), assicurati di aver aggiunto la regola per 'torneo_momy' su Firebase Console -> Realtime Database -> Regole:\n\n"torneo_momy": {\n  ".read": true,\n  ".write": true\n}`);
+        };
+      }
+    }
+  }
+
+  pushAccountsToFirebase(accounts) {
+    if (!this.db || this.isRemoteUpdate) return;
+    try {
+      const sanitized = {};
+      Object.entries(accounts || {}).forEach(([email, acc]) => {
+        if (acc && acc.email) {
+          const key = this.encodeEmailKey(email);
+          sanitized[key] = acc;
+        }
+      });
+      this.db.ref("torneo_momy/accounts").set(sanitized).catch(err => {
+        console.warn("Errore salvataggio account su Firebase:", err);
+        if (err.message && err.message.toLowerCase().includes("permission")) {
+          this.updateSyncStatus("error", "Permesso negato");
+        }
+      });
+    } catch (e) {
+      console.warn("pushAccountsToFirebase exception:", e);
+    }
+  }
+
+  pushStateToFirebase(state) {
+    if (!this.db || this.isRemoteUpdate) return;
+    try {
+      this.db.ref("torneo_momy/state").set(state).catch(err => {
+        console.warn("Errore salvataggio stato torneo su Firebase:", err);
+        if (err.message && err.message.toLowerCase().includes("permission")) {
+          this.updateSyncStatus("error", "Permesso negato");
+        }
+      });
+    } catch (e) {
+      console.warn("pushStateToFirebase exception:", e);
+    }
+  }
+
+  initFirebase() {
+    try {
+      if (typeof firebase === 'undefined') {
+        console.warn("Firebase SDK non caricato");
+        this.updateSyncStatus("error", "SDK non caricato");
+        return;
+      }
+
+      if (!firebase.apps.length) {
+        firebase.initializeApp(FIREBASE_CONFIG);
+      }
+      this.db = firebase.database();
+      this.updateSyncStatus("connecting", "Connessione...");
+
+      let initialAccountsLoaded = false;
+      let initialStateLoaded = false;
+
+      // 1. Sincronizzazione Realtime ACCOUNTS
+      const accountsRef = this.db.ref("torneo_momy/accounts");
+      accountsRef.on("value", (snapshot) => {
+        const val = snapshot.val();
+        if (val) {
+          const cloudAccounts = {};
+          Object.values(val).forEach(acc => {
+            if (acc && acc.email) {
+              cloudAccounts[acc.email.toLowerCase().trim()] = acc;
+            }
+          });
+          // Unisci con i dati locali per sicurezza
+          this.accounts = { ...this.loadAccounts(), ...cloudAccounts };
+          localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(this.accounts));
+          this.syncAccountsToPlayers();
+          this.renderTabContent();
+          this.renderUserBadge();
+        } else if (!initialAccountsLoaded) {
+          // Se Firebase è ancora vuoto, effettua il primo seeding con gli account locali
+          const localAccounts = this.loadAccounts();
+          if (Object.keys(localAccounts).length > 0) {
+            console.log("Seeding account locali nel cloud Firebase...");
+            this.pushAccountsToFirebase(localAccounts);
+          }
+        }
+        initialAccountsLoaded = true;
+        this.updateSyncStatus("online", "Cloud Attivo");
+      }, (error) => {
+        console.error("Errore sincronizzazione Firebase accounts:", error);
+        this.updateSyncStatus("error", error.code === "PERMISSION_DENIED" ? "Permesso negato" : "Disconnesso");
+      });
+
+      // 2. Sincronizzazione Realtime STATO TORNEO (partite, gironi, conferme orari, atleti)
+      const stateRef = this.db.ref("torneo_momy/state");
+      stateRef.on("value", (snapshot) => {
+        const cloudState = snapshot.val();
+        if (cloudState) {
+          this.isRemoteUpdate = true;
+          this.state = cloudState;
+          if (!this.state.players) this.state.players = [];
+          this.tournamentManager.state = this.state;
+          localStorage.setItem(DATA_KEY, JSON.stringify(this.state));
+          this.syncAccountsToPlayers();
+          this.render();
+          this.isRemoteUpdate = false;
+        } else if (!initialStateLoaded) {
+          // Se Firebase è ancora vuoto, effettua il primo seeding con lo stato locale
+          if (this.state && this.state.players && this.state.players.length > 0) {
+            console.log("Seeding stato torneo nel cloud Firebase...");
+            this.pushStateToFirebase(this.state);
+          }
+        }
+        initialStateLoaded = true;
+        this.updateSyncStatus("online", "Cloud Attivo");
+      }, (error) => {
+        console.error("Errore sincronizzazione Firebase state:", error);
+        this.updateSyncStatus("error", error.code === "PERMISSION_DENIED" ? "Permesso negato" : "Disconnesso");
+      });
+
+    } catch (err) {
+      console.error("Errore inizializzazione Firebase:", err);
+      this.updateSyncStatus("error", "Errore Firebase");
+    }
+  }
+
   init() {
+    this.initFirebase();
     this.syncAccountsToPlayers();
     this.bindEvents();
     this.renderUserBadge();

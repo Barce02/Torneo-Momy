@@ -70,7 +70,13 @@
         </div>
 
         <!-- Profilo Utente & Azioni Header (Solo Account) -->
-        <div class="flex items-center">
+        <div class="flex items-center gap-2.5">
+          <!-- Cloud Sync Indicator -->
+          <div id="cloud-sync-badge" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-white/10 text-yellow-300 border border-white/20 shadow-sm" title="Stato sincronizzazione cloud">
+            <span id="cloud-sync-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+            <span id="cloud-sync-text" class="tracking-tight">Connessione...</span>
+          </div>
+
           <button id="btn-account-header" onclick="app.openAccountPage()" title="Visualizza e gestisci il tuo Account" class="bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm px-3.5 py-2 rounded-xl border border-white/20 transition flex items-center gap-2 cursor-pointer shadow-sm">
             <span id="header-avatar-circle" class="w-6 h-6 rounded-full bg-yellow-400 text-blue-950 font-black text-xs flex items-center justify-center overflow-hidden flex-shrink-0">
               <svg class="w-3.5 h-3.5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1158,6 +1164,10 @@
 
   <!-- Toast Notifiche -->
   <div id="toast-notification" class="fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl border shadow-xl transition-all duration-300 hidden text-xs sm:text-sm font-medium"></div>
+
+  <!-- Firebase SDK (compat) per sincronizzazione cloud in tempo reale -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 
   <!-- Script Applicazione -->
   <script src="js/tournament.js"></script>
