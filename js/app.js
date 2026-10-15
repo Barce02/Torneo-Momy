@@ -33,7 +33,7 @@ class App {
     this.currentEditingMatchId = null;
     this.revealedPasswords = {};
 
-    this.selectedCategory = "U12"; // "all", "U10", "U12", "Open"
+    this.selectedCategory = "Pre Agonistica U12"; // "all", "Pre Agonistica U12", "Pre Agonistica", "SAT U14", "SAT"
     this.pendingPasswordReset = this.loadPendingPasswordReset();
 
     // Filtri calendario
@@ -188,9 +188,7 @@ class App {
           (p.userId && p.userId.toLowerCase().trim() === emailKey)
         );
 
-        let cat = acc.category;
-        if (cat === "U9") cat = "U10";
-        if (!cat) cat = this.tournamentManager.getPlayerCategory(acc);
+        let cat = this.tournamentManager.getPlayerCategory(acc);
 
         if (!existing) {
           const newPlayer = {
@@ -210,8 +208,8 @@ class App {
           this.state.players.push(newPlayer);
           stateChanged = true;
         } else {
-          if (existing.category === "U9") {
-            existing.category = "U10";
+          if (existing.category !== cat) {
+            existing.category = cat;
             stateChanged = true;
           }
         }
@@ -485,9 +483,9 @@ class App {
           const val = e.target.value;
           if (val) {
             const year = new Date(val).getFullYear();
-            if (year >= 2016) cEl.value = "U10";
-            else if (year >= 2014) cEl.value = "U12";
-            else cEl.value = "Open";
+            if (year >= 2014) cEl.value = "Pre Agonistica U12";
+            else if (year >= 2012) cEl.value = "SAT U14";
+            else cEl.value = "Pre Agonistica";
           }
         });
       }
@@ -812,7 +810,7 @@ class App {
     }
 
     const rawCategory = document.getElementById("register-category-select")?.value;
-    const category = (rawCategory === "U9" ? "U10" : rawCategory) || this.tournamentManager.getPlayerCategory({ birthDate });
+    const category = rawCategory || this.tournamentManager.getPlayerCategory({ birthDate });
 
     const accountObj = {
       firstName,
@@ -1324,9 +1322,9 @@ class App {
   switchTab(tab) {
     this.currentTab = tab;
 
-    // Se si naviga in Gironi o Tabellone e la categoria attiva è "all", imposta U12 di default
+    // Se si naviga in Gironi o Tabellone e la categoria attiva è "all", imposta Pre Agonistica U12 di default
     if ((tab === "groups" || tab === "bracket") && this.selectedCategory === "all") {
-      this.selectedCategory = "U12";
+      this.selectedCategory = "Pre Agonistica U12";
     }
 
     document.querySelectorAll(".nav-tab-btn").forEach(btn => {
@@ -1344,7 +1342,7 @@ class App {
   }
 
   // ==========================================
-  // GESTIONE SELETTORE CATEGORIA (U10, U12, OPEN)
+  // GESTIONE SELETTORE CATEGORIA (PRE AGONISTICA U12, PRE AGONISTICA, SAT U14, SAT)
   // ==========================================
   setCategory(cat) {
     this.selectedCategory = cat;
@@ -1366,21 +1364,20 @@ class App {
 
     const cats = [
       { id: "all", label: "Tutte", full: "Tutte le Categorie" },
-      { id: "U10", label: "U10", full: "Under 10" },
-      { id: "U12", label: "U12", full: "Under 12" },
-      { id: "Open", label: "Open", full: "Categoria Open" }
+      { id: "Pre Agonistica U12", label: "Pre Ag. U12", full: "Pre Agonistica U12" },
+      { id: "Pre Agonistica", label: "Pre Agonistica", full: "Pre Agonistica" },
+      { id: "SAT U14", label: "SAT U14", full: "SAT U14" },
+      { id: "SAT", label: "SAT", full: "SAT" }
     ];
 
-    const countAll = this.state.players.length;
-    const countU10 = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === "U10").length;
-    const countU12 = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === "U12").length;
-    const countOpen = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === "Open").length;
-
-    const counts = { all: countAll, U10: countU10, U12: countU12, Open: countOpen };
+    const counts = { all: this.state.players.length };
+    TournamentManager.CATEGORIES.forEach(c => {
+      counts[c] = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === c).length;
+    });
 
     // In Gironi e Tabellone, "all" non ha senso
     if ((this.currentTab === "groups" || this.currentTab === "bracket") && this.selectedCategory === "all") {
-      this.selectedCategory = "U12";
+      this.selectedCategory = "Pre Agonistica U12";
     }
 
     let html = "";
@@ -1397,7 +1394,7 @@ class App {
       html += `
         <button type="button" onclick="app.setCategory('${c.id}')" class="px-2.5 py-1 rounded-lg text-xs border transition flex items-center gap-1.5 cursor-pointer ${activeClass}">
           <span>${c.label}</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold ${isActive ? 'bg-blue-950 text-yellow-300' : 'bg-white/20 text-white'}">${counts[c.id]}</span>
+          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold ${isActive ? 'bg-blue-950 text-yellow-300' : 'bg-white/20 text-white'}">${counts[c.id] ?? 0}</span>
         </button>
       `;
     });
@@ -1406,22 +1403,48 @@ class App {
 
     const statusBadge = document.getElementById("category-status-indicator");
     if (statusBadge) {
-      const activeObj = cats.find(c => c.id === this.selectedCategory) || cats[2];
+      const activeObj = cats.find(c => c.id === this.selectedCategory) || cats[1];
       const count = counts[this.selectedCategory] ?? 0;
       statusBadge.innerHTML = `Categoria attiva: <span class="font-black text-yellow-400 uppercase tracking-wide ml-1">${activeObj.full}</span> <span class="text-white/70 ml-1">(${count} iscritti)</span>`;
     }
   }
 
   getCategoryBadgeMarkup(category) {
-    const cat = category || "U12";
-    if (cat === "U10" || cat === "U9") {
-      return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">Under 10</span>`;
-    } else if (cat === "U12") {
-      return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-300">Under 12</span>`;
-    } else if (cat === "Open") {
-      return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">Open</span>`;
+    const cat = category || "Pre Agonistica U12";
+    if (cat === "Pre Agonistica U12") {
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">Pre Ag. U12</span>`;
+    } else if (cat === "Pre Agonistica") {
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-100 text-purple-900 border border-purple-300">Pre Agonistica</span>`;
+    } else if (cat === "SAT U14") {
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-sky-100 text-sky-900 border border-sky-300">SAT U14</span>`;
+    } else if (cat === "SAT") {
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">SAT</span>`;
     }
     return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-300">${cat}</span>`;
+  }
+
+  getCategoryFormatInfo(category) {
+    const cat = category || "Pre Agonistica U12";
+    const isPreAg = cat === "Pre Agonistica" || cat === "Pre Agonistica U12";
+    if (isPreAg) {
+      return {
+        type: "pre_agonistica",
+        durationText: "1 ora e mezza (90 min)",
+        shortDuration: "1h 30m",
+        formula: "Long-set ai 9",
+        summary: "Partite da 1 ora e mezza • Formula Long-set ai 9",
+        badgeColor: "bg-purple-100 text-purple-900 border-purple-300"
+      };
+    } else {
+      return {
+        type: "sat",
+        durationText: "1 ora (60 min)",
+        shortDuration: "1h",
+        formula: "1 ora a tempo fino alla campana",
+        summary: "Partite da 1 ora continua fino al suono della campana",
+        badgeColor: "bg-sky-100 text-sky-900 border-sky-300"
+      };
+    }
   }
 
   renderTabContent() {
@@ -1461,7 +1484,7 @@ class App {
 
   render() {
     this.tournamentManager.ensureCategories();
-    this.tournamentManager.ensureGroups(this.selectedCategory === "all" ? "U12" : this.selectedCategory);
+    this.tournamentManager.ensureGroups(this.selectedCategory === "all" ? "Pre Agonistica U12" : this.selectedCategory);
 
     this.renderCategorySelector();
 
@@ -1483,9 +1506,10 @@ class App {
     if (!container) return;
 
     if (this.selectedCategory === "all") {
-      this.selectedCategory = "U12";
+      this.selectedCategory = "Pre Agonistica U12";
     }
     const cat = this.selectedCategory;
+    const formatInfo = this.getCategoryFormatInfo(cat);
 
     this.tournamentManager.ensureCategories();
     this.tournamentManager.ensureGroups(cat);
@@ -1508,11 +1532,12 @@ class App {
           <div>
             <div class="flex items-center gap-2 mb-1">
               <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
-              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Fase a Gironi • Categoria ${cat}</span>
+              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Fase a Gironi • ${cat}</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-md font-bold bg-white/20 text-yellow-300">${formatInfo.shortDuration} • ${formatInfo.formula}</span>
             </div>
             <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Girone Sinner & Girone Alcaraz (${cat})</h2>
             <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
-              Partite da <strong>1 ora</strong> continua fino al suono della campana. Se in parità al suono della campana, <strong>rimane il pareggio (1 punto ciascuno)</strong>. Vittoria: 3 pt • Pareggio: 1 pt • Sconfitta: 0 pt.
+              Formula: <strong>${formatInfo.durationText}</strong> (${formatInfo.formula}). Se in parità al termine del tempo nei gironi, <strong>rimane il pareggio (1 punto ciascuno)</strong>. Vittoria: 3 pt • Pareggio: 1 pt • Sconfitta: 0 pt.
             </p>
           </div>
 
@@ -1714,7 +1739,7 @@ class App {
                               ? `<span class="text-[9px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">✕ Rifiutato</span>`
                               : `<span class="text-[9px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">⏳ In attesa</span>`
                         ) : ''}
-                        <span>${m.dateTime ? this.formatShortDate(m.dateTime) : '1 ora di gioco'}</span>
+                        <span>${m.dateTime ? this.formatShortDate(m.dateTime) : (this.getCategoryFormatInfo(cat).shortDuration + ' di gioco')}</span>
                       </div>
                     </div>
                   </div>
@@ -1731,7 +1756,7 @@ class App {
 
   handleAutoAssignGroups(category = null) {
     if (!this.isAdmin) return;
-    const cat = category || (this.selectedCategory === "all" ? "U12" : this.selectedCategory);
+    const cat = category || (this.selectedCategory === "all" ? "Pre Agonistica U12" : this.selectedCategory);
     const catPlayers = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === cat);
 
     if (catPlayers.length < 2) {
@@ -1749,7 +1774,7 @@ class App {
 
   handleGenerateBracketFromGroups(category = null) {
     if (!this.isAdmin) return;
-    const cat = category || (this.selectedCategory === "all" ? "U12" : this.selectedCategory);
+    const cat = category || (this.selectedCategory === "all" ? "Pre Agonistica U12" : this.selectedCategory);
     try {
       this.tournamentManager.generateBracketFromGroups(cat);
       this.saveState();
@@ -2365,7 +2390,7 @@ class App {
       if (pwInput) pwInput.value = "";
       if (bdInput) bdInput.value = "";
       if (rkInput) rkInput.value = "NC";
-      if (catSelect) catSelect.value = (this.selectedCategory !== "all") ? this.selectedCategory : "U12";
+      if (catSelect) catSelect.value = (this.selectedCategory !== "all") ? this.selectedCategory : "Pre Agonistica U12";
       if (roleSelect) roleSelect.value = "player";
       if (alsoPlayerWrapper) alsoPlayerWrapper.classList.remove("hidden");
       if (alsoPlayerCheckbox) alsoPlayerCheckbox.checked = true;
@@ -2691,7 +2716,7 @@ class App {
     lnInput.value = "";
     bdInput.value = "";
     rkInput.value = "NC";
-    if (catSelect) catSelect.value = (this.selectedCategory !== "all") ? this.selectedCategory : "U12";
+    if (catSelect) catSelect.value = (this.selectedCategory !== "all") ? this.selectedCategory : "Pre Agonistica U12";
     notesInput.value = "";
 
     this.openModal("modal-player");
@@ -2821,7 +2846,7 @@ class App {
   // ==========================================
   getAllMatches() {
     this.tournamentManager.ensureCategories();
-    const categories = ["U10", "U12", "Open"];
+    const categories = TournamentManager.CATEGORIES;
     const all = [];
 
     categories.forEach(cat => {
@@ -3243,7 +3268,7 @@ class App {
                     ${hasDateTime ? `
                       <span class="font-black text-gray-900 text-xs sm:text-sm block">${this.formatScheduleDateTime(m.dateTime)}</span>
                       <div class="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span class="text-gray-500 text-[11px]">Durata: 1 ora fino alla campana</span>
+                        <span class="text-gray-500 text-[11px]">Durata: ${this.getCategoryFormatInfo(item.category).durationText} • ${this.getCategoryFormatInfo(item.category).formula}</span>
                         ${isBothAccepted ? `
                           <span class="text-[11px] font-extrabold text-emerald-700">• Orario accettato da entrambi</span>
                         ` : isAnyRejected ? `
@@ -3407,7 +3432,7 @@ class App {
       return;
     }
 
-    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "U12");
+    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
     let targetMatch = null;
     let phaseLabel = "";
 
@@ -3475,7 +3500,7 @@ class App {
     const type = document.getElementById("schedule-match-type").value;
     const groupKeyOrRound = document.getElementById("schedule-match-group-or-round").value;
     const matchId = document.getElementById("schedule-match-id").value;
-    const category = document.getElementById("schedule-match-category")?.value || (this.selectedCategory !== "all" ? this.selectedCategory : "U12");
+    const category = document.getElementById("schedule-match-category")?.value || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
     const dateTime = document.getElementById("schedule-match-datetime").value;
     const court = document.getElementById("schedule-match-court").value;
     const status = document.getElementById("schedule-match-status").value;
@@ -3515,7 +3540,7 @@ class App {
     if (role === "p1") updatePayload.p1Acceptance = response;
     if (role === "p2") updatePayload.p2Acceptance = response;
 
-    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "U12");
+    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
 
     if (type === "group") {
       this.tournamentManager.ensureGroups(cat);
@@ -3543,14 +3568,14 @@ class App {
     if (!container) return;
 
     if (this.selectedCategory === "all") {
-      this.selectedCategory = "U12";
+      this.selectedCategory = "Pre Agonistica U12";
     }
     const cat = this.selectedCategory;
 
     this.tournamentManager.ensureCategories();
     this.tournamentManager.ensureBrackets(cat);
 
-    const bracket = this.state.categoryBrackets?.[cat] || (cat === "U12" ? this.state.bracket : null);
+    const bracket = this.state.categoryBrackets?.[cat] || (cat === "Pre Agonistica U12" ? this.state.bracket : null);
     const categoryPlayers = this.tournamentManager.getPlayersByCategory(cat);
 
     let html = "";
@@ -3746,7 +3771,7 @@ class App {
 
   handleGenerateBracket(category = null) {
     if (!this.isAdmin) return;
-    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "U12");
+    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
     try {
       this.tournamentManager.generateBracket(null, cat);
       this.saveState();
@@ -3759,13 +3784,13 @@ class App {
 
   handleResetBracket(category = null) {
     if (!this.isAdmin) return;
-    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "U12");
+    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
     if (confirm(`Sei sicuro di voler azzerare il tabellone finale della categoria ${cat}?`)) {
       this.tournamentManager.ensureCategories();
       if (this.state.categoryBrackets) {
         this.state.categoryBrackets[cat] = null;
       }
-      if (cat === "U12") {
+      if (cat === "Pre Agonistica U12") {
         this.state.bracket = null;
       }
       this.saveState();
@@ -3777,7 +3802,7 @@ class App {
   // Modale per aggiornare incontro da parte dell'Admin
   openMatchModal(matchId, category = null) {
     if (!this.isAdmin) return;
-    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "U12");
+    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
     this.tournamentManager.ensureBrackets(cat);
     const bracket = this.state.categoryBrackets?.[cat] || this.state.bracket;
     if (!bracket || !bracket.rounds) return;
@@ -3821,7 +3846,7 @@ class App {
     const court = document.getElementById("score-court-select").value;
     const dateTime = document.getElementById("score-datetime-input").value;
     const status = document.getElementById("score-status-select").value;
-    const cat = this.currentEditingMatchCategory || (this.selectedCategory !== "all" ? this.selectedCategory : "U12");
+    const cat = this.currentEditingMatchCategory || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
 
     const res = this.tournamentManager.updateBracketMatch(this.currentEditingMatchId, {
       winnerId, scores, court, dateTime, status
@@ -3854,39 +3879,68 @@ class App {
 
     container.innerHTML = `
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6 sm:p-7 shadow-sm space-y-5">
+        <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6 sm:p-7 shadow-sm space-y-6">
           <div class="border-b pb-3">
             <div class="text-xs font-bold uppercase tracking-wider text-blue-800">Regolamento Ufficiale</div>
             <h2 class="text-xl font-extrabold text-gray-900 mt-0.5">
               Torneo Momy 26/27 • Tennis Giovanile
             </h2>
-          </div>
-
-          <!-- Formula Incontri a Tempo da 1 Ora -->
-          <div class="bg-blue-50 border-l-4 border-blue-600 p-4 sm:p-5 rounded-r-2xl">
-            <h4 class="font-extrabold text-blue-950 text-sm mb-1.5 flex items-center gap-2">
-              <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
-              <span>Formula delle Partite: 1 Ora & Suono della Campana</span>
-            </h4>
-            <p class="text-xs text-blue-900 leading-relaxed">
-              Tutte le partite del torneo hanno una durata prefissata di <strong>un'ora</strong>. Si gioca un <strong>set unico continuo che va avanti fino al suono della campana</strong>: chi è avanti nel conteggio dei game quando suona la campana vince l'incontro.
+            <p class="text-xs text-gray-500 mt-1">
+              Categorie Ufficiali: <strong>Pre Agonistica U12</strong>, <strong>Pre Agonistica</strong>, <strong>SAT U14</strong>, <strong>SAT</strong>
             </p>
           </div>
 
-          <!-- Gestione Pareggio al suono della campana -->
-          <div class="bg-amber-50 border border-amber-300 p-4 sm:p-5 rounded-2xl">
-            <h4 class="font-extrabold text-amber-950 text-sm mb-2 flex items-center gap-2">
-              <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-              <span>Regola del Pareggio al Suono della Campana</span>
-            </h4>
-            <div class="space-y-2 text-xs text-amber-900 leading-relaxed">
-              <div class="bg-white/90 p-3 rounded-xl border border-amber-200 shadow-xs">
-                <strong class="text-blue-950 block mb-1">1. Durante la Fase a Gironi (Girone Sinner & Girone Alcaraz):</strong>
-                Se al suono della campana il punteggio è in parità (es. 4-4, 5-5), <strong>la partita termina con il pareggio</strong>. A ciascun atleta viene assegnato <strong>1 punto</strong> in classifica (Vittoria: 3 punti, Pareggio: 1 punto, Sconfitta: 0 punti).
+          <!-- SEZIONE CATEGORIE SAT -->
+          <div class="border-2 border-sky-300 bg-sky-50/70 p-5 rounded-2xl space-y-3">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <h3 class="font-extrabold text-sky-950 text-base flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-sky-600"></span>
+                <span>Categorie SAT (SAT U14 & SAT)</span>
+              </h3>
+              <span class="text-xs font-extrabold px-2.5 py-1 rounded-lg bg-sky-200 text-sky-900 border border-sky-300">
+                1 Ora • Suono della Campana
+              </span>
+            </div>
+            <div class="text-xs text-sky-950 leading-relaxed space-y-2">
+              <p>
+                <strong>Durata e Formula:</strong> Le partite hanno una durata prefissata di <strong>1 ora (60 minuti)</strong>. Si disputa un <strong>set unico continuo fino al suono della campana</strong>: al termine dell'ora, chi è avanti nel conteggio dei game vince l'incontro.
+              </p>
+              <div class="bg-white/95 p-3.5 rounded-xl border border-sky-200 space-y-2 shadow-xs">
+                <div class="font-bold text-sky-900 flex items-center gap-1.5">
+                  <span>🔔 Regola del Pareggio al Suono della Campana (SAT):</span>
+                </div>
+                <ul class="list-disc list-inside space-y-1.5 text-sky-950 pl-1">
+                  <li><strong>Fase a Gironi (Girone Sinner & Girone Alcaraz):</strong> se al suono della campana il punteggio è in parità (es. 4-4, 5-5), <strong>la partita termina con il pareggio</strong>. A ciascun atleta viene assegnato <strong>1 punto</strong> in classifica (Vittoria: 3 punti, Pareggio: 1 punto, Sconfitta: 0 punti).</li>
+                  <li><strong>Fase Finale a Eliminazione Diretta (Tabellone):</strong> nel tabellone finale non sono ammessi pareggi; se al suono della campana si è in parità, si disputa subito un <strong>rapido tie-break ai 5 punti</strong> per decretare il vincitore che passa al turno successivo.</li>
+                </ul>
               </div>
-              <div class="bg-white/90 p-3 rounded-xl border border-amber-200 shadow-xs">
-                <strong class="text-blue-950 block mb-1">2. Nella Fase Finale a Eliminazione Diretta (Tabellone Finale):</strong>
-                Nel tabellone ad eliminazione diretta non sono ammessi pareggi: se al suono della campana si è in parità, si gioca immediatamente un <strong>rapido tie-break ai 5 punti</strong> per decretare il vincitore che passa al turno successivo.
+            </div>
+          </div>
+
+          <!-- SEZIONE CATEGORIE PRE AGONISTICA -->
+          <div class="border-2 border-purple-300 bg-purple-50/70 p-5 rounded-2xl space-y-3">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <h3 class="font-extrabold text-purple-950 text-base flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-purple-600"></span>
+                <span>Categorie Pre Agonistica (Pre Agonistica U12 & Pre Agonistica)</span>
+              </h3>
+              <span class="text-xs font-extrabold px-2.5 py-1 rounded-lg bg-purple-200 text-purple-900 border border-purple-300">
+                1 Ora e Mezza (90 min) • Long-Set ai 9
+              </span>
+            </div>
+            <div class="text-xs text-purple-950 leading-relaxed space-y-2">
+              <p>
+                <strong>Durata e Formula:</strong> Le partite hanno una durata massima di <strong>1 ora e mezza (90 minuti)</strong> e si giocano con la formula del <strong>Long-Set ai 9 game</strong> (vince chi per primo raggiunge 9 game).
+              </p>
+              <div class="bg-white/95 p-3.5 rounded-xl border border-purple-200 space-y-2 shadow-xs">
+                <div class="font-bold text-purple-900 flex items-center gap-1.5">
+                  <span>⏱️ Limite di Tempo e Parità (Pre Agonistica):</span>
+                </div>
+                <ul class="list-disc list-inside space-y-1.5 text-purple-950 pl-1">
+                  <li>Se allo scadere del tempo di 1 ora e mezza la partita non si è conclusa a 9 game, <strong>vince chi si trova in vantaggio nel computo dei game</strong>.</li>
+                  <li><strong>Fase a Gironi:</strong> se allo scadere del tempo il punteggio è in parità (es. 6-6, 7-7), la partita termina con il <strong>pareggio</strong> (1 punto ciascuno in classifica).</li>
+                  <li><strong>Fase Finale (Tabellone):</strong> se allo scadere del tempo il punteggio è in parità, si gioca un <strong>tie-break di spareggio</strong> per decretare il vincitore che accede al turno successivo.</li>
+                </ul>
               </div>
             </div>
           </div>
@@ -3895,10 +3949,10 @@ class App {
           <div class="bg-slate-50 border border-slate-200 p-4 sm:p-5 rounded-2xl">
             <h4 class="font-bold text-gray-900 text-xs sm:text-sm mb-1.5 flex items-center gap-2">
               <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
-              <span>Gironi & Accesso di Tutti al Tabellone Finale</span>
+              <span>Fase a Gironi & Accesso di Tutti al Tabellone Finale</span>
             </h4>
             <p class="text-xs text-gray-700 leading-relaxed">
-              I partecipanti disputano la fase a gironi (<strong>Girone Sinner</strong> e <strong>Girone Alcaraz</strong>) con formula all'italiana. <strong>Tutti i giocatori accedono alla fase a tabellone finale ad eliminazione diretta</strong>: in base alla posizione e ai risultati ottenuti nel girone viene composto il tabellone ad incrocio (le prime posizioni affrontano le posizioni inferiori del girone opposto con eventuali bye).
+              In ciascuna categoria i partecipanti disputano la fase a gironi (<strong>Girone Sinner</strong> e <strong>Girone Alcaraz</strong>) con formula all'italiana. <strong>Tutti i giocatori accedono alla fase a tabellone finale ad eliminazione diretta</strong>: in base alla posizione e ai risultati ottenuti nel girone viene composto il tabellone ad incrocio (le prime posizioni affrontano le posizioni inferiori del girone opposto con eventuali bye).
             </p>
           </div>
 
@@ -3937,10 +3991,12 @@ class App {
             <div class="text-xs text-gray-600 space-y-2.5">
               <div><strong>Manifestazione:</strong> Torneo Momy 26/27</div>
               <div><strong>Amministratore Ufficiale:</strong> Barcello Luca</div>
+              <div><strong>Categorie:</strong> Pre Agonistica U12, Pre Agonistica, SAT U14, SAT</div>
               <div><strong>Gironi:</strong> Girone Sinner • Girone Alcaraz</div>
               <div><strong>Fase Finale:</strong> Tutti qualificati al Tabellone</div>
-              <div><strong>Durata Match:</strong> 1 ora fino alla campana</div>
-              <div><strong>Campi:</strong> Da 0 a 2 (Terra), 3 e 4 (Greenset), da 5 a 7 (Terra)</div>
+              <div><strong>Formula SAT:</strong> 1 ora continua fino alla campana</div>
+              <div><strong>Formula Pre Agonistica:</strong> 1h 30m • Long-Set ai 9</div>
+              <div><strong>Campi da Gioco:</strong> Campi 0-2 (Terra), 3-4 (Greenset), 5-7 (Terra)</div>
             </div>
           </div>
 
@@ -4005,13 +4061,14 @@ class App {
     const accounts = this.loadAccounts();
     const accountsCount = Object.keys(accounts).length;
     const linkedPlayer = this.getPlayerForAccount(u);
-    const curCat = (u.category || this.tournamentManager.getPlayerCategory(u)) === "U9" ? "U10" : (u.category || this.tournamentManager.getPlayerCategory(u));
+    const curCat = this.tournamentManager.getPlayerCategory(u);
     const catLabels = {
-      U10: "Under 10 (U10)",
-      U12: "Under 12 (U12)",
-      Open: "Categoria Open (Open)"
+      "Pre Agonistica U12": "Pre Agonistica U12",
+      "Pre Agonistica": "Pre Agonistica",
+      "SAT U14": "SAT U14",
+      "SAT": "SAT"
     };
-    const curCategoryLabel = catLabels[curCat] || "Under 12 (U12)";
+    const curCategoryLabel = catLabels[curCat] || curCat || "Pre Agonistica U12";
 
     container.innerHTML = `
       <div class="space-y-6 max-w-4xl mx-auto">
@@ -4147,9 +4204,10 @@ class App {
                 <label class="block text-xs font-bold text-gray-700 mb-1">Categoria di Gioco *</label>
                 ${this.isAdmin ? `
                   <select id="account-page-category-select" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
-                    <option value="U10" ${curCat === 'U10' ? 'selected' : ''}>Under 10 (U10)</option>
-                    <option value="U12" ${curCat === 'U12' ? 'selected' : ''}>Under 12 (U12)</option>
-                    <option value="Open" ${curCat === 'Open' ? 'selected' : ''}>Categoria Open (Open)</option>
+                    <option value="Pre Agonistica U12" ${curCat === 'Pre Agonistica U12' ? 'selected' : ''}>Pre Agonistica U12</option>
+                    <option value="Pre Agonistica" ${curCat === 'Pre Agonistica' ? 'selected' : ''}>Pre Agonistica</option>
+                    <option value="SAT U14" ${curCat === 'SAT U14' ? 'selected' : ''}>SAT U14</option>
+                    <option value="SAT" ${curCat === 'SAT' ? 'selected' : ''}>SAT</option>
                   </select>
                   <p class="text-[10px] text-blue-700 mt-1 font-semibold">Modalità Amministratore: puoi modificare la categoria se errata.</p>
                 ` : `

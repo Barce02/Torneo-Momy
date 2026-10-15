@@ -8,7 +8,7 @@ class TournamentManager {
 
   // Categorie ufficiali del Torneo Momy
   static get CATEGORIES() {
-    return ["U10", "U12", "Open"];
+    return ["Pre Agonistica U12", "Pre Agonistica", "SAT U14", "SAT"];
   }
 
   getPlayer(id) {
@@ -16,27 +16,20 @@ class TournamentManager {
     return this.state.players.find(p => p.id === id) || null;
   }
 
-  // Rileva o restituisce la categoria dell'atleta (U10, U12 o Open)
+  // Rileva o restituisce la categoria dell'atleta
   getPlayerCategory(player) {
-    if (!player) return "U12";
-    if (player.category === "U9") return "U10";
-    if (player.category && ["U10", "U12", "Open"].includes(player.category)) {
+    if (!player) return "Pre Agonistica U12";
+    if (player.category && TournamentManager.CATEGORIES.includes(player.category)) {
       return player.category;
     }
-    // Calcolo automatico in base ad anno di nascita (U10: nati 2016 o dopo; U12: 2014-2015; Open: <= 2013)
-    let year = null;
-    if (player.birthDate) {
-      const d = new Date(player.birthDate);
-      if (!isNaN(d.getFullYear())) year = d.getFullYear();
-    } else if (player.year) {
-      year = parseInt(player.year, 10);
+    // Migrazione automatica da vecchie categorie
+    if (player.category === "U10" || player.category === "U9" || player.category === "U12") {
+      return "Pre Agonistica U12";
     }
-    if (year && !isNaN(year)) {
-      if (year >= 2016) return "U10";
-      if (year >= 2014) return "U12";
-      return "Open";
+    if (player.category === "Open") {
+      return "Pre Agonistica";
     }
-    return "U12";
+    return "Pre Agonistica U12";
   }
 
   // Restituisce la lista di giocatori filtrata per categoria
@@ -50,19 +43,22 @@ class TournamentManager {
     if (!this.state.categoryGroups) {
       this.state.categoryGroups = {};
     }
-    // Migrazione gironi pregressi U9 -> U10
-    if (this.state.categoryGroups["U9"]) {
-      if (!this.state.categoryGroups["U10"]) {
-        this.state.categoryGroups["U10"] = this.state.categoryGroups["U9"];
-      }
-      delete this.state.categoryGroups["U9"];
+    // Migrazione gironi pregressi verso nuove categorie
+    if (this.state.categoryGroups["U12"] && !this.state.categoryGroups["Pre Agonistica U12"]) {
+      this.state.categoryGroups["Pre Agonistica U12"] = this.state.categoryGroups["U12"];
+      delete this.state.categoryGroups["U12"];
     }
-    // Migrazione gironi pregressi verso U12
-    if (this.state.groups && !this.state.categoryGroups["U12"]) {
-      this.state.categoryGroups["U12"] = this.state.groups;
+    if (this.state.categoryGroups["Open"] && !this.state.categoryGroups["Pre Agonistica"]) {
+      this.state.categoryGroups["Pre Agonistica"] = this.state.categoryGroups["Open"];
+      delete this.state.categoryGroups["Open"];
     }
+    if (this.state.groups && !this.state.categoryGroups["Pre Agonistica U12"]) {
+      this.state.categoryGroups["Pre Agonistica U12"] = this.state.groups;
+    }
+    delete this.state.categoryGroups["U10"];
+    delete this.state.categoryGroups["U9"];
 
-    ["U10", "U12", "Open"].forEach(cat => {
+    TournamentManager.CATEGORIES.forEach(cat => {
       if (!this.state.categoryGroups[cat]) {
         this.state.categoryGroups[cat] = {
           sinner: { id: "sinner", name: `Girone Sinner (${cat})`, playerIds: [], matches: [] },
@@ -85,32 +81,30 @@ class TournamentManager {
     if (!this.state.categoryBrackets) {
       this.state.categoryBrackets = {};
     }
-    // Migrazione tabellone pregresso U9 -> U10
-    if (this.state.categoryBrackets["U9"]) {
-      if (!this.state.categoryBrackets["U10"]) {
-        this.state.categoryBrackets["U10"] = this.state.categoryBrackets["U9"];
-      }
-      delete this.state.categoryBrackets["U9"];
+    // Migrazione tabelloni pregressi verso nuove categorie
+    if (this.state.categoryBrackets["U12"] && !this.state.categoryBrackets["Pre Agonistica U12"]) {
+      this.state.categoryBrackets["Pre Agonistica U12"] = this.state.categoryBrackets["U12"];
+      delete this.state.categoryBrackets["U12"];
     }
-    // Migrazione tabellone pregresso verso U12
-    if (this.state.bracket && !this.state.categoryBrackets["U12"]) {
-      this.state.categoryBrackets["U12"] = this.state.bracket;
+    if (this.state.categoryBrackets["Open"] && !this.state.categoryBrackets["Pre Agonistica"]) {
+      this.state.categoryBrackets["Pre Agonistica"] = this.state.categoryBrackets["Open"];
+      delete this.state.categoryBrackets["Open"];
     }
+    if (this.state.bracket && !this.state.categoryBrackets["Pre Agonistica U12"]) {
+      this.state.categoryBrackets["Pre Agonistica U12"] = this.state.bracket;
+    }
+    delete this.state.categoryBrackets["U10"];
+    delete this.state.categoryBrackets["U9"];
 
-    // Assicura categoria su tutti i giocatori e migra U9 -> U10
+    // Assicura categoria aggiornata su tutti i giocatori
     if (this.state.players) {
       this.state.players.forEach(p => {
-        if (p.category === "U9") {
-          p.category = "U10";
-        }
-        if (!p.category) {
-          p.category = this.getPlayerCategory(p);
-        }
+        p.category = this.getPlayerCategory(p);
       });
     }
 
     // Pulisce i gironi affinché contengano esclusivamente giocatori della categoria corrispondente
-    ["U10", "U12", "Open"].forEach(cat => {
+    TournamentManager.CATEGORIES.forEach(cat => {
       const catGroup = this.state.categoryGroups[cat];
       if (catGroup) {
         if (catGroup.sinner && Array.isArray(catGroup.sinner.playerIds)) {
@@ -146,17 +140,17 @@ class TournamentManager {
   // ==========================================
   // METODI GESTIONE TABELLONE FINALE PER CATEGORIA
   // ==========================================
-  ensureBrackets(category = "U12") {
+  ensureBrackets(category = "Pre Agonistica U12") {
     this.ensureCategories();
-    const cat = category || "U12";
+    const cat = category || "Pre Agonistica U12";
     this.state.bracket = this.state.categoryBrackets[cat] || null;
     return this.state.categoryBrackets[cat] || null;
   }
 
   // Genera un tabellone a eliminazione diretta per una categoria
-  generateBracket(playersList = null, category = "U12") {
+  generateBracket(playersList = null, category = "Pre Agonistica U12") {
     this.ensureCategories();
-    const cat = category || "U12";
+    const cat = category || "Pre Agonistica U12";
     const rawPlayers = playersList || this.state.players;
     const players = rawPlayers.filter(p => this.getPlayerCategory(p) === cat);
 
@@ -306,7 +300,7 @@ class TournamentManager {
   // Aggiorna punteggio ed avanza il vincitore nel tabellone
   updateBracketMatch(matchId, updateData, category = null) {
     this.ensureCategories();
-    const cats = category ? [category] : ["U10", "U12", "Open"];
+    const cats = category ? [category] : TournamentManager.CATEGORIES;
 
     for (let cat of cats) {
       const bracket = this.state.categoryBrackets[cat];
@@ -378,17 +372,17 @@ class TournamentManager {
   // ==========================================
   // METODI GESTIONE FASE A GIRONI PER CATEGORIA
   // ==========================================
-  ensureGroups(category = "U12") {
+  ensureGroups(category = "Pre Agonistica U12") {
     this.ensureCategories();
-    const cat = category || "U12";
+    const cat = category || "Pre Agonistica U12";
     const catGroup = this.state.categoryGroups[cat];
     this.state.groups = catGroup;
     return catGroup;
   }
 
-  autoAssignGroups(category = "U12") {
+  autoAssignGroups(category = "Pre Agonistica U12") {
     this.ensureCategories();
-    const cat = category || "U12";
+    const cat = category || "Pre Agonistica U12";
     const group = this.state.categoryGroups[cat];
 
     // Filtra solo gli atleti appartenenti a questa categoria!
@@ -426,9 +420,9 @@ class TournamentManager {
     return group;
   }
 
-  assignPlayerToGroup(playerId, targetGroupKey, category = "U12") {
+  assignPlayerToGroup(playerId, targetGroupKey, category = "Pre Agonistica U12") {
     this.ensureCategories();
-    const cat = category || "U12";
+    const cat = category || "Pre Agonistica U12";
     const group = this.state.categoryGroups[cat];
 
     group.sinner.playerIds = group.sinner.playerIds.filter(id => id !== playerId);
@@ -440,9 +434,9 @@ class TournamentManager {
     }
   }
 
-  generateGroupMatches(groupKey, category = "U12") {
+  generateGroupMatches(groupKey, category = "Pre Agonistica U12") {
     this.ensureCategories();
-    const cat = category || "U12";
+    const cat = category || "Pre Agonistica U12";
     const catGroup = this.state.categoryGroups[cat];
     const group = catGroup[groupKey];
     if (!group) return [];
@@ -493,7 +487,7 @@ class TournamentManager {
 
   updateGroupMatch(groupKey, matchId, matchData, category = null) {
     this.ensureCategories();
-    const cats = category ? [category] : ["U10", "U12", "Open"];
+    const cats = category ? [category] : TournamentManager.CATEGORIES;
 
     for (let cat of cats) {
       const catGroup = this.state.categoryGroups[cat];
@@ -554,9 +548,9 @@ class TournamentManager {
     return m.winnerId || null;
   }
 
-  getGroupStandings(groupKey, category = "U12") {
+  getGroupStandings(groupKey, category = "Pre Agonistica U12") {
     this.ensureCategories();
-    const cat = category || "U12";
+    const cat = category || "Pre Agonistica U12";
     const catGroup = this.state.categoryGroups[cat];
     if (!catGroup) return [];
     const group = catGroup[groupKey];
@@ -685,9 +679,9 @@ class TournamentManager {
     return Array.from({ length: bracketSize }, (_, i) => i + 1);
   }
 
-  generateBracketFromGroups(category = "U12") {
+  generateBracketFromGroups(category = "Pre Agonistica U12") {
     this.ensureCategories();
-    const cat = category || "U12";
+    const cat = category || "Pre Agonistica U12";
     const standingsSinner = this.getGroupStandings("sinner", cat);
     const standingsAlcaraz = this.getGroupStandings("alcaraz", cat);
 
