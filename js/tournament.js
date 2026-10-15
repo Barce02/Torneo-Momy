@@ -18,7 +18,10 @@ class TournamentManager {
 
   // Rileva o restituisce la categoria dell'atleta
   getPlayerCategory(player) {
-    if (!player) return "Pre Agonistica U12";
+    if (!player) return "Da Assegnare";
+    if (player.category === "Da Assegnare") {
+      return "Da Assegnare";
+    }
     if (player.category && TournamentManager.CATEGORIES.includes(player.category)) {
       return player.category;
     }
@@ -29,7 +32,7 @@ class TournamentManager {
     if (player.category === "Open") {
       return "Pre Agonistica";
     }
-    return "Pre Agonistica U12";
+    return player.category || "Da Assegnare";
   }
 
   // Restituisce la lista di giocatori filtrata per categoria

@@ -364,15 +364,16 @@
             </div>
           </div>
 
-          <!-- Categoria Torneo -->
-          <div>
-            <label class="block text-xs font-semibold text-gray-700 mb-1">Categoria Torneo *</label>
-            <select id="register-category-select" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
-              <option value="Pre Agonistica U12" selected>Pre Agonistica U12</option>
-              <option value="Pre Agonistica">Pre Agonistica</option>
-              <option value="SAT U14">SAT U14</option>
-              <option value="SAT">SAT</option>
-            </select>
+          <!-- Categoria Torneo (Assegnata dall'Amministrazione) -->
+          <div class="bg-blue-50/70 border border-blue-200 rounded-xl p-3">
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-bold text-gray-800">Categoria Torneo</label>
+              <span class="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 font-extrabold px-2 py-0.5 rounded-full">⏳ Assegnata dall'Admin</span>
+            </div>
+            <p class="text-[11px] text-gray-600 leading-relaxed">
+              L'inserimento nel torneo specifico (<strong>Pre Agonistica</strong> o <strong>SAT</strong>) verrà effettuato direttamente dai maestri e amministratori del torneo dopo la registrazione.
+            </p>
+            <input type="hidden" id="register-category-select" value="Da Assegnare">
           </div>
 
           <!-- Opzione Face ID / Touch ID -->
@@ -410,7 +411,7 @@
             Inserisci l'indirizzo email associato al tuo account. Ti invieremo un'email con un codice di sicurezza a 6 cifre per reimpostare la tua password.
           </div>
 
-          <form id="forgot-step1-form" class="space-y-3" onsubmit="event.preventDefault(); app.handleRequestPasswordReset();">
+          <form id="forgot-step1-form" class="space-y-3">
             <div>
               <label class="block text-xs font-semibold text-gray-700 mb-1">Indirizzo Email dell'Account *</label>
               <input type="email" id="forgot-email-input" name="email" autocomplete="username" placeholder="es. mario.rossi@email.com" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
@@ -443,16 +444,7 @@
             Abbiamo inviato un'email con il codice di verifica a <strong id="forgot-sent-email-label" class="text-blue-900 font-mono underline">...</strong>. Controlla la tua casella di posta (inclusa la cartella Spam / Posta indesiderata).
           </div>
 
-          <!-- Banner di test / offline con codice -->
-          <div id="forgot-code-helper-banner" class="bg-yellow-50 border border-yellow-200 rounded-xl p-2.5 text-xs text-yellow-950 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="font-bold text-[11px] uppercase tracking-wider text-yellow-800">Codice generato:</span>
-              <span id="forgot-code-display-badge" class="font-mono font-black text-sm bg-yellow-400/90 px-2 py-0.5 rounded text-blue-950 tracking-widest">------</span>
-            </div>
-            <span class="text-[10px] text-yellow-800/80">Valido 15 min</span>
-          </div>
-
-          <form id="forgot-step2-form" class="space-y-3" onsubmit="event.preventDefault(); app.handleVerifyResetCode();">
+          <form id="forgot-step2-form" class="space-y-3">
             <div>
               <label class="block text-xs font-semibold text-gray-700 mb-1">Codice di Verifica a 6 Cifre *</label>
               <input type="text" id="forgot-code-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" placeholder="123456" class="w-full text-center text-lg font-mono font-bold tracking-widest px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white" required>
@@ -578,6 +570,7 @@
         <div>
           <label class="block text-xs font-semibold text-gray-700 mb-1">Categoria Torneo *</label>
           <select id="player-category-select" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
+            <option value="Da Assegnare">⏳ In attesa di assegnazione (Da Assegnare)</option>
             <option value="Pre Agonistica U12" selected>Pre Agonistica U12</option>
             <option value="Pre Agonistica">Pre Agonistica</option>
             <option value="SAT U14">SAT U14</option>
@@ -1136,6 +1129,7 @@
         <div>
           <label class="block text-xs font-semibold text-gray-700 mb-1">Categoria Torneo</label>
           <select id="admin-account-category-select" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium">
+            <option value="Da Assegnare">⏳ In attesa di assegnazione (Da Assegnare)</option>
             <option value="Pre Agonistica U12" selected>Pre Agonistica U12</option>
             <option value="Pre Agonistica">Pre Agonistica</option>
             <option value="SAT U14">SAT U14</option>

@@ -1,4 +1,13 @@
-// Torneo Momy 26/27 - Applicazione Ufficiale con Tema Blu & Giallo, Password e Face ID / Touch ID
+const ADMIN_EMAILS = [
+  "barcello.luca02@gmail.com",
+  "alessia.ditullio1996@gmail.com"
+];
+
+function isUserAdmin(email) {
+  if (!email) return false;
+  const clean = email.trim().toLowerCase();
+  return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
+}
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -61,7 +70,13 @@ class App {
   loadAccounts() {
     try {
       const saved = localStorage.getItem(ACCOUNTS_KEY);
-      return saved ? JSON.parse(saved) : {};
+      const accounts = saved ? JSON.parse(saved) : {};
+      Object.keys(accounts).forEach(em => {
+        if (isUserAdmin(em)) {
+          accounts[em].role = "admin";
+        }
+      });
+      return accounts;
     } catch (e) {
       return {};
     }
@@ -83,7 +98,7 @@ class App {
       const saved = localStorage.getItem(USER_KEY);
       if (saved) {
         const u = JSON.parse(saved);
-        if (u.email && u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+        if (u.email && isUserAdmin(u.email)) {
           u.role = "admin";
         }
         if (!u.firstName && u.name) {
@@ -134,7 +149,7 @@ class App {
   }
 
   get isAdmin() {
-    return this.user && this.user.role === "admin";
+    return this.user && (this.user.role === "admin" || isUserAdmin(this.user.email));
   }
 
   // Caricamento dati torneo
@@ -179,8 +194,7 @@ class App {
 
       Object.values(accounts).forEach(acc => {
         if (!acc || !acc.email) return;
-        if (acc.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) return;
-        if (acc.role === "admin") return;
+        if (isUserAdmin(acc.email) || acc.role === "admin") return;
 
         const emailKey = acc.email.toLowerCase().trim();
         const existing = this.state.players.find(p =>
@@ -188,7 +202,10 @@ class App {
           (p.userId && p.userId.toLowerCase().trim() === emailKey)
         );
 
-        let cat = this.tournamentManager.getPlayerCategory(acc);
+        let cat = acc.category || "Da Assegnare";
+        if (cat !== "Da Assegnare") {
+          cat = this.tournamentManager.getPlayerCategory(acc);
+        }
 
         if (!existing) {
           const newPlayer = {
@@ -477,6 +494,9 @@ class App {
       const cEl = document.getElementById(categorySelectId);
       if (bEl && cEl) {
         bEl.addEventListener("change", (e) => {
+          if (categorySelectId === "register-category-select") {
+            return;
+          }
           if (categorySelectId.includes("account") && !this.isAdmin) {
             return;
           }
@@ -491,7 +511,6 @@ class App {
       }
     };
 
-    hookBirthdateCategory("register-birthdate-input", "register-category-select");
     hookBirthdateCategory("player-birthdate-input", "player-category-select");
     hookBirthdateCategory("account-birthdate-input", "account-category-select");
     hookBirthdateCategory("account-page-birthdate-input", "account-page-category-select");
@@ -613,10 +632,18 @@ class App {
   }
 
   resetForgotStep() {
+    this.isSendingResetEmail = false;
     const step1 = document.getElementById("forgot-step-1");
     const step2 = document.getElementById("forgot-step-2");
     if (step1) step1.classList.remove("hidden");
     if (step2) step2.classList.add("hidden");
+    const btn = document.getElementById("btn-request-reset-code");
+    const label = document.getElementById("btn-request-reset-label");
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove("opacity-50", "cursor-not-allowed");
+    }
+    if (label) label.textContent = "Invia Codice di Verifica via Email";
     const em = document.getElementById("forgot-email-input");
     if (em) {
       if (!em.value && this.user && this.user.email && this.user.email !== "ospite@torneo.it") {
@@ -627,6 +654,8 @@ class App {
   }
 
   async handleRequestPasswordReset() {
+    if (this.isSendingResetEmail) return;
+
     const emailInput = document.getElementById("forgot-email-input");
     const email = emailInput ? emailInput.value.trim().toLowerCase() : "";
 
@@ -643,6 +672,8 @@ class App {
       return;
     }
 
+    this.isSendingResetEmail = true;
+
     // Genera codice di verifica sicuro a 6 cifre
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     this.pendingPasswordReset = {
@@ -657,12 +688,15 @@ class App {
     // Stato visivo di caricamento
     const btn = document.getElementById("btn-request-reset-code");
     const label = document.getElementById("btn-request-reset-label");
-    if (btn) btn.disabled = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.classList.add("opacity-50", "cursor-not-allowed");
+    }
     if (label) label.textContent = "Invio codice in corso...";
 
     const athleteName = account ? `${account.firstName || ''} ${account.lastName || ''}`.trim() || 'Atleta' : 'Atleta';
 
-    // Invio effettivo email via API FormSubmit
+    // Invio effettivo email via API FormSubmit (una sola email con codice)
     try {
       await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(email)}`, {
         method: "POST",
@@ -673,6 +707,7 @@ class App {
         body: JSON.stringify({
           _subject: `Codice di Verifica Password Torneo Momy: ${code}`,
           _template: "table",
+          _captcha: "false",
           atleta: athleteName,
           email_account: email,
           codice_di_verifica: code,
@@ -683,11 +718,15 @@ class App {
     } catch (err) {
       console.warn("Invio FormSubmit non riuscito o bloccato da CORS/file://", err);
     } finally {
-      if (btn) btn.disabled = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.classList.remove("opacity-50", "cursor-not-allowed");
+      }
       if (label) label.textContent = "Invia Codice di Verifica via Email";
+      this.isSendingResetEmail = false;
     }
 
-    // Passa a Step 2
+    // Passa a Step 2 (SENZA mostrare il codice sul sito)
     const step1 = document.getElementById("forgot-step-1");
     const step2 = document.getElementById("forgot-step-2");
     if (step1) step1.classList.add("hidden");
@@ -696,16 +735,13 @@ class App {
     const sentEmailLabel = document.getElementById("forgot-sent-email-label");
     if (sentEmailLabel) sentEmailLabel.textContent = email;
 
-    const codeBadge = document.getElementById("forgot-code-display-badge");
-    if (codeBadge) codeBadge.textContent = code;
-
     const codeInput = document.getElementById("forgot-code-input");
     if (codeInput) {
       codeInput.value = "";
       setTimeout(() => codeInput.focus(), 150);
     }
 
-    this.showToast(`Codice di verifica generato e inviato a ${email}!`, "info");
+    this.showToast(`Email con codice inviata a ${email}! Controlla la tua casella di posta.`, "success", 6000);
   }
 
   handleVerifyResetCode() {
@@ -730,7 +766,7 @@ class App {
     const confirmPassword = confirmPasswordInput ? confirmPasswordInput.value : "";
 
     if (!enteredCode || enteredCode !== this.pendingPasswordReset.code) {
-      alert("Il codice di verifica inserito non è corretto. Controlla l'email ricevuta o il badge informativo.");
+      alert("Il codice di verifica inserito non è corretto. Controlla l'email ricevuta (anche nella cartella Spam).");
       return;
     }
 
@@ -796,7 +832,7 @@ class App {
       return;
     }
 
-    const isAdmin = email === ADMIN_EMAIL.toLowerCase();
+    const isAdmin = isUserAdmin(email);
 
     const accounts = this.loadAccounts();
 
@@ -809,8 +845,8 @@ class App {
       return;
     }
 
-    const rawCategory = document.getElementById("register-category-select")?.value;
-    const category = rawCategory || this.tournamentManager.getPlayerCategory({ birthDate });
+    // La categoria non viene scelta dall'utente: viene assegnata dall'amministrazione del torneo
+    const category = "Da Assegnare";
 
     const accountObj = {
       firstName,
@@ -829,7 +865,7 @@ class App {
     this.saveAccounts(accounts);
     localStorage.setItem(LAST_EMAIL_KEY, email);
 
-    // Inserisci direttamente il giocatore nella sua specifica categoria di età nel torneo
+    // Inserisci direttamente il giocatore nella lista atleti (in attesa di assegnazione torneo da admin)
     if (!isAdmin) {
       if (!this.state.players) this.state.players = [];
       const cleanEmail = email.toLowerCase().trim();
@@ -871,7 +907,7 @@ class App {
     if (isAdmin) {
       this.showToast("Benvenuto Amministratore!", "success");
     } else {
-      this.showToast(`Benvenuto ${accountObj.name}! Registrato con successo nella categoria ${category}.`, "success");
+      this.showToast(`Benvenuto ${accountObj.name}! Account creato con successo. La categoria di gara verrà assegnata dall'amministrazione.`, "success", 6000);
     }
   }
 
@@ -892,16 +928,17 @@ class App {
     let account = accounts[email];
 
     // Se è la mail admin e non ha ancora account locale salvato, inizializzala
-    const isAdmin = email === ADMIN_EMAIL.toLowerCase();
+    const isAdmin = isUserAdmin(email);
     if (!account && isAdmin) {
+      const isAlessia = email === "alessia.ditullio1996@gmail.com";
       account = {
-        firstName: "Luca",
-        lastName: "Barcello",
-        name: "Barcello Luca",
+        firstName: isAlessia ? "Alessia" : "Luca",
+        lastName: isAlessia ? "Di Tullio" : "Barcello",
+        name: isAlessia ? "Alessia Di Tullio" : "Barcello Luca",
         email: email,
         password: password,
-        birthDate: "2002-01-01",
-        ranking: "4.1",
+        birthDate: isAlessia ? "1996-01-01" : "2002-01-01",
+        ranking: isAlessia ? "NC" : "4.1",
         role: "admin",
         biometricsEnabled: true
       };
@@ -1370,26 +1407,35 @@ class App {
       { id: "SAT", label: "SAT", full: "SAT" }
     ];
 
-    const counts = { all: this.state.players.length };
+    const unassignedCount = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === "Da Assegnare").length;
+    if (this.currentTab === "players" && unassignedCount > 0) {
+      cats.push({ id: "Da Assegnare", label: "⏳ Da Assegnare", full: "In attesa di Assegnazione" });
+    }
+
+    const counts = { all: this.state.players.length, "Da Assegnare": unassignedCount };
     TournamentManager.CATEGORIES.forEach(c => {
       counts[c] = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === c).length;
     });
 
-    // In Gironi e Tabellone, "all" non ha senso
-    if ((this.currentTab === "groups" || this.currentTab === "bracket") && this.selectedCategory === "all") {
+    // In Gironi e Tabellone, "all" o "Da Assegnare" non ha senso
+    if ((this.currentTab === "groups" || this.currentTab === "bracket") && (this.selectedCategory === "all" || this.selectedCategory === "Da Assegnare")) {
       this.selectedCategory = "Pre Agonistica U12";
     }
 
     let html = "";
     cats.forEach(c => {
-      if ((this.currentTab === "groups" || this.currentTab === "bracket") && c.id === "all") {
+      if ((this.currentTab === "groups" || this.currentTab === "bracket") && (c.id === "all" || c.id === "Da Assegnare")) {
         return;
       }
 
       const isActive = this.selectedCategory === c.id;
       const activeClass = isActive
-        ? "bg-yellow-400 text-blue-950 font-black shadow border-yellow-300 ring-2 ring-yellow-400/50"
-        : "bg-white/10 hover:bg-white/20 text-white font-medium border-white/20";
+        ? (c.id === "Da Assegnare"
+            ? "bg-amber-400 text-amber-950 font-black shadow border-amber-300 ring-2 ring-amber-400/50"
+            : "bg-yellow-400 text-blue-950 font-black shadow border-yellow-300 ring-2 ring-yellow-400/50")
+        : (c.id === "Da Assegnare"
+            ? "bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold border-amber-400/40"
+            : "bg-white/10 hover:bg-white/20 text-white font-medium border-white/20");
 
       html += `
         <button type="button" onclick="app.setCategory('${c.id}')" class="px-2.5 py-1 rounded-lg text-xs border transition flex items-center gap-1.5 cursor-pointer ${activeClass}">
@@ -1410,7 +1456,7 @@ class App {
   }
 
   getCategoryBadgeMarkup(category) {
-    const cat = category || "Pre Agonistica U12";
+    const cat = category || "Da Assegnare";
     if (cat === "Pre Agonistica U12") {
       return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">Pre Ag. U12</span>`;
     } else if (cat === "Pre Agonistica") {
@@ -1419,6 +1465,8 @@ class App {
       return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-sky-100 text-sky-900 border border-sky-300">SAT U14</span>`;
     } else if (cat === "SAT") {
       return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">SAT</span>`;
+    } else if (cat === "Da Assegnare") {
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">⏳ Da Assegnare</span>`;
     }
     return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-300">${cat}</span>`;
   }
@@ -1935,7 +1983,7 @@ class App {
         ${this.isAdmin ? `
           <div class="bg-blue-50 border border-blue-200 rounded-xl p-3.5 mb-5 flex flex-wrap items-center justify-between gap-3">
             <div class="text-xs text-blue-950">
-              <strong>Accesso Amministratore (Barcello Luca):</strong> puoi inserire, modificare o eliminare atleti, consultare e gestire tutti gli account registrati, organizzare i gironi e comporre il tabellone finale.
+              <strong>Accesso Amministrazione (Barcello Luca & Alessia Di Tullio):</strong> puoi inserire, modificare o eliminare atleti, consultare e gestire tutti gli account registrati, organizzare i gironi e comporre il tabellone finale.
             </div>
             <div class="flex items-center gap-2">
               <button onclick="app.openNewPlayerModal(false)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer">
@@ -1963,7 +2011,7 @@ class App {
               </svg>
             </div>
             <div class="text-xs text-blue-950 leading-relaxed">
-              <strong>Roster Ufficiale Torneo Momy:</strong> La gestione dei partecipanti (inserimento, modifica ed eliminazione atleti) e dei tabelloni è curata esclusivamente dall'Amministratore Ufficiale (<strong>Barcello Luca</strong>).
+              <strong>Roster Ufficiale Torneo Momy:</strong> La gestione dei partecipanti (inserimento, modifica ed eliminazione atleti) e dei tabelloni è curata esclusivamente dall'Amministrazione Ufficiale (<strong>Barcello Luca & Alessia Di Tullio</strong>).
             </div>
           </div>
         `}
@@ -2010,7 +2058,7 @@ class App {
             ${players.length === 0
               ? (this.isAdmin
                   ? "L'elenco partecipanti del Torneo Momy è attualmente vuoto. Inserisci i ragazzi che parteciperanno alla competizione, oppure consulta la scheda 'Tutti gli Account Registrati' per inserire gli account già creati."
-                  : "L'elenco partecipanti del Torneo Momy è attualmente vuoto. L'amministratore ufficiale (Barcello Luca) provvederà all'inserimento degli iscritti.")
+                  : "L'elenco partecipanti del Torneo Momy è attualmente vuoto. L'amministrazione ufficiale del torneo provvederà all'inserimento degli iscritti.")
               : `Nessun atleta corrisponde ai filtri impostati (categoria: ${cat}). Prova a selezionare "Tutte" o aggiungi nuovi atleti.`}
           </p>
           ${this.isAdmin ? `
@@ -2044,8 +2092,9 @@ class App {
             <tbody class="divide-y divide-gray-100">
               ${filtered.map((p, idx) => {
                 const playerCat = this.tournamentManager.getPlayerCategory(p);
+                const isUnassigned = playerCat === "Da Assegnare";
                 return `
-                  <tr class="hover:bg-gray-50/80 transition">
+                  <tr class="hover:bg-gray-50/80 transition ${isUnassigned ? 'bg-amber-50/60' : ''}">
                     <td class="py-3 px-3 font-mono text-center text-gray-400 font-semibold">${idx + 1}</td>
                     <td class="py-3 px-3 font-bold text-gray-900">${p.firstName || (p.name ? p.name.split(' ')[0] : '-') || '-'}</td>
                     <td class="py-3 px-3 font-bold text-gray-900">${p.lastName || (p.name ? p.name.split(' ').slice(1).join(' ') : '-') || '-'}</td>
@@ -2059,9 +2108,15 @@ class App {
                     <td class="py-3 px-3 text-gray-500 text-xs italic max-w-xs truncate">${p.notes || '-'}</td>
                     <td class="py-3 px-3 text-right space-x-1 whitespace-nowrap">
                       ${this.isAdmin ? `
-                        <button onclick="app.editPlayer('${p.id}')" class="text-xs text-blue-700 hover:text-blue-900 font-medium px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 transition cursor-pointer">
-                          Modifica
-                        </button>
+                        ${isUnassigned ? `
+                          <button onclick="app.editPlayer('${p.id}')" class="text-xs text-amber-950 font-black px-2.5 py-1 rounded-lg bg-yellow-400 hover:bg-yellow-300 shadow-xs transition cursor-pointer">
+                            Assegna Categoria
+                          </button>
+                        ` : `
+                          <button onclick="app.editPlayer('${p.id}')" class="text-xs text-blue-700 hover:text-blue-900 font-medium px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 transition cursor-pointer">
+                            Modifica
+                          </button>
+                        `}
                         <button onclick="app.deletePlayer('${p.id}')" class="text-xs text-rose-600 hover:text-rose-800 font-medium px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 transition cursor-pointer">
                           Elimina
                         </button>
@@ -2464,7 +2519,7 @@ class App {
       birthDate,
       ranking,
       category,
-      role: email === ADMIN_EMAIL.toLowerCase() ? "admin" : role,
+      role: isUserAdmin(email) ? "admin" : role,
       biometricsEnabled: prevAcc.biometricsEnabled ?? true
     };
 
@@ -2527,8 +2582,8 @@ class App {
       return;
     }
 
-    if (cleanEmail === ADMIN_EMAIL.toLowerCase() && this.user && this.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
-      if (!confirm("ATTENZIONE: Stai per eliminare il tuo stesso account di Super Amministratore. Sei sicuro di voler procedere?")) {
+    if (isUserAdmin(cleanEmail) && this.user && this.user.email.toLowerCase() === cleanEmail) {
+      if (!confirm("ATTENZIONE: Stai per eliminare il tuo stesso account Amministratore. Sei sicuro di voler procedere?")) {
         return;
       }
     } else {
@@ -2694,7 +2749,7 @@ class App {
 
   openNewPlayerModal(fromProfile = false) {
     if (!this.isAdmin) {
-      this.showToast("Solo l'amministratore (Barcello Luca) può inserire giocatori.", "error");
+      this.showToast("Operazione riservata all'amministrazione del torneo.", "error");
       return;
     }
 
@@ -2716,7 +2771,7 @@ class App {
     lnInput.value = "";
     bdInput.value = "";
     rkInput.value = "NC";
-    if (catSelect) catSelect.value = (this.selectedCategory !== "all") ? this.selectedCategory : "Pre Agonistica U12";
+    if (catSelect) catSelect.value = (this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Pre Agonistica U12";
     notesInput.value = "";
 
     this.openModal("modal-player");
@@ -2727,7 +2782,7 @@ class App {
 
   editPlayer(id) {
     if (!this.isAdmin) {
-      this.showToast("Solo l'amministratore (Barcello Luca) può modificare i dati dei giocatori.", "error");
+      this.showToast("Operazione riservata all'amministrazione del torneo.", "error");
       return;
     }
 
@@ -2737,7 +2792,7 @@ class App {
     const modalTitle = document.getElementById("player-modal-title");
     const submitBtn = document.getElementById("player-submit-btn");
     if (modalTitle) modalTitle.textContent = "Modifica Dati Atleta";
-    if (submitBtn) submitBtn.textContent = "Aggiungi Atleta";
+    if (submitBtn) submitBtn.textContent = "Salva Atleta";
     document.getElementById("player-id-input").value = p.id;
 
     document.getElementById("player-firstname-input").value = p.firstName || (p.name ? p.name.split(' ')[0] : "") || "";
@@ -2745,7 +2800,7 @@ class App {
     document.getElementById("player-birthdate-input").value = p.birthDate || "";
     document.getElementById("player-ranking-input").value = p.ranking || "NC";
     const catSelect = document.getElementById("player-category-select");
-    if (catSelect) catSelect.value = p.category || this.tournamentManager.getPlayerCategory(p);
+    if (catSelect) catSelect.value = p.category || this.tournamentManager.getPlayerCategory(p) || "Pre Agonistica U12";
     document.getElementById("player-notes-input").value = p.notes || "";
 
     this.openModal("modal-player");
@@ -2753,7 +2808,7 @@ class App {
 
   handleSavePlayer() {
     if (!this.isAdmin) {
-      this.showToast("Operazione consentita solo all'amministratore (Barcello Luca).", "error");
+      this.showToast("Operazione riservata all'amministrazione del torneo.", "error");
       return;
     }
 
@@ -2763,7 +2818,7 @@ class App {
     const birthDate = document.getElementById("player-birthdate-input").value.trim();
     const ranking = document.getElementById("player-ranking-input").value.trim() || "NC";
     const categorySelect = document.getElementById("player-category-select");
-    const category = categorySelect ? categorySelect.value : this.tournamentManager.getPlayerCategory({ birthDate });
+    const category = categorySelect ? categorySelect.value : (this.tournamentManager.getPlayerCategory({ birthDate }) || "Da Assegnare");
     const notes = document.getElementById("player-notes-input").value.trim();
 
     if (!firstName || !lastName) {
@@ -2792,6 +2847,21 @@ class App {
           category,
           notes
         };
+
+        // Sincronizza anche sull'account registrato se presente
+        const pEmail = (this.state.players[idx].email || "").toLowerCase().trim();
+        if (pEmail) {
+          const accounts = this.loadAccounts();
+          if (accounts[pEmail]) {
+            accounts[pEmail].category = category;
+            accounts[pEmail].firstName = firstName;
+            accounts[pEmail].lastName = lastName;
+            accounts[pEmail].name = fullName;
+            accounts[pEmail].birthDate = birthDate;
+            accounts[pEmail].ranking = ranking;
+            this.saveAccounts(accounts);
+          }
+        }
       }
     } else {
       // Controllo duplicati
@@ -2823,12 +2893,13 @@ class App {
 
     this.saveState();
     this.closeModal("modal-player");
-    this.showToast(`Atleta ${fullName} registrato con successo!`, "success");
+    this.showToast(`Dati di ${fullName} salvati con successo!`, "success");
+    this.render();
   }
 
   deletePlayer(id) {
     if (!this.isAdmin) {
-      this.showToast("Solo l'amministratore (Barcello Luca) può eliminare giocatori.", "error");
+      this.showToast("Operazione riservata all'amministrazione del torneo.", "error");
       return;
     }
     const p = this.state.players.find(x => x.id === id);
@@ -2984,7 +3055,7 @@ class App {
             </div>
             <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Calendario Incontri & Campi</h2>
             <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
-              Date, orari e campi programmati dall'Amministratore (<strong>Barcello Luca</strong>). Entrambi gli atleti devono confermare o rifiutare l'orario per la disputa dell'incontro.
+              Date, orari e campi programmati dall'Amministrazione (<strong>Barcello Luca & Alessia Di Tullio</strong>). Entrambi gli atleti devono confermare o rifiutare l'orario per la disputa dell'incontro.
             </p>
           </div>
 
@@ -2997,7 +3068,7 @@ class App {
             </div>
           ` : `
             <div class="text-xs text-blue-200 bg-white/10 px-3.5 py-2 rounded-xl border border-white/20">
-              Orari programmati dall'Amministratore Barcello Luca
+              Orari programmati dall'Amministrazione del Torneo
             </div>
           `}
         </div>
@@ -3428,7 +3499,7 @@ class App {
 
   openScheduleMatchModal(type, groupKeyOrRound, matchId, category = null) {
     if (!this.isAdmin) {
-      this.showToast("Solo l'amministratore (Barcello Luca) può programmare data e campo.", "error");
+      this.showToast("Operazione riservata all'amministrazione del torneo.", "error");
       return;
     }
 
@@ -3632,7 +3703,7 @@ class App {
                 `}
               ` : `
                 <p class="text-xs text-gray-500 italic">
-                  Il tabellone ufficiale delle partite verrà pubblicato dall'amministratore (Barcello Luca).
+                  Il tabellone ufficiale delle partite verrà pubblicato dall'amministrazione del torneo.
                 </p>
               `}
             </div>
@@ -3980,7 +4051,7 @@ class App {
               <span>Amministrazione Ufficiale & Gestione Esclusiva</span>
             </h4>
             <p class="text-xs text-blue-900 leading-relaxed">
-              La gestione degli atleti (inserimento, modifica dati anagrafici ed eliminazione), la composizione e modifica dei gironi, la programmazione del calendario gare (data, orario e campo) e la compilazione del tabellone finale sono riservate in via esclusiva all'Amministratore Ufficiale (<strong>Barcello Luca</strong>).
+              La gestione degli atleti (inserimento, modifica dati anagrafici ed eliminazione), la composizione e modifica dei gironi, la programmazione del calendario gare (data, orario e campo) e la compilazione del tabellone finale sono riservate in via esclusiva all'Amministrazione Ufficiale (<strong>Barcello Luca & Alessia Di Tullio</strong>).
             </p>
           </div>
         </div>
@@ -3990,7 +4061,7 @@ class App {
             <h3 class="text-base font-bold text-gray-900 mb-3">Informazioni Torneo</h3>
             <div class="text-xs text-gray-600 space-y-2.5">
               <div><strong>Manifestazione:</strong> Torneo Momy 26/27</div>
-              <div><strong>Amministratore Ufficiale:</strong> Barcello Luca</div>
+              <div><strong>Amministrazione Ufficiale:</strong> Barcello Luca • Alessia Di Tullio</div>
               <div><strong>Categorie:</strong> Pre Agonistica U12, Pre Agonistica, SAT U14, SAT</div>
               <div><strong>Gironi:</strong> Girone Sinner • Girone Alcaraz</div>
               <div><strong>Fase Finale:</strong> Tutti qualificati al Tabellone</div>
@@ -4007,7 +4078,7 @@ class App {
             <p class="text-xs text-blue-100 mb-4 leading-relaxed">
               ${this.isAdmin
                 ? "Puoi inserire o modificare i partecipanti, aggiornare gli orari delle partite e validare i risultati."
-                : "La gestione dei partecipanti, dei gironi e del calendario è curata dall'Amministratore Barcello Luca."}
+                : "La gestione dei partecipanti, dei gironi e del calendario è curata dall'Amministrazione (Barcello Luca & Alessia Di Tullio)."}
             </p>
             ${this.isAdmin ? `
               <button onclick="app.switchTab('players'); app.openNewPlayerModal(false);" class="w-full bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs py-2.5 px-4 rounded-xl shadow transition">
@@ -4066,9 +4137,10 @@ class App {
       "Pre Agonistica U12": "Pre Agonistica U12",
       "Pre Agonistica": "Pre Agonistica",
       "SAT U14": "SAT U14",
-      "SAT": "SAT"
+      "SAT": "SAT",
+      "Da Assegnare": "In attesa di assegnazione dai maestri"
     };
-    const curCategoryLabel = catLabels[curCat] || curCat || "Pre Agonistica U12";
+    const curCategoryLabel = catLabels[curCat] || (curCat === "Da Assegnare" ? "In attesa di assegnazione dai maestri" : curCat) || "Da Assegnare";
 
     container.innerHTML = `
       <div class="space-y-6 max-w-4xl mx-auto">
@@ -4204,16 +4276,17 @@ class App {
                 <label class="block text-xs font-bold text-gray-700 mb-1">Categoria di Gioco *</label>
                 ${this.isAdmin ? `
                   <select id="account-page-category-select" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
+                    <option value="Da Assegnare" ${curCat === 'Da Assegnare' ? 'selected' : ''}>⏳ In attesa di assegnazione (Da Assegnare)</option>
                     <option value="Pre Agonistica U12" ${curCat === 'Pre Agonistica U12' ? 'selected' : ''}>Pre Agonistica U12</option>
                     <option value="Pre Agonistica" ${curCat === 'Pre Agonistica' ? 'selected' : ''}>Pre Agonistica</option>
                     <option value="SAT U14" ${curCat === 'SAT U14' ? 'selected' : ''}>SAT U14</option>
                     <option value="SAT" ${curCat === 'SAT' ? 'selected' : ''}>SAT</option>
                   </select>
-                  <p class="text-[10px] text-blue-700 mt-1 font-semibold">Modalità Amministratore: puoi modificare la categoria se errata.</p>
+                  <p class="text-[10px] text-blue-700 mt-1 font-semibold">Modalità Amministratore: puoi assegnare o modificare la categoria di gara.</p>
                 ` : `
                   <input type="text" value="${curCategoryLabel}" readonly disabled class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl bg-gray-100 text-gray-800 font-bold cursor-not-allowed">
                   <input type="hidden" id="account-page-category-select" value="${curCat}">
-                  <p class="text-[10px] text-gray-500 mt-1">Assegnata in base all'età. Solo l'amministratore può modificarla.</p>
+                  <p class="text-[10px] text-gray-500 mt-1">La categoria viene assegnata dai maestri e amministratori del torneo.</p>
                 `}
               </div>
             </div>
