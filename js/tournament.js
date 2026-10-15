@@ -64,21 +64,49 @@ class TournamentManager {
     TournamentManager.CATEGORIES.forEach(cat => {
       if (!this.state.categoryGroups[cat]) {
         this.state.categoryGroups[cat] = {
-          sinner: { id: "sinner", name: `Girone Sinner (${cat})`, playerIds: [], matches: [] },
-          alcaraz: { id: "alcaraz", name: `Girone Alcaraz (${cat})`, playerIds: [], matches: [] }
+          single: { id: "single", name: `Girone Unico (${cat})`, playerIds: [], matches: [] }
         };
       } else {
-        if (!this.state.categoryGroups[cat].sinner) {
-          this.state.categoryGroups[cat].sinner = { id: "sinner", name: `Girone Sinner (${cat})`, playerIds: [], matches: [] };
+        // Migrazione da vecchi gironi sinner/alcaraz a girone unico
+        if (!this.state.categoryGroups[cat].single) {
+          const oldSinner = this.state.categoryGroups[cat].sinner || { playerIds: [], matches: [] };
+          const oldAlcaraz = this.state.categoryGroups[cat].alcaraz || { playerIds: [], matches: [] };
+          
+          const mergedPlayerIds = Array.from(new Set([
+            ...(oldSinner.playerIds || []),
+            ...(oldAlcaraz.playerIds || [])
+          ]));
+
+          const mergedMatches = [
+            ...(oldSinner.matches || []),
+            ...(oldAlcaraz.matches || [])
+          ];
+
+          this.state.categoryGroups[cat].single = {
+            id: "single",
+            name: `Girone Unico (${cat})`,
+            playerIds: mergedPlayerIds,
+            matches: mergedMatches
+          };
         } else {
-          this.state.categoryGroups[cat].sinner.name = `Girone Sinner (${cat})`;
-        }
-        if (!this.state.categoryGroups[cat].alcaraz) {
-          this.state.categoryGroups[cat].alcaraz = { id: "alcaraz", name: `Girone Alcaraz (${cat})`, playerIds: [], matches: [] };
-        } else {
-          this.state.categoryGroups[cat].alcaraz.name = `Girone Alcaraz (${cat})`;
+          this.state.categoryGroups[cat].single.name = `Girone Unico (${cat})`;
         }
       }
+
+      // Popola automaticamente il Girone Unico con tutti gli iscritti di questa categoria
+      const catPlayers = this.getPlayersByCategory(cat);
+      const singleGroup = this.state.categoryGroups[cat].single;
+      const currentIds = new Set(singleGroup.playerIds || []);
+      catPlayers.forEach(p => currentIds.add(p.id));
+
+      singleGroup.playerIds = Array.from(currentIds).filter(pid => {
+        const p = this.getPlayer(pid);
+        return p && this.getPlayerCategory(p) === cat;
+      });
+
+      // Riferimenti di retrocompatibilità
+      this.state.categoryGroups[cat].sinner = singleGroup;
+      this.state.categoryGroups[cat].alcaraz = singleGroup;
     });
 
     if (!this.state.categoryBrackets) {
@@ -105,25 +133,6 @@ class TournamentManager {
         p.category = this.getPlayerCategory(p);
       });
     }
-
-    // Pulisce i gironi affinché contengano esclusivamente giocatori della categoria corrispondente
-    TournamentManager.CATEGORIES.forEach(cat => {
-      const catGroup = this.state.categoryGroups[cat];
-      if (catGroup) {
-        if (catGroup.sinner && Array.isArray(catGroup.sinner.playerIds)) {
-          catGroup.sinner.playerIds = catGroup.sinner.playerIds.filter(pid => {
-            const p = this.getPlayer(pid);
-            return p && this.getPlayerCategory(p) === cat;
-          });
-        }
-        if (catGroup.alcaraz && Array.isArray(catGroup.alcaraz.playerIds)) {
-          catGroup.alcaraz.playerIds = catGroup.alcaraz.playerIds.filter(pid => {
-            const p = this.getPlayer(pid);
-            return p && this.getPlayerCategory(p) === cat;
-          });
-        }
-      }
-    });
   }
 
   // Valuta la forza della classifica FITP per comporre gli accoppiamenti
@@ -386,65 +395,39 @@ class TournamentManager {
   autoAssignGroups(category = "Pre Agonistica U12") {
     this.ensureCategories();
     const cat = category || "Pre Agonistica U12";
-    const group = this.state.categoryGroups[cat];
+    const catGroup = this.state.categoryGroups[cat];
+    const single = catGroup.single;
 
-    // Filtra solo gli atleti appartenenti a questa categoria!
-    const players = this.state.players
-      .filter(p => this.getPlayerCategory(p) === cat)
-      .sort((a, b) => {
-        const weightA = this.getRankingWeight(a.ranking);
-        const weightB = this.getRankingWeight(b.ranking);
-        if (weightA !== weightB) return weightB - weightA;
-        return (a.lastName || "").localeCompare(b.lastName || "");
-      });
+    // Tutti gli atleti della categoria fanno parte del Girone Unico
+    const catPlayers = this.getPlayersByCategory(cat);
+    single.playerIds = catPlayers.map(p => p.id);
 
-    const sinnerIds = [];
-    const alcarazIds = [];
+    this.generateGroupMatches("single", cat);
 
-    // Snake draft serpentina
-    players.forEach((p, idx) => {
-      const cycle = Math.floor(idx / 2) % 2;
-      if (cycle === 0) {
-        if (idx % 2 === 0) sinnerIds.push(p.id);
-        else alcarazIds.push(p.id);
-      } else {
-        if (idx % 2 === 0) alcarazIds.push(p.id);
-        else sinnerIds.push(p.id);
-      }
-    });
-
-    group.sinner.playerIds = sinnerIds;
-    group.alcaraz.playerIds = alcarazIds;
-
-    this.generateGroupMatches("sinner", cat);
-    this.generateGroupMatches("alcaraz", cat);
-
-    this.state.groups = group;
-    return group;
+    this.state.groups = catGroup;
+    return catGroup;
   }
 
-  assignPlayerToGroup(playerId, targetGroupKey, category = "Pre Agonistica U12") {
-    this.ensureCategories();
-    const cat = category || "Pre Agonistica U12";
-    const group = this.state.categoryGroups[cat];
-
-    group.sinner.playerIds = group.sinner.playerIds.filter(id => id !== playerId);
-    group.alcaraz.playerIds = group.alcaraz.playerIds.filter(id => id !== playerId);
-
-    if (targetGroupKey === "sinner" || targetGroupKey === "alcaraz") {
-      group[targetGroupKey].playerIds.push(playerId);
-      this.generateGroupMatches(targetGroupKey, cat);
-    }
-  }
-
-  generateGroupMatches(groupKey, category = "Pre Agonistica U12") {
+  assignPlayerToGroup(playerId, targetGroupKey = "single", category = "Pre Agonistica U12") {
     this.ensureCategories();
     const cat = category || "Pre Agonistica U12";
     const catGroup = this.state.categoryGroups[cat];
-    const group = catGroup[groupKey];
+    const single = catGroup.single;
+
+    if (!single.playerIds.includes(playerId)) {
+      single.playerIds.push(playerId);
+      this.generateGroupMatches("single", cat);
+    }
+  }
+
+  generateGroupMatches(groupKey = "single", category = "Pre Agonistica U12") {
+    this.ensureCategories();
+    const cat = category || "Pre Agonistica U12";
+    const catGroup = this.state.categoryGroups[cat];
+    const group = catGroup[groupKey] || catGroup.single;
     if (!group) return [];
 
-    const playerIds = group.playerIds.filter(id => this.getPlayer(id) !== null);
+    const playerIds = (group.playerIds || []).filter(id => this.getPlayer(id) !== null);
     const existingMatches = group.matches || [];
     const newMatches = [];
 
@@ -460,11 +443,12 @@ class TournamentManager {
         );
 
         if (existing) {
+          existing.groupKey = "single";
           newMatches.push(existing);
         } else {
           newMatches.push({
-            id: `gm-${cat.toLowerCase()}-${groupKey}-${matchCount}`,
-            groupKey: groupKey,
+            id: `gm-${cat.toLowerCase().replace(/[^a-z0-9]/g, '')}-${matchCount}`,
+            groupKey: "single",
             category: cat,
             player1Id: p1Id,
             player2Id: p2Id,
@@ -473,7 +457,7 @@ class TournamentManager {
             scores: "",
             winnerId: null,
             isDraw: false,
-            court: groupKey === "sinner" ? "Campo 0 (Terra)" : "Campo 1 (Terra)",
+            court: (matchCount % 2 === 0) ? "Campo 0 (Terra)" : "Campo 1 (Terra)",
             dateTime: "",
             p1Acceptance: null,
             p2Acceptance: null,
@@ -488,15 +472,15 @@ class TournamentManager {
     return newMatches;
   }
 
-  updateGroupMatch(groupKey, matchId, matchData, category = null) {
+  updateGroupMatch(groupKey = "single", matchId, matchData, category = null) {
     this.ensureCategories();
     const cats = category ? [category] : TournamentManager.CATEGORIES;
 
     for (let cat of cats) {
       const catGroup = this.state.categoryGroups[cat];
       if (!catGroup) continue;
-      const group = catGroup[groupKey];
-      if (!group) continue;
+      const group = catGroup[groupKey] || catGroup.single || (catGroup.sinner && catGroup.sinner.matches && catGroup.sinner.matches.some(m => m.id === matchId) ? catGroup.sinner : catGroup.alcaraz);
+      if (!group || !group.matches) continue;
 
       const match = group.matches.find(m => m.id === matchId);
       if (!match) continue;
@@ -512,9 +496,10 @@ class TournamentManager {
       match.games1 = isNaN(g1) ? null : g1;
       match.games2 = isNaN(g2) ? null : g2;
 
+      // Aggiornamento automatico punteggio e stato quando la partita è finita
       if (match.games1 !== null && match.games2 !== null) {
         match.scores = `${match.games1} - ${match.games2}`;
-        match.status = matchData.status || "completato";
+        match.status = matchData.status && matchData.status !== "in_programma" ? matchData.status : "completato";
 
         if (match.games1 > match.games2) {
           match.winnerId = match.player1Id;
@@ -551,17 +536,17 @@ class TournamentManager {
     return m.winnerId || null;
   }
 
-  getGroupStandings(groupKey, category = "Pre Agonistica U12") {
+  getGroupStandings(groupKey = "single", category = "Pre Agonistica U12") {
     this.ensureCategories();
     const cat = category || "Pre Agonistica U12";
     const catGroup = this.state.categoryGroups[cat];
     if (!catGroup) return [];
-    const group = catGroup[groupKey];
+    const group = catGroup[groupKey] || catGroup.single;
     if (!group) return [];
 
     const statsMap = {};
 
-    group.playerIds.forEach(id => {
+    (group.playerIds || []).forEach(id => {
       const p = this.getPlayer(id);
       if (p) {
         statsMap[id] = {
@@ -660,95 +645,65 @@ class TournamentManager {
     return sortedStandings;
   }
 
-  getCrossGroupSeedOrder(bracketSize) {
-    if (bracketSize === 4) {
-      return [1, 4, 3, 2];
-    }
-    if (bracketSize === 8) {
-      return [1, 8, 4, 5, 3, 6, 2, 7];
-    }
-    if (bracketSize === 16) {
-      return [1, 16, 8, 9, 5, 12, 4, 13, 3, 14, 6, 11, 7, 10, 2, 15];
-    }
-    if (bracketSize === 32) {
-      const pairs = [
-        [1, 32], [16, 17], [9, 24], [8, 25],
-        [5, 28], [12, 21], [13, 20], [4, 29],
-        [3, 30], [14, 19], [11, 22], [6, 27],
-        [7, 26], [10, 23], [15, 18], [2, 31]
-      ];
-      return pairs.flat();
-    }
-    return Array.from({ length: bracketSize }, (_, i) => i + 1);
-  }
-
   generateBracketFromGroups(category = "Pre Agonistica U12") {
     this.ensureCategories();
     const cat = category || "Pre Agonistica U12";
-    const standingsSinner = this.getGroupStandings("sinner", cat);
-    const standingsAlcaraz = this.getGroupStandings("alcaraz", cat);
+    const standings = this.getGroupStandings("single", cat);
 
-    const totalInGroups = standingsSinner.length + standingsAlcaraz.length;
-    if (totalInGroups < 2) {
-      throw new Error(`Servono almeno 2 atleti inseriti nei gironi ${cat} per poter comporre il tabellone finale.`);
+    if (standings.length < 2) {
+      throw new Error(`Servono almeno 2 atleti in classifica nel Girone Unico (${cat}) per poter comporre il tabellone finale.`);
     }
 
-    let bracketSize = 4;
-    if (totalInGroups > 16) bracketSize = 32;
-    else if (totalInGroups > 8) bracketSize = 16;
-    else if (totalInGroups > 4) bracketSize = 8;
-    else bracketSize = 4;
+    // A fine anno si qualificano i migliori 8 di ogni categoria
+    const qualifiedCount = Math.min(standings.length, 8);
+    const topPlayers = standings.slice(0, qualifiedCount).map(s => s.player.id);
 
-    const seedMap = {};
-    let sIdx = 0;
-    let aIdx = 0;
+    let bracketSize = 8;
+    if (topPlayers.length <= 4) {
+      bracketSize = 4;
+    }
 
-    for (let seed = 1; seed <= bracketSize; seed++) {
-      if (seed % 2 === 1) {
-        if (sIdx < standingsSinner.length) {
-          seedMap[seed] = standingsSinner[sIdx].player.id;
-          sIdx++;
-        } else if (aIdx < standingsAlcaraz.length) {
-          seedMap[seed] = standingsAlcaraz[aIdx].player.id;
-          aIdx++;
-        } else {
-          seedMap[seed] = "BYE";
+    const slots = new Array(bracketSize).fill("BYE");
+
+    if (bracketSize === 8) {
+      // Accoppiamenti tabellone classico a 8 teste di serie:
+      // Quarto 1: 1° vs 8°
+      // Quarto 2: 4° vs 5°
+      // Quarto 3: 3° vs 6°
+      // Quarto 4: 2° vs 7°
+      const seedToSlot = { 1: 0, 8: 1, 4: 2, 5: 3, 3: 4, 6: 5, 2: 6, 7: 7 };
+      for (let seed = 1; seed <= topPlayers.length; seed++) {
+        const slotIdx = seedToSlot[seed];
+        if (slotIdx !== undefined) {
+          slots[slotIdx] = topPlayers[seed - 1];
         }
-      } else {
-        if (aIdx < standingsAlcaraz.length) {
-          seedMap[seed] = standingsAlcaraz[aIdx].player.id;
-          aIdx++;
-        } else if (sIdx < standingsSinner.length) {
-          seedMap[seed] = standingsSinner[sIdx].player.id;
-          sIdx++;
-        } else {
-          seedMap[seed] = "BYE";
+      }
+    } else {
+      // bracketSize === 4
+      // Semi 1: 1° vs 4°
+      // Semi 2: 2° vs 3°
+      const seedToSlot = { 1: 0, 4: 1, 2: 2, 3: 3 };
+      for (let seed = 1; seed <= topPlayers.length; seed++) {
+        const slotIdx = seedToSlot[seed];
+        if (slotIdx !== undefined) {
+          slots[slotIdx] = topPlayers[seed - 1];
         }
       }
     }
 
-    const seedOrder = this.getCrossGroupSeedOrder(bracketSize);
-    const slots = new Array(bracketSize).fill(null);
-    for (let i = 0; i < bracketSize; i++) {
-      const seedNum = seedOrder[i];
-      slots[i] = seedMap[seedNum] || "BYE";
-    }
-
     const totalRounds = Math.log2(bracketSize);
     const roundNamesMap = {
-      1: ["Finale"],
       2: ["Semifinali", "Finale"],
-      3: ["Quarti di Finale", "Semifinali", "Finale"],
-      4: ["Ottavi di Finale", "Quarti di Finale", "Semifinali", "Finale"],
-      5: ["Sedicesimi di Finale", "Ottavi di Finale", "Quarti di Finale", "Semifinali", "Finale"]
+      3: ["Quarti di Finale", "Semifinali", "Finale"]
     };
-    const names = roundNamesMap[totalRounds] || ["Turno 1", "Turno 2", "Semifinali", "Finale"];
+    const names = roundNamesMap[totalRounds] || ["Quarti di Finale", "Semifinali", "Finale"];
 
+    // Round 1
     const r1Matches = [];
     for (let i = 0; i < bracketSize; i += 2) {
       const p1 = slots[i];
       const p2 = slots[i + 1];
-      const matchId = `m-${cat.toLowerCase()}-r1-${(i / 2) + 1}`;
+      const matchId = `m-${cat.toLowerCase().replace(/[^a-z0-9]/g, '')}-r1-${(i / 2) + 1}`;
 
       let winnerId = null;
       let status = "in_programma";
@@ -793,7 +748,7 @@ class TournamentManager {
         const p1 = parent1.winnerId || null;
         const p2 = parent2.winnerId || null;
 
-        const matchId = `m-${cat.toLowerCase()}-r${r + 1}-${m + 1}`;
+        const matchId = `m-${cat.toLowerCase().replace(/[^a-z0-9]/g, '')}-r${r + 1}-${m + 1}`;
         currentMatches.push({
           id: matchId,
           category: cat,
@@ -817,7 +772,7 @@ class TournamentManager {
     const bracket = {
       category: cat,
       rounds: rounds,
-      source: "groups",
+      source: "top8_groups",
       createdAt: new Date().toISOString()
     };
 

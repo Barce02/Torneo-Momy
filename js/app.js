@@ -253,6 +253,10 @@ class App {
     const dot = document.getElementById("cloud-sync-dot");
     const label = document.getElementById("cloud-sync-text");
     const badge = document.getElementById("cloud-sync-badge");
+    if (badge) {
+      badge.classList.add("hidden");
+      badge.style.display = "none";
+    }
     if (!dot || !label) return;
 
     label.textContent = text;
@@ -260,27 +264,10 @@ class App {
 
     if (status === "online") {
       dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50";
-      if (badge) {
-        badge.className = "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-emerald-950/70 text-emerald-300 border border-emerald-500/40 shadow-sm";
-        badge.title = "Cloud sincronizzato in tempo reale con Firebase";
-        badge.onclick = null;
-      }
     } else if (status === "connecting" || status === "syncing") {
       dot.className = "w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse";
-      if (badge) {
-        badge.className = "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-amber-950/70 text-amber-300 border border-amber-500/40 shadow-sm";
-        badge.title = "Connessione a Firebase in corso...";
-        badge.onclick = null;
-      }
     } else if (status === "error") {
       dot.className = "w-2.5 h-2.5 rounded-full bg-rose-500";
-      if (badge) {
-        badge.className = "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/40 shadow-sm cursor-pointer";
-        badge.title = "Errore permessi o connessione: Clicca per verificare";
-        badge.onclick = () => {
-          alert(`Stato Sincronizzazione Firebase: ${text}\n\nSe l'errore è 'Permesso negato' (Permission denied), assicurati di aver aggiunto la regola per 'torneo_momy' su Firebase Console -> Realtime Database -> Regole:\n\n"torneo_momy": {\n  ".read": true,\n  ".write": true\n}`);
-        };
-      }
     }
   }
 
@@ -362,7 +349,7 @@ class App {
           }
         }
         initialAccountsLoaded = true;
-        this.updateSyncStatus("online", "Cloud Attivo");
+        this.updateSyncStatus("online", "Sincronizzato");
       }, (error) => {
         console.error("Errore sincronizzazione Firebase accounts:", error);
         this.updateSyncStatus("error", error.code === "PERMISSION_DENIED" ? "Permesso negato" : "Disconnesso");
@@ -389,7 +376,7 @@ class App {
           }
         }
         initialStateLoaded = true;
-        this.updateSyncStatus("online", "Cloud Attivo");
+        this.updateSyncStatus("online", "Sincronizzato");
       }, (error) => {
         console.error("Errore sincronizzazione Firebase state:", error);
         this.updateSyncStatus("error", error.code === "PERMISSION_DENIED" ? "Permesso negato" : "Disconnesso");
@@ -1552,7 +1539,7 @@ class App {
   }
 
   // ==========================================
-  // SEZIONE FASE A GIRONI (SINNER & ALCARAZ)
+  // SEZIONE FASE A GIRONE UNICO PER CATEGORIA
   // ==========================================
   renderGroupsView() {
     const container = document.getElementById("groups-container");
@@ -1567,47 +1554,49 @@ class App {
     this.tournamentManager.ensureCategories();
     this.tournamentManager.ensureGroups(cat);
 
-    const sinnerStandings = this.tournamentManager.getGroupStandings("sinner", cat);
-    const alcarazStandings = this.tournamentManager.getGroupStandings("alcaraz", cat);
+    const standings = this.tournamentManager.getGroupStandings("single", cat);
     const catGroup = this.state.categoryGroups[cat] || this.tournamentManager.ensureGroups(cat);
-    const sinnerGroup = catGroup.sinner;
-    const alcarazGroup = catGroup.alcaraz;
+    const singleGroup = catGroup.single || catGroup.sinner;
+    const matches = singleGroup.matches || [];
 
-    const totalInGroups = (sinnerGroup.playerIds || []).length + (alcarazGroup.playerIds || []).length;
     const categoryPlayers = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === cat);
     const totalPlayersInCat = categoryPlayers.length;
+    const totalInGroup = (singleGroup.playerIds || []).length;
+    const completedMatchesCount = matches.filter(m => m.status === "completato").length;
 
     let html = `
       <div class="space-y-6">
         
-        <!-- Banner Intestazione & Regolamento Gironi -->
+        <!-- Banner Intestazione & Regolamento Girone Unico -->
         <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 rounded-2xl p-5 sm:p-6 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <div class="flex items-center gap-2 mb-1">
+            <div class="flex items-center gap-2 mb-1 flex-wrap">
               <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
-              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Fase a Gironi • ${cat}</span>
+              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Girone Unico • Categoria ${cat}</span>
               <span class="text-[10px] px-2 py-0.5 rounded-md font-bold bg-white/20 text-yellow-300">${formatInfo.shortDuration} • ${formatInfo.formula}</span>
             </div>
-            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Girone Sinner & Girone Alcaraz (${cat})</h2>
+            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Girone Unico (${cat})</h2>
             <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
-              Formula: <strong>${formatInfo.durationText}</strong> (${formatInfo.formula}). Se in parità al termine del tempo nei gironi, <strong>rimane il pareggio (1 punto ciascuno)</strong>. Vittoria: 3 pt • Pareggio: 1 pt • Sconfitta: 0 pt.
+              Formula: <strong>${formatInfo.durationText}</strong> (${formatInfo.formula}). Se in parità al termine del tempo, <strong>rimane il pareggio (1 punto ciascuno)</strong>.
+              Vittoria: 3 pt • Pareggio: 1 pt • Sconfitta: 0 pt. Il punteggio e la classifica si aggiornano da soli al termine di ogni partita.
+              <strong>A fine anno, i migliori 8 atleti disputeranno il Tabellone Finale</strong>.
             </p>
           </div>
 
           <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            <button onclick="window.print()" title="Stampa Gironi e Classifiche per Bacheca Circolo" class="w-full sm:w-auto bg-white/15 hover:bg-white/25 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-white/30 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm">
+            <button onclick="window.print()" title="Stampa Girone e Classifica per Bacheca Circolo" class="w-full sm:w-auto bg-white/15 hover:bg-white/25 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-white/30 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm">
               <svg class="w-4 h-4 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
               </svg>
-              <span>Stampa Gironi (${cat})</span>
+              <span>Stampa Girone (${cat})</span>
             </button>
             ${this.isAdmin ? `
               <button onclick="app.handleAutoAssignGroups('${cat}')" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-1.5 cursor-pointer">
-                + Distribuisci Atleti nei 2 Gironi (${cat})
+                + Aggiorna Incontri Girone Unico (${cat})
               </button>
-              ${totalInGroups >= 2 ? `
+              ${totalInGroup >= 2 ? `
                 <button onclick="app.handleGenerateBracketFromGroups('${cat}')" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl border border-blue-500 transition flex items-center justify-center gap-1.5 cursor-pointer shadow">
-                  Genera Tabellone Finale (${cat})
+                  Genera Tabellone Finale Top 8 (${cat})
                 </button>
               ` : ''}
             ` : ''}
@@ -1615,7 +1604,7 @@ class App {
         </div>
     `;
 
-    if (totalInGroups === 0) {
+    if (totalInGroup === 0) {
       html += `
         <div class="text-center py-16 bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
           <div class="w-14 h-14 bg-blue-50 border border-blue-200 text-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-sm">
@@ -1623,15 +1612,15 @@ class App {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
             </svg>
           </div>
-          <h3 class="text-lg font-bold text-gray-800 mb-1">Gironi Sinner e Alcaraz (${cat}) non ancora composti</h3>
+          <h3 class="text-lg font-bold text-gray-800 mb-1">Girone Unico (${cat}) non ancora composto</h3>
           <p class="text-xs sm:text-sm text-gray-500 max-w-md mx-auto mb-6">
             ${totalPlayersInCat === 0
-              ? `Nessun atleta è attualmente iscritto nella categoria <strong>${cat}</strong>. Inserisci atleti in questa categoria o cambia la categoria selezionata.`
-              : `Ci sono attualmente <strong>${totalPlayersInCat}</strong> atleti iscritti nella categoria <strong>${cat}</strong>. L'amministratore può suddividerli nei due gironi in modo bilanciato.`}
+              ? `Nessun atleta è attualmente iscritto nella categoria <strong>${cat}</strong>. Inserisci atleti in questa categoria o seleziona un'altra categoria.`
+              : `Ci sono attualmente <strong>${totalPlayersInCat}</strong> atleti iscritti nella categoria <strong>${cat}</strong>. Clicca sul pulsante qui sotto per generare il Girone Unico con tutti i partecipanti.`}
           </p>
           ${this.isAdmin && totalPlayersInCat >= 2 ? `
             <button onclick="app.handleAutoAssignGroups('${cat}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
-              Componi Gironi Automaticamente (${totalPlayersInCat} Partecipanti ${cat})
+              Genera Girone Unico (${totalPlayersInCat} Partecipanti ${cat})
             </button>
           ` : `
             <button onclick="app.switchTab('players')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
@@ -1645,112 +1634,126 @@ class App {
       return;
     }
 
-    // Griglia dei 2 Gironi affiancati
+    // Layout con Classifica a sinistra e Incontri a destra
     html += `
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
-        ${this.renderSingleGroupCard("sinner", "Girone Sinner", sinnerStandings, sinnerGroup.matches || [])}
-        ${this.renderSingleGroupCard("alcaraz", "Girone Alcaraz", alcarazStandings, alcarazGroup.matches || [])}
-      </div>
-    </div>
-    `;
-
-    container.innerHTML = html;
-  }
-
-  renderSingleGroupCard(groupKey, title, standings, matches) {
-    const isSinner = groupKey === "sinner";
-    const accentBorder = isSinner ? "border-blue-300" : "border-indigo-300";
-    const headerBg = isSinner
-      ? "bg-gradient-to-r from-blue-900 to-blue-950 text-white"
-      : "bg-gradient-to-r from-indigo-950 to-slate-950 text-white";
-
-    let html = `
-      <div class="bg-white rounded-2xl border ${accentBorder} shadow-sm overflow-hidden flex flex-col">
-        <!-- Header Girone -->
-        <div class="${headerBg} p-4 sm:p-5 flex items-center justify-between border-b border-blue-900/60">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-yellow-400 text-blue-950 flex items-center justify-center font-black text-sm shadow-sm flex-shrink-0">
-              ${isSinner ? 'S' : 'A'}
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Colonna Sinistra: Classifica Ufficiale Girone Unico -->
+        <div class="lg:col-span-7 space-y-4">
+          <div class="bg-white rounded-2xl border border-blue-200 shadow-sm overflow-hidden flex flex-col">
+            <div class="bg-gradient-to-r from-blue-900 to-blue-950 text-white p-4 sm:p-5 flex items-center justify-between border-b border-blue-900/60">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-yellow-400 text-blue-950 flex items-center justify-center font-black text-sm shadow-sm flex-shrink-0">
+                  🏆
+                </div>
+                <div>
+                  <h3 class="text-base sm:text-lg font-black tracking-tight">Classifica Girone Unico (${cat})</h3>
+                  <p class="text-[11px] text-blue-200">${standings.length} ${standings.length === 1 ? 'atleta' : 'atleti'} • Aggiornamento automatico in tempo reale</p>
+                </div>
+              </div>
+              <span class="bg-emerald-400 text-slate-950 text-[10px] font-black px-2.5 py-1 rounded-full shadow-sm">
+                Top 8 a fine anno
+              </span>
             </div>
-            <div>
-              <h3 class="text-base sm:text-lg font-black tracking-tight">${title}</h3>
-              <p class="text-[11px] text-blue-200">${standings.length} ${standings.length === 1 ? 'atleta' : 'atleti'} • ${matches.length} incontri</p>
+
+            <div class="p-4 sm:p-5 space-y-4">
+              <div class="overflow-x-auto rounded-xl border border-gray-100 shadow-2xs">
+                <table class="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr class="bg-slate-50 text-gray-600 uppercase text-[10px] font-bold border-b border-gray-200">
+                      <th class="py-2.5 px-2 text-center w-7">#</th>
+                      <th class="py-2.5 px-2.5">Nome e Cognome</th>
+                      <th class="py-2.5 px-2 text-center font-black text-blue-950 bg-blue-50/50" title="Punti">PT</th>
+                      <th class="py-2.5 px-2 text-center text-gray-600" title="Partite Giocate">G</th>
+                      <th class="py-2.5 px-2 text-center text-emerald-700" title="Vinte">V</th>
+                      <th class="py-2.5 px-2 text-center text-amber-700" title="Pari">P</th>
+                      <th class="py-2.5 px-2 text-center text-rose-700" title="Perse">S</th>
+                      <th class="py-2.5 px-2 text-center text-gray-700" title="Game Vinti">GV</th>
+                      <th class="py-2.5 px-2 text-center text-gray-700" title="Diff Game">Diff</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-100">
+                    ${standings.map((s, idx) => {
+                      const isMe = this.user && s.player.email && this.user.email && (s.player.email.toLowerCase() === this.user.email.toLowerCase());
+                      const isTop8 = idx < 8;
+                      const is8th = idx === 7;
+                      
+                      let rowHtml = `
+                        <tr class="hover:bg-blue-50/50 transition ${isMe ? 'bg-blue-50/70 font-semibold' : ''}">
+                          <td class="py-2.5 px-2 text-center font-mono font-bold">
+                            <span class="inline-flex items-center justify-center w-5 h-5 rounded-md ${isTop8 ? 'bg-emerald-100 text-emerald-800 text-[10px]' : 'text-gray-400 text-xs'}">
+                              ${idx + 1}
+                            </span>
+                          </td>
+                          <td class="py-2.5 px-2.5 font-bold text-gray-900">
+                            <div class="flex items-center gap-1.5 truncate">
+                              <span class="truncate">${s.player.name}</span>
+                              ${s.player.ranking ? `<span class="text-[9px] font-mono bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-semibold">${s.player.ranking}</span>` : ''}
+                              ${isTop8 ? `<span class="text-[8px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 rounded font-bold">Top 8</span>` : ''}
+                            </div>
+                          </td>
+                          <td class="py-2.5 px-2 text-center bg-blue-50/30">
+                            <span class="bg-yellow-400 text-blue-950 font-black text-xs px-2 py-0.5 rounded-md shadow-xs">
+                              ${s.points}
+                            </span>
+                          </td>
+                          <td class="py-2.5 px-2 text-center font-mono text-gray-600">${s.played}</td>
+                          <td class="py-2.5 px-2 text-center font-mono font-bold text-emerald-700">${s.won}</td>
+                          <td class="py-2.5 px-2 text-center font-mono text-amber-700">${s.drawn}</td>
+                          <td class="py-2.5 px-2 text-center font-mono text-rose-700">${s.lost}</td>
+                          <td class="py-2.5 px-2 text-center font-mono text-gray-800">${s.gamesFor}</td>
+                          <td class="py-2.5 px-2 text-center font-mono font-semibold ${s.diff > 0 ? 'text-emerald-700' : (s.diff < 0 ? 'text-rose-700' : 'text-gray-500')}">
+                            ${s.diff > 0 ? `+${s.diff}` : s.diff}
+                          </td>
+                        </tr>
+                      `;
+
+                      if (is8th && standings.length > 8) {
+                        rowHtml += `
+                          <tr class="bg-emerald-50/80 border-y border-emerald-300">
+                            <td colspan="9" class="py-1 px-3 text-center text-[10px] font-extrabold text-emerald-800 uppercase tracking-wider">
+                              ▲ Limite Qualificazione al Tabellone Finale Top 8 (Fine Anno) ▲
+                            </td>
+                          </tr>
+                        `;
+                      }
+
+                      return rowHtml;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="text-[11px] text-gray-600 bg-slate-50 rounded-xl p-3 border border-slate-200 leading-relaxed space-y-1">
+                <div><span class="font-bold text-gray-800">Punteggi:</span> Vittoria 3 pt • Pareggio 1 pt • Sconfitta 0 pt.</div>
+                <div><span class="font-bold text-gray-800">Criteri classifica:</span> 1° Punti • 2° Scontro diretto • 3° Differenza game • 4° Game vinti • 5° Classifica FITP.</div>
+                <div class="text-emerald-800 font-semibold pt-0.5">⭐ A fine anno i primi 8 atleti disputeranno il Tabellone Finale a eliminazione diretta.</div>
+              </div>
             </div>
           </div>
-          <span class="bg-yellow-400 text-blue-950 text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-sm">
-            ${isSinner ? 'Fase 1' : 'Fase 1'}
-          </span>
         </div>
 
-        <div class="p-4 sm:p-5 flex-grow space-y-6">
-          <!-- Classifica Girone -->
-          <div>
-            <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2.5 flex items-center justify-between">
-              <span>Classifica Ufficiale</span>
-              <span class="text-[10px] text-gray-400 font-normal">V: 3pt • P: 1pt • S: 0pt</span>
-            </h4>
-            <div class="overflow-x-auto rounded-xl border border-gray-100 shadow-2xs">
-              <table class="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr class="bg-slate-50 text-gray-600 uppercase text-[10px] font-bold border-b border-gray-200">
-                    <th class="py-2.5 px-2 text-center w-7">#</th>
-                    <th class="py-2.5 px-2.5">Nome e Cognome</th>
-                    <th class="py-2.5 px-2 text-center font-black text-blue-950" title="Punti Totali">Punti</th>
-                    <th class="py-2.5 px-2 text-center text-gray-700" title="Game Vinti">Game Vinti</th>
-                    <th class="py-2.5 px-2 text-center text-rose-700" title="Set Persi">Set Persi</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                  ${standings.map((s, idx) => {
-                    const isMe = this.user && s.player.email && this.user.email && (s.player.email.toLowerCase() === this.user.email.toLowerCase());
-                    const isTop2 = idx < 2;
-                    return `
-                      <tr class="hover:bg-blue-50/50 transition ${isMe ? 'bg-blue-50/60 font-semibold' : ''}">
-                        <td class="py-2.5 px-2 text-center font-mono font-bold ${isTop2 ? 'text-yellow-600' : 'text-gray-400'}">
-                          ${idx + 1}
-                        </td>
-                        <td class="py-2.5 px-2.5 font-bold text-gray-900">
-                          <div class="flex items-center gap-1.5 truncate">
-                            <span class="truncate">${s.player.name}</span>
-                            ${s.player.ranking ? `<span class="text-[9px] font-mono bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-semibold">${s.player.ranking}</span>` : ''}
-                          </div>
-                        </td>
-                        <td class="py-2.5 px-2 text-center">
-                          <span class="bg-yellow-400 text-blue-950 font-black text-xs px-2.5 py-0.5 rounded-md shadow-sm">
-                            ${s.points}
-                          </span>
-                        </td>
-                        <td class="py-2.5 px-2 text-center font-mono font-semibold text-gray-800">
-                          ${s.gamesFor}
-                        </td>
-                        <td class="py-2.5 px-2 text-center font-mono font-semibold text-rose-700">
-                          ${s.lost}
-                        </td>
-                      </tr>
-                    `;
-                  }).join('')}
-                </tbody>
-              </table>
-            </div>
-            <div class="mt-2 text-[10px] text-gray-500 bg-slate-50 rounded-lg p-2 border border-slate-200">
-              <span class="font-bold text-gray-700">Criteri classifica:</span> 1° Punti • 2° Scontro diretto (se in 2 a pari punti) • 3° Diff. game • 4° Game vinti
-            </div>
-          </div>
-
-          <!-- Partite del Girone -->
-          <div>
-            <div class="flex items-center justify-between mb-2.5">
-              <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                Partite & Risultati
-              </h4>
+        <!-- Colonna Destra: Incontri del Girone Unico -->
+        <div class="lg:col-span-5 space-y-4">
+          <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+            <div class="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between border-b border-slate-800">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shadow-sm flex-shrink-0">
+                  🎾
+                </div>
+                <div>
+                  <h3 class="text-base sm:text-lg font-black tracking-tight">Partite Girone Unico</h3>
+                  <p class="text-[11px] text-slate-300">${completedMatchesCount} su ${matches.length} completate</p>
+                </div>
+              </div>
               ${this.isAdmin ? `
-                <span class="text-[10px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                  Clicca sul match per modificare
+                <span class="text-[10px] bg-blue-500/30 text-blue-200 px-2 py-0.5 rounded border border-blue-400/40">
+                  Clicca per punteggio
                 </span>
               ` : ''}
             </div>
 
-            <div class="space-y-2.5">
+            <div class="p-4 sm:p-5 space-y-3 max-h-[750px] overflow-y-auto">
               ${matches.map(m => {
                 const p1 = this.tournamentManager.getPlayer(m.player1Id);
                 const p2 = this.tournamentManager.getPlayer(m.player2Id);
@@ -1758,28 +1761,33 @@ class App {
                 const isDraw = m.isDraw || (isCompleted && m.games1 !== null && m.games1 === m.games2);
 
                 return `
-                  <div class="bg-white border ${isCompleted ? (isDraw ? 'border-amber-300 bg-amber-50/20' : 'border-blue-300') : 'border-gray-200'} rounded-xl p-3 shadow-sm hover:shadow transition relative ${this.isAdmin ? 'cursor-pointer hover:border-blue-500' : ''}"
-                       onclick="${this.isAdmin ? `app.openGroupMatchModal('${groupKey}', '${m.id}')` : ''}">
+                  <div class="bg-white border ${isCompleted ? (isDraw ? 'border-amber-300 bg-amber-50/20' : 'border-blue-300 bg-blue-50/10') : 'border-gray-200'} rounded-xl p-3 shadow-2xs hover:shadow transition relative ${this.isAdmin ? 'cursor-pointer hover:border-blue-500' : ''}"
+                       onclick="${this.isAdmin ? `app.openGroupMatchModal('single', '${m.id}', '${cat}')` : ''}">
                     
-                    <div class="flex items-center justify-between text-xs mb-1">
-                      <div class="flex items-center gap-1.5 font-semibold text-gray-800">
-                        <span class="${m.winnerId === m.player1Id ? 'font-bold text-blue-950' : ''}">${p1 ? p1.name : 'In attesa'}</span>
-                        <span class="text-gray-400 font-normal">vs</span>
-                        <span class="${m.winnerId === m.player2Id ? 'font-bold text-blue-950' : ''}">${p2 ? p2.name : 'In attesa'}</span>
+                    <div class="flex items-center justify-between text-xs mb-1.5">
+                      <div class="flex flex-col gap-0.5 font-semibold text-gray-800 flex-grow pr-2">
+                        <div class="flex items-center justify-between">
+                          <span class="${m.winnerId === m.player1Id ? 'font-black text-blue-950' : 'text-gray-700'}">${p1 ? p1.name : 'In attesa'}</span>
+                          ${isCompleted && m.games1 !== null ? `<span class="font-mono font-bold text-xs ${m.winnerId === m.player1Id ? 'text-blue-900 font-black' : 'text-gray-600'}">${m.games1}</span>` : ''}
+                        </div>
+                        <div class="flex items-center justify-between">
+                          <span class="${m.winnerId === m.player2Id ? 'font-black text-blue-950' : 'text-gray-700'}">${p2 ? p2.name : 'In attesa'}</span>
+                          ${isCompleted && m.games2 !== null ? `<span class="font-mono font-bold text-xs ${m.winnerId === m.player2Id ? 'text-blue-900 font-black' : 'text-gray-600'}">${m.games2}</span>` : ''}
+                        </div>
                       </div>
 
-                      ${isCompleted ? `
-                        <div class="flex items-center gap-1.5">
-                          <span class="font-mono font-black text-xs bg-blue-100 text-blue-900 px-2 py-0.5 rounded shadow-sm">
+                      <div class="flex flex-col items-end gap-1 flex-shrink-0 pl-2 border-l border-gray-100">
+                        ${isCompleted ? `
+                          <span class="font-mono font-black text-xs bg-blue-100 text-blue-900 px-2 py-0.5 rounded shadow-2xs">
                             ${m.scores || `${m.games1} - ${m.games2}`}
                           </span>
                           ${isDraw ? `
-                            <span class="text-[10px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.5 rounded">Pari</span>
+                            <span class="text-[9px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.2 rounded">Pareggio (1 pt)</span>
                           ` : ''}
-                        </div>
-                      ` : `
-                        <span class="text-[10px] text-gray-400 italic">${m.status === 'in_corso' ? 'Live in corso' : 'Da disputare'}</span>
-                      `}
+                        ` : `
+                          <span class="text-[10px] text-gray-400 italic">${m.status === 'in_corso' ? 'In corso (Live)' : 'Da disputare'}</span>
+                        `}
+                      </div>
                     </div>
 
                     <div class="flex items-center justify-between text-[11px] text-gray-500 pt-1.5 border-t border-gray-100">
@@ -1787,12 +1795,12 @@ class App {
                       <div class="flex items-center gap-1.5">
                         ${m.dateTime ? (
                           m.p1Acceptance === 'accepted' && m.p2Acceptance === 'accepted'
-                            ? `<span class="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">✓ Confermato</span>`
+                            ? `<span class="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">✓ Confermato</span>`
                             : (m.p1Acceptance === 'rejected' || m.p2Acceptance === 'rejected')
-                              ? `<span class="text-[9px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">✕ Rifiutato</span>`
-                              : `<span class="text-[9px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">⏳ In attesa</span>`
+                              ? `<span class="text-[9px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">✕ Rifiutato</span>`
+                              : `<span class="text-[9px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">⏳ In attesa</span>`
                         ) : ''}
-                        <span>${m.dateTime ? this.formatShortDate(m.dateTime) : (this.getCategoryFormatInfo(cat).shortDuration + ' di gioco')}</span>
+                        <span>${m.dateTime ? this.formatShortDate(m.dateTime) : (formatInfo.shortDuration + ' di gioco')}</span>
                       </div>
                     </div>
                   </div>
@@ -1801,10 +1809,12 @@ class App {
             </div>
           </div>
         </div>
+
       </div>
+    </div>
     `;
 
-    return html;
+    container.innerHTML = html;
   }
 
   handleAutoAssignGroups(category = null) {
@@ -1813,50 +1823,75 @@ class App {
     const catPlayers = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === cat);
 
     if (catPlayers.length < 2) {
-      alert(`Servono almeno 2 atleti iscritti nella categoria ${cat} per poter comporre i gironi.`);
+      alert(`Servono almeno 2 atleti iscritti nella categoria ${cat} per poter comporre il Girone Unico.`);
       return;
     }
 
-    if (confirm(`Vuoi distribuire automaticamente e in modo bilanciato gli iscritti della categoria ${cat} tra Girone Sinner e Girone Alcaraz?`)) {
+    if (confirm(`Vuoi generare/aggiornare il Girone Unico per la categoria ${cat}? Tutti gli atleti iscritti verranno inclusi e le partite completate verranno conservate.`)) {
       this.tournamentManager.autoAssignGroups(cat);
       this.saveState();
       this.render();
-      this.showToast(`Gironi Sinner e Alcaraz (${cat}) composti con successo!`, "success");
+      this.showToast(`Girone Unico (${cat}) aggiornato con successo!`, "success");
     }
   }
 
   handleGenerateBracketFromGroups(category = null) {
     if (!this.isAdmin) return;
     const cat = category || (this.selectedCategory === "all" ? "Pre Agonistica U12" : this.selectedCategory);
-    try {
-      this.tournamentManager.generateBracketFromGroups(cat);
-      this.saveState();
-      this.setCategory(cat);
-      this.switchTab("bracket");
-      this.showToast(`Tabellone Finale (${cat}) generato con tutti i partecipanti dei gironi!`, "success");
-    } catch (e) {
-      alert(e.message);
+    if (confirm(`Vuoi generare il Tabellone Finale a eliminazione diretta (${cat}) con i migliori 8 atleti del Girone Unico?`)) {
+      try {
+        this.tournamentManager.generateBracketFromGroups(cat);
+        this.saveState();
+        this.setCategory(cat);
+        this.switchTab("bracket");
+        this.showToast(`Tabellone Finale Top 8 (${cat}) generato con successo!`, "success");
+      } catch (e) {
+        alert(e.message);
+      }
     }
   }
 
-  openGroupMatchModal(groupKey, matchId) {
+  openGroupMatchModal(groupKey = "single", matchId, category = null) {
     if (!this.isAdmin) return;
-    this.tournamentManager.ensureGroups();
-    const group = this.state.groups[groupKey];
-    if (!group) return;
+    this.tournamentManager.ensureCategories();
+    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
+    this.tournamentManager.ensureGroups(cat);
 
-    const match = group.matches.find(m => m.id === matchId);
-    if (!match) return;
+    // Cerca la partita sia nei gruppi della categoria che nel fallback state.groups
+    let foundGroup = null;
+    let foundMatch = null;
+    let foundCat = cat;
 
-    const p1 = this.tournamentManager.getPlayer(match.player1Id);
-    const p2 = this.tournamentManager.getPlayer(match.player2Id);
+    for (const [cName, cGrp] of Object.entries(this.state.categoryGroups || {})) {
+      for (const grp of [cGrp.single, cGrp.sinner, cGrp.alcaraz]) {
+        if (grp && grp.matches) {
+          const m = grp.matches.find(x => x.id === matchId);
+          if (m) {
+            foundMatch = m;
+            foundGroup = grp;
+            foundCat = cName;
+            break;
+          }
+        }
+      }
+      if (foundMatch) break;
+    }
 
-    document.getElementById("group-match-group-key").value = groupKey;
+    if (!foundMatch && this.state.groups && this.state.groups[groupKey]) {
+      foundGroup = this.state.groups[groupKey];
+      foundMatch = foundGroup.matches?.find(m => m.id === matchId);
+    }
+
+    if (!foundMatch) return;
+
+    const p1 = this.tournamentManager.getPlayer(foundMatch.player1Id);
+    const p2 = this.tournamentManager.getPlayer(foundMatch.player2Id);
+
+    document.getElementById("group-match-group-key").value = groupKey || "single";
     document.getElementById("group-match-id").value = matchId;
-    document.getElementById("group-match-header-label").textContent = group.name;
+    document.getElementById("group-match-header-label").textContent = `Girone Unico (${foundCat})`;
 
-    const matchCat = match.category || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
-    const formatInfo = this.getCategoryFormatInfo(matchCat);
+    const formatInfo = this.getCategoryFormatInfo(foundCat);
     const subtitleEl = document.getElementById("group-match-formula-subtitle");
     if (subtitleEl) {
       subtitleEl.textContent = formatInfo.summary;
@@ -1867,11 +1902,11 @@ class App {
     document.getElementById("group-match-p1-label").textContent = `Game ${p1 ? p1.firstName : 'Atleta 1'}`;
     document.getElementById("group-match-p2-label").textContent = `Game ${p2 ? p2.firstName : 'Atleta 2'}`;
 
-    document.getElementById("group-match-score1").value = match.games1 !== null ? match.games1 : "";
-    document.getElementById("group-match-score2").value = match.games2 !== null ? match.games2 : "";
-    document.getElementById("group-match-court").value = match.court || "Campo 0 (Terra)";
-    document.getElementById("group-match-datetime").value = match.dateTime || "";
-    document.getElementById("group-match-status").value = match.status || "in_programma";
+    document.getElementById("group-match-score1").value = foundMatch.games1 !== null ? foundMatch.games1 : "";
+    document.getElementById("group-match-score2").value = foundMatch.games2 !== null ? foundMatch.games2 : "";
+    document.getElementById("group-match-court").value = foundMatch.court || "Campo 0 (Terra)";
+    document.getElementById("group-match-datetime").value = foundMatch.dateTime || "";
+    document.getElementById("group-match-status").value = foundMatch.status || "in_programma";
 
     this.openModal("modal-group-match");
   }
@@ -1879,27 +1914,38 @@ class App {
   setQuickGroupScore(g1, g2) {
     document.getElementById("group-match-score1").value = g1;
     document.getElementById("group-match-score2").value = g2;
+    const statusSelect = document.getElementById("group-match-status");
+    if (statusSelect) {
+      statusSelect.value = "completato";
+    }
   }
 
   handleSaveGroupMatchScore() {
     if (!this.isAdmin) return;
 
-    const groupKey = document.getElementById("group-match-group-key").value;
+    const groupKey = document.getElementById("group-match-group-key").value || "single";
     const matchId = document.getElementById("group-match-id").value;
     const games1 = document.getElementById("group-match-score1").value;
     const games2 = document.getElementById("group-match-score2").value;
     const court = document.getElementById("group-match-court").value;
     const dateTime = document.getElementById("group-match-datetime").value;
-    const status = document.getElementById("group-match-status").value;
+    let status = document.getElementById("group-match-status").value;
+
+    // Se sono stati inseriti i game, la partita passa automaticamente a completata
+    if (games1 !== "" && games2 !== "") {
+      status = "completato";
+    }
+
+    const cat = this.selectedCategory !== "all" ? this.selectedCategory : null;
 
     this.tournamentManager.updateGroupMatch(groupKey, matchId, {
       games1, games2, court, dateTime, status
-    });
+    }, cat);
 
     this.saveState();
     this.closeModal("modal-group-match");
     this.render();
-    this.showToast("Risultato del girone salvato!", "success");
+    this.showToast("Risultato salvato e classifica aggiornata in tempo reale!", "success");
   }
 
   // ==========================================
@@ -2936,26 +2982,15 @@ class App {
       this.tournamentManager.ensureGroups(cat);
       const groups = this.state.categoryGroups?.[cat] || {};
 
-      const sinnerMatches = groups.sinner?.matches || [];
-      sinnerMatches.forEach(m => {
+      const singleGroup = groups.single || groups.sinner;
+      const singleMatches = singleGroup?.matches || [];
+      singleMatches.forEach(m => {
         all.push({
           type: "group",
           category: cat,
-          groupKey: "sinner",
-          groupName: `Girone Sinner (${cat})`,
-          phase: `Girone Sinner • ${cat}`,
-          match: m
-        });
-      });
-
-      const alcarazMatches = groups.alcaraz?.matches || [];
-      alcarazMatches.forEach(m => {
-        all.push({
-          type: "group",
-          category: cat,
-          groupKey: "alcaraz",
-          groupName: `Girone Alcaraz (${cat})`,
-          phase: `Girone Alcaraz • ${cat}`,
+          groupKey: "single",
+          groupName: `Girone Unico (${cat})`,
+          phase: `Girone Unico • ${cat}`,
           match: m
         });
       });
@@ -3012,8 +3047,7 @@ class App {
       const p2Name = p2 ? p2.name.toLowerCase() : "";
 
       // Filtro Fase
-      if (this.schedulePhaseFilter === "sinner" && item.groupKey !== "sinner") return false;
-      if (this.schedulePhaseFilter === "alcaraz" && item.groupKey !== "alcaraz") return false;
+      if (this.schedulePhaseFilter === "group" && item.type !== "group") return false;
       if (this.schedulePhaseFilter === "bracket" && item.type !== "bracket") return false;
 
       // Filtro Campo
@@ -3134,11 +3168,8 @@ class App {
               <button onclick="app.setScheduleFilter('phase', 'all')" class="text-xs px-3 py-1.5 rounded-xl font-semibold transition ${this.schedulePhaseFilter === 'all' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
                 Tutte
               </button>
-              <button onclick="app.setScheduleFilter('phase', 'sinner')" class="text-xs px-3 py-1.5 rounded-xl font-semibold transition ${this.schedulePhaseFilter === 'sinner' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
-                Girone Sinner
-              </button>
-              <button onclick="app.setScheduleFilter('phase', 'alcaraz')" class="text-xs px-3 py-1.5 rounded-xl font-semibold transition ${this.schedulePhaseFilter === 'alcaraz' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
-                Girone Alcaraz
+              <button onclick="app.setScheduleFilter('phase', 'group')" class="text-xs px-3 py-1.5 rounded-xl font-semibold transition ${this.schedulePhaseFilter === 'group' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
+                Girone Unico
               </button>
               <button onclick="app.setScheduleFilter('phase', 'bracket')" class="text-xs px-3 py-1.5 rounded-xl font-semibold transition ${this.schedulePhaseFilter === 'bracket' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
                 Tabellone Finale
@@ -3257,7 +3288,7 @@ class App {
 
           const isGroup = item.type === "group";
           const phaseColor = isGroup
-            ? (item.groupKey === "sinner" ? "bg-blue-100 text-blue-900 border-blue-200" : "bg-indigo-100 text-indigo-900 border-indigo-200")
+            ? "bg-blue-100 text-blue-900 border-blue-200"
             : "bg-yellow-100 text-blue-950 border-yellow-300";
 
           const courtBadge = m.court || "Campo da definire";
@@ -3732,12 +3763,12 @@ class App {
           <div>
             <div class="flex items-center gap-2 mb-1 flex-wrap">
               <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
-              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Tabellone Finale • Categoria ${cat}</span>
+              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Tabellone Finale • Top 8 a Fine Anno</span>
               <span class="text-[10px] px-2 py-0.5 rounded-md font-bold bg-white/20 text-yellow-200">${formatInfo.shortDuration} • ${formatInfo.formula}</span>
             </div>
-            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Tabellone Eliminazione Diretta (${cat})</h2>
+            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Tabellone Finale (${cat})</h2>
             <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
-              Formula: <strong>${formatInfo.durationText}</strong> (${formatInfo.formula}). Progressioni e risultati per <strong>${cat}</strong> (${categoryPlayers.length} iscritti).
+              Formula: <strong>${formatInfo.durationText}</strong> (${formatInfo.formula}). Tabellone a eliminazione diretta riservato ai <strong>migliori 8 atleti</strong> del Girone Unico di <strong>${cat}</strong> (${categoryPlayers.length} iscritti), generato al termine dell'anno.
             </p>
           </div>
 
@@ -3753,16 +3784,16 @@ class App {
 
             ${this.isAdmin ? `
               ${isGenerated ? `
-                <button onclick="app.handleGenerateBracket('${cat}')" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition cursor-pointer">
-                  Rigenera Tabellone (${cat})
+                <button onclick="app.handleGenerateBracketFromGroups('${cat}')" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition cursor-pointer">
+                  Rigenera Tabellone Top 8 (${cat})
                 </button>
                 <button onclick="app.handleResetBracket('${cat}')" class="w-full sm:w-auto bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium text-xs px-3 py-2.5 rounded-xl border border-rose-200 transition cursor-pointer">
                   Azzera (${cat})
                 </button>
               ` : `
                 ${categoryPlayers.length >= 2 ? `
-                  <button onclick="app.handleGenerateBracket('${cat}')" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-4 py-2.5 rounded-xl shadow transition cursor-pointer">
-                    + Genera Tabellone ${cat} (${categoryPlayers.length} Atleti)
+                  <button onclick="app.handleGenerateBracketFromGroups('${cat}')" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-4 py-2.5 rounded-xl shadow transition cursor-pointer">
+                    + Genera Tabellone Finale Top 8 (${cat})
                   </button>
                 ` : `
                   <button onclick="app.switchTab('players')" class="bg-white/20 hover:bg-white/30 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-white/30 transition cursor-pointer">
@@ -3775,31 +3806,70 @@ class App {
         </div>
     `;
 
-    // Se non generato per questa categoria
+    // Se non ancora generato per questa categoria: mostra anteprima Top 8
     if (!isGenerated) {
+      const groupStandings = this.tournamentManager.getGroupStandings("single", cat);
+      const top8 = groupStandings.slice(0, 8);
+
       html += `
-        <div class="text-center py-12 bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-          <div class="w-12 h-12 bg-blue-50 border border-blue-200 text-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-3">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-            </svg>
-          </div>
-          <h3 class="text-base font-bold text-gray-800 mb-1">Tabellone Finale (${cat}) non ancora composto</h3>
-          <div class="max-w-md mx-auto mb-4">
-            <p class="text-xs text-gray-500 mb-2">
-              ${categoryPlayers.length === 0
-                ? `Nessun atleta è ancora registrato nella categoria <strong>${cat}</strong>. Aggiungi gli iscritti prima di generare il tabellone.`
-                : `Al momento ci sono <strong>${categoryPlayers.length}</strong> atleti registrati nella categoria <strong>${cat}</strong>.`}
+        <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-5">
+          <div class="text-center py-4">
+            <div class="w-14 h-14 bg-blue-50 border border-blue-200 text-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-xs">
+              <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <h3 class="text-lg font-extrabold text-gray-900 mb-1">Tabellone Finale a Fine Anno (${cat})</h3>
+            <p class="text-xs sm:text-sm text-gray-600 max-w-lg mx-auto leading-relaxed">
+              Il Tabellone Finale a eliminazione diretta verrà generato a <strong>fine anno</strong> e vedrà sfidarsi i <strong>migliori 8 atleti</strong> della classifica del Girone Unico di <strong>${cat}</strong>.
             </p>
-            ${categoryPlayers.length === 1 ? `
-              <p class="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
-                Servono almeno 2 iscritti nella categoria ${cat} per poter comporre gli incontri a eliminazione diretta.
-              </p>
-            ` : ''}
           </div>
-          ${!this.isAdmin ? `
-            <p class="text-xs text-gray-500 italic">Il tabellone ufficiale delle partite verrà pubblicato dall'amministrazione del torneo.</p>
-          ` : ''}
+
+          <!-- Anteprima Migliori 8 Attuali -->
+          <div class="bg-slate-50 rounded-2xl p-4 sm:p-5 border border-slate-200 space-y-3">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <span class="text-xs font-bold text-gray-800 uppercase tracking-wider">Qualificati Attuali al Tabellone Finale (Top 8 ${cat})</span>
+              </div>
+              <span class="text-[11px] font-semibold text-gray-500 bg-white px-2.5 py-1 rounded-lg border border-gray-200 shadow-2xs">
+                ${categoryPlayers.length} atleti iscritti nella categoria
+              </span>
+            </div>
+
+            ${top8.length === 0 ? `
+              <p class="text-xs text-gray-400 italic text-center py-4">Nessun atleta o partita registrata nel girone unico.</p>
+            ` : `
+              <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                ${top8.map((s, idx) => `
+                  <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between shadow-2xs">
+                    <div class="flex items-center gap-2.5 truncate">
+                      <span class="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-black flex items-center justify-center flex-shrink-0">
+                        ${idx + 1}°
+                      </span>
+                      <div class="truncate">
+                        <div class="text-xs font-bold text-gray-900 truncate">${s.player.name}</div>
+                        <div class="text-[10px] text-gray-400 font-mono">${s.player.ranking || 'NC'} • G: ${s.played}</div>
+                      </div>
+                    </div>
+                    <span class="text-xs font-black text-blue-950 bg-yellow-400 px-2 py-0.5 rounded shadow-2xs flex-shrink-0">
+                      ${s.points} pt
+                    </span>
+                  </div>
+                `).join('')}
+              </div>
+            `}
+          </div>
+
+          ${this.isAdmin && categoryPlayers.length >= 2 ? `
+            <div class="text-center pt-2">
+              <button onclick="app.handleGenerateBracketFromGroups('${cat}')" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
+                Genera Ora Tabellone Finale Top 8 (${cat})
+              </button>
+            </div>
+          ` : `
+            <p class="text-xs text-gray-400 italic text-center">La composizione del tabellone a eliminazione diretta avverrà a conclusione delle partite del girone unico.</p>
+          `}
         </div>
       </div>
       `;
@@ -3906,10 +3976,10 @@ class App {
     if (!this.isAdmin) return;
     const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
     try {
-      this.tournamentManager.generateBracket(null, cat);
+      this.tournamentManager.generateBracketFromGroups(cat);
       this.saveState();
       this.renderBracketView();
-      this.showToast(`Tabellone Finale (${cat}) generato con successo!`, "success");
+      this.showToast(`Tabellone Finale Top 8 (${cat}) generato con successo!`, "success");
     } catch (e) {
       alert(e.message);
     }
@@ -4076,21 +4146,21 @@ class App {
                   <span>🔔 Regola del Pareggio al Suono della Campana (SAT):</span>
                 </div>
                 <ul class="list-disc list-inside space-y-1.5 text-sky-950 pl-1">
-                  <li><strong>Fase a Gironi (Girone Sinner & Girone Alcaraz):</strong> se al suono della campana il punteggio è in parità (es. 4-4, 5-5), <strong>la partita termina con il pareggio</strong>. A ciascun atleta viene assegnato <strong>1 punto</strong> in classifica (Vittoria: 3 punti, Pareggio: 1 punto, Sconfitta: 0 punti).</li>
+                  <li><strong>Fase a Gironi (Girone Unico):</strong> se al suono della campana il punteggio è in parità (es. 4-4, 5-5), <strong>la partita termina con il pareggio</strong>. A ciascun atleta viene assegnato <strong>1 punto</strong> in classifica (Vittoria: 3 punti, Pareggio: 1 punto, Sconfitta: 0 punti).</li>
                   <li><strong>Fase Finale a Eliminazione Diretta (Tabellone):</strong> nel tabellone finale non sono ammessi pareggi; se al suono della campana si è in parità, si disputa subito un <strong>rapido tie-break ai 5 punti</strong> per decretare il vincitore che passa al turno successivo.</li>
                 </ul>
               </div>
             </div>
           </div>
 
-          <!-- Gironi e Qualificazione di TUTTI i giocatori al Tabellone -->
+          <!-- Girone Unico e Qualificazione dei Migliori 8 al Tabellone Finale -->
           <div class="bg-slate-50 border border-slate-200 p-4 sm:p-5 rounded-2xl">
             <h4 class="font-bold text-gray-900 text-xs sm:text-sm mb-1.5 flex items-center gap-2">
               <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
-              <span>Fase a Gironi & Accesso di Tutti al Tabellone Finale</span>
+              <span>Fase a Girone Unico & Qualificazione dei Migliori 8 a Fine Anno</span>
             </h4>
             <p class="text-xs text-gray-700 leading-relaxed">
-              In ciascuna categoria i partecipanti disputano la fase a gironi (<strong>Girone Sinner</strong> e <strong>Girone Alcaraz</strong>) con formula all'italiana. <strong>Tutti i giocatori accedono alla fase a tabellone finale ad eliminazione diretta</strong>: in base alla posizione e ai risultati ottenuti nel girone viene composto il tabellone ad incrocio (le prime posizioni affrontano le posizioni inferiori del girone opposto con eventuali bye).
+              In ciascuna categoria (<strong>Pre Agonistica U12</strong>, <strong>Pre Agonistica</strong>, <strong>SAT U14</strong>, <strong>SAT</strong>) tutti i partecipanti disputano un <strong>Girone Unico all'italiana</strong>. Al completamento di ciascun incontro, il punteggio e la classifica si aggiornano da soli in tempo reale. <strong>A fine anno, i migliori 8 atleti di ogni categoria accederanno al rispettivo Tabellone Finale a eliminazione diretta</strong> (1° vs 8°, 4° vs 5°, 3° vs 6°, 2° vs 7°).
             </p>
           </div>
 
@@ -4108,6 +4178,7 @@ class App {
               <li><strong>Scontro diretto</strong> (se esattamente due atleti sono a pari punti)</li>
               <li><strong>Differenza game</strong> (vinti meno persi)</li>
               <li><strong>Numero di game vinti</strong></li>
+              <li><strong>Classifica FITP</strong></li>
             </ol>
           </div>
 
@@ -4130,8 +4201,8 @@ class App {
               <div><strong>Manifestazione:</strong> Torneo Momy 26/27</div>
               <div><strong>Amministrazione Ufficiale:</strong> Barcello Luca • Alessia Di Tullio</div>
               <div><strong>Categorie:</strong> Pre Agonistica U12, Pre Agonistica, SAT U14, SAT</div>
-              <div><strong>Gironi:</strong> Girone Sinner • Girone Alcaraz</div>
-              <div><strong>Fase Finale:</strong> Tutti qualificati al Tabellone</div>
+              <div><strong>Gironi:</strong> Girone Unico per ogni Categoria</div>
+              <div><strong>Fase Finale:</strong> Migliori 8 al Tabellone Finale (a fine anno)</div>
               <div><strong>Formula Pre Agonistica:</strong> 1h 30m • Long-Set ai 9</div>
               <div><strong>Formula SAT:</strong> 1 ora • Suono della campana</div>
               <div><strong>Campi da Gioco:</strong> Campi 0-2 (Terra), 3-4 (Greenset), 5-7 (Terra)</div>
