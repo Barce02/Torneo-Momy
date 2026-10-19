@@ -50,6 +50,9 @@ class App {
     this.scheduleCourtFilter = "all";
     this.scheduleStatusFilter = "all";
     this.scheduleSearchQuery = "";
+    this.adminAccountsCategoryFilter = "all";
+    this.selectAccountSearchQuery = "";
+    this.selectAccountFilter = "all";
 
     this.init();
   }
@@ -202,31 +205,16 @@ class App {
           (p.userId && p.userId.toLowerCase().trim() === emailKey)
         );
 
-        let cat = acc.category || "Da Assegnare";
-        if (cat !== "Da Assegnare") {
-          cat = this.tournamentManager.getPlayerCategory(acc);
-        }
-
-        if (!existing) {
-          const newPlayer = {
-            id: `p-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            firstName: acc.firstName || (acc.name ? acc.name.split(" ")[0] : ""),
-            lastName: acc.lastName || (acc.name ? acc.name.split(" ").slice(1).join(" ") : ""),
-            name: acc.name || `${acc.firstName || ''} ${acc.lastName || ''}`.trim(),
-            birthDate: acc.birthDate || "",
-            ranking: acc.ranking || "NC",
-            category: cat,
-            notes: "",
-            email: emailKey,
-            userId: emailKey,
-            photoUrl: acc.photoUrl || "",
-            status: "confermato"
-          };
-          this.state.players.push(newPlayer);
-          stateChanged = true;
-        } else {
-          if (existing.category !== cat) {
+        if (existing) {
+          let cat = acc.category || "Da Assegnare";
+          if (cat !== "Da Assegnare") {
+            cat = this.tournamentManager.getPlayerCategory(acc);
+          }
+          if (existing.category !== cat || existing.name !== (acc.name || `${acc.firstName || ''} ${acc.lastName || ''}`.trim())) {
             existing.category = cat;
+            if (acc.name) existing.name = acc.name;
+            if (acc.birthDate) existing.birthDate = acc.birthDate;
+            if (acc.ranking) existing.ranking = acc.ranking;
             stateChanged = true;
           }
         }
@@ -530,7 +518,7 @@ class App {
       });
     }
 
-    // Ricerca live
+    // Ricerca live atleti
     const searchInput = document.getElementById("search-input");
     if (searchInput) {
       searchInput.addEventListener("input", (e) => {
@@ -538,6 +526,35 @@ class App {
         this.renderPlayersView();
       });
     }
+
+    // Ricerca live account nel modale di selezione
+    const selAccSearch = document.getElementById("select-account-search-input");
+    if (selAccSearch) {
+      selAccSearch.addEventListener("input", (e) => {
+        this.selectAccountSearchQuery = e.target.value.toLowerCase().trim();
+        this.renderSelectExistingAccountsList();
+      });
+    }
+
+    // Chiusura finestre cliccando sul backdrop scuro esterno
+    document.querySelectorAll(".modal-backdrop").forEach(backdrop => {
+      backdrop.addEventListener("click", (e) => {
+        if (e.target === backdrop) {
+          this.closeModal(backdrop.id);
+        }
+      });
+    });
+
+    // Chiusura finestre con tasto Esc
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        const openModals = Array.from(document.querySelectorAll(".modal-backdrop:not(.hidden)"));
+        if (openModals.length > 0) {
+          const topModal = openModals[openModals.length - 1];
+          this.closeModal(topModal.id);
+        }
+      }
+    });
   }
 
   // ==========================================
@@ -852,40 +869,22 @@ class App {
     this.saveAccounts(accounts);
     localStorage.setItem(LAST_EMAIL_KEY, email);
 
-    // Inserisci direttamente il giocatore nella lista atleti (in attesa di assegnazione torneo da admin)
-    if (!isAdmin) {
-      if (!this.state.players) this.state.players = [];
+    // Se l'atleta era già stato inserito nel torneo dall'amministrazione, aggiorna anagrafica
+    if (!isAdmin && this.state.players) {
       const cleanEmail = email.toLowerCase().trim();
       const existingPlayer = this.state.players.find(p =>
         (p.email && p.email.toLowerCase().trim() === cleanEmail) ||
         (p.userId && p.userId.toLowerCase().trim() === cleanEmail)
       );
-      if (!existingPlayer) {
-        const newPlayer = {
-          id: `p-${Date.now()}`,
-          firstName,
-          lastName,
-          name: accountObj.name,
-          birthDate,
-          ranking,
-          category,
-          notes: "",
-          email: cleanEmail,
-          userId: cleanEmail,
-          photoUrl: "",
-          status: "confermato"
-        };
-        this.state.players.push(newPlayer);
-      } else {
+      if (existingPlayer) {
         existingPlayer.firstName = firstName;
         existingPlayer.lastName = lastName;
         existingPlayer.name = accountObj.name;
         existingPlayer.birthDate = birthDate;
         existingPlayer.ranking = ranking;
-        existingPlayer.category = category;
+        this.tournamentManager.ensureCategories();
+        this.saveState();
       }
-      this.tournamentManager.ensureCategories();
-      this.saveState();
     }
 
     this.saveUser(accountObj);
@@ -1053,6 +1052,21 @@ class App {
     const headerAvatar = document.getElementById("header-avatar-circle");
     const accountLabel = document.getElementById("header-account-label");
     const navAccountLabel = document.getElementById("nav-account-label");
+
+    const adminNavTab = document.getElementById("nav-tab-admin-accounts");
+    if (adminNavTab) {
+      if (this.isAdmin) {
+        adminNavTab.classList.remove("hidden");
+        const accountsCount = Object.keys(this.loadAccounts()).length;
+        const badge = document.getElementById("nav-admin-accounts-badge");
+        if (badge) badge.textContent = accountsCount;
+      } else {
+        adminNavTab.classList.add("hidden");
+        if (this.currentTab === "admin-accounts") {
+          this.switchTab("players");
+        }
+      }
+    }
 
     if (!this.user || this.user.email === "ospite@torneo.it") {
       if (headerAvatar) {
@@ -1488,7 +1502,7 @@ class App {
   }
 
   renderTabContent() {
-    const tabPanels = ["players", "groups", "schedule", "bracket", "rules", "account"];
+    const tabPanels = ["players", "admin-accounts", "groups", "schedule", "bracket", "rules", "account"];
     tabPanels.forEach(tp => {
       const el = document.getElementById(`tab-panel-${tp}`);
       if (el) {
@@ -1503,6 +1517,9 @@ class App {
     switch (this.currentTab) {
       case "players":
         this.renderPlayersView();
+        break;
+      case "admin-accounts":
+        this.renderAdminAccountsView(document.getElementById("admin-accounts-container"));
         break;
       case "groups":
         this.renderGroupsView();
@@ -1532,6 +1549,12 @@ class App {
     const playersCount = this.state.players.length;
     const navCount = document.getElementById("nav-players-count");
     if (navCount) navCount.textContent = playersCount;
+
+    // Aggiorna badge totale account admin
+    const adminBadge = document.getElementById("nav-admin-accounts-badge");
+    if (adminBadge) {
+      adminBadge.textContent = Object.keys(this.loadAccounts()).length;
+    }
 
     this.updateScheduleBadge();
 
@@ -2204,19 +2227,49 @@ class App {
     }
   }
 
-  // Vista esclusiva Admin: Tutti gli Account Registrati (anche non inseriti nel gioco)
+  // Vista esclusiva Admin: Tutti gli Account Registrati e stato iscrizione competizioni
   renderAdminAccountsView(container) {
+    container = container || document.getElementById("admin-accounts-container") || document.getElementById("players-container");
+    if (!container) return;
+
     const accounts = this.loadAccounts();
     const accountsList = Object.values(accounts);
 
-    // Calcola quanti sono già nel torneo e quanti no
+    // Statistiche Iscrizioni per categoria
     let inTournamentCount = 0;
+    const catCounts = {
+      "Pre Agonistica U12": 0,
+      "Pre Agonistica": 0,
+      "SAT U14": 0,
+      "SAT": 0,
+      "Da Assegnare": 0
+    };
+
     accountsList.forEach(acc => {
-      if (this.getPlayerForAccount(acc)) inTournamentCount++;
+      const lp = this.getPlayerForAccount(acc);
+      if (lp) {
+        inTournamentCount++;
+        const c = lp.category || acc.category || "Da Assegnare";
+        if (catCounts[c] !== undefined) {
+          catCounts[c]++;
+        } else {
+          catCounts["Da Assegnare"]++;
+        }
+      }
     });
     const notInTournamentCount = accountsList.length - inTournamentCount;
 
+    const activeFilter = this.adminAccountsCategoryFilter || "all";
     const filteredAccounts = accountsList.filter(acc => {
+      const linkedPlayer = this.getPlayerForAccount(acc);
+      const playerCategory = linkedPlayer ? (linkedPlayer.category || acc.category || "Da Assegnare") : null;
+
+      // Filtro per competizione / stato iscrizione
+      if (activeFilter === "enrolled" && !linkedPlayer) return false;
+      if (activeFilter === "unenrolled" && linkedPlayer) return false;
+      if (TournamentManager.CATEGORIES.includes(activeFilter) && playerCategory !== activeFilter) return false;
+      if (activeFilter === "Da Assegnare" && (!linkedPlayer || playerCategory !== "Da Assegnare")) return false;
+
       if (!this.accountsSearchQuery) return true;
       const q = this.accountsSearchQuery.toLowerCase();
       return (
@@ -2224,7 +2277,8 @@ class App {
         (acc.lastName && acc.lastName.toLowerCase().includes(q)) ||
         (acc.name && acc.name.toLowerCase().includes(q)) ||
         (acc.email && acc.email.toLowerCase().includes(q)) ||
-        (acc.ranking && acc.ranking.toLowerCase().includes(q))
+        (acc.ranking && acc.ranking.toLowerCase().includes(q)) ||
+        (playerCategory && playerCategory.toLowerCase().includes(q))
       );
     });
 
@@ -2232,84 +2286,94 @@ class App {
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
         
         <!-- Banner Amministratore -->
-        <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-white rounded-xl p-4 mb-5 border border-yellow-400/30 flex flex-wrap items-center justify-between gap-3 shadow-sm">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-yellow-400 text-blue-950 flex items-center justify-center font-black flex-shrink-0 shadow">
-              <svg class="w-5 h-5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
-              </svg>
+        <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-white rounded-2xl p-5 mb-5 border border-yellow-400/30 shadow-md">
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div class="flex items-center gap-3.5">
+              <div class="w-11 h-11 rounded-2xl bg-yellow-400 text-blue-950 flex items-center justify-center font-black flex-shrink-0 shadow">
+                <svg class="w-6 h-6 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-base font-bold text-yellow-300">Pannello Amministrazione Globale Account & Competizioni</h3>
+                <p class="text-xs text-blue-100 mt-0.5 max-w-2xl">
+                  Registro completo di tutti gli account utente. Per ciascun account puoi verificare se è iscritto e a quale competizione appartiene, spostarlo di categoria o iscriverlo subito al torneo.
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 class="text-sm font-bold text-yellow-300">Pannello Amministrazione Globale Account</h3>
-              <p class="text-xs text-blue-100 mt-0.5">Tutti gli account registrati (anche chi non ha ancora inserito il giocatore). Puoi visualizzare/copiare le password, modificare anagrafica e credenziali, eliminarli o sincronizzarli tra dispositivi.</p>
+            <div class="flex items-center gap-2 flex-wrap">
+              <button onclick="app.openNewPlayerModal(false)" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                <span>+ Inserisci Atleta</span>
+              </button>
+              <button onclick="app.openAdminAccountModal(null, false)" class="bg-white/10 hover:bg-white/20 text-white font-semibold text-xs px-3 py-2.5 rounded-xl border border-white/20 shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+                <span>+ Nuovo Account</span>
+              </button>
+              <button onclick="app.exportBackupData()" title="Esporta file backup JSON" class="bg-white/10 hover:bg-white/20 text-white font-semibold text-xs px-3 py-2.5 rounded-xl border border-white/20 shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+                <svg class="w-3.5 h-3.5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                <span>Backup</span>
+              </button>
+              <label title="Importa file backup JSON" class="bg-white/10 hover:bg-white/20 text-white font-semibold text-xs px-3 py-2.5 rounded-xl border border-white/20 shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+                <svg class="w-3.5 h-3.5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
+                <span>Importa</span>
+                <input type="file" id="backup-file-input" accept=".json,application/json" class="hidden" onchange="app.importBackupData(event)">
+              </label>
             </div>
-          </div>
-          <div class="flex items-center gap-2 flex-wrap">
-            <button onclick="app.exportBackupData()" title="Esporta tutti gli account e i dati del torneo in un file JSON" class="bg-white/10 hover:bg-white/20 text-white font-semibold text-xs px-3 py-2 rounded-xl border border-white/20 shadow-sm transition flex items-center gap-1.5 cursor-pointer">
-              <svg class="w-3.5 h-3.5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-              </svg>
-              <span>Esporta Backup</span>
-            </button>
-            <label title="Importa file JSON con account e torneo da un altro dispositivo" class="bg-white/10 hover:bg-white/20 text-white font-semibold text-xs px-3 py-2 rounded-xl border border-white/20 shadow-sm transition flex items-center gap-1.5 cursor-pointer">
-              <svg class="w-3.5 h-3.5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/>
-              </svg>
-              <span>Importa Backup</span>
-              <input type="file" id="backup-file-input" accept=".json,application/json" class="hidden" onchange="app.importBackupData(event)">
-            </label>
-            <button onclick="app.openAdminAccountModal()" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2 rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
-              </svg>
-              <span>+ Crea Account</span>
-            </button>
           </div>
         </div>
 
         <!-- Sub-Tabs Switcher per Admin -->
         <div class="flex border-b border-gray-200 mb-5 text-xs sm:text-sm font-semibold">
-          <button type="button" onclick="app.switchPlayersSubTab('players')" class="py-2.5 px-4 text-center border-b-2 border-transparent text-gray-500 hover:text-gray-800 transition flex items-center gap-2">
+          <button type="button" onclick="app.switchTab('players')" class="py-2.5 px-4 text-center border-b-2 border-transparent text-gray-500 hover:text-gray-800 transition flex items-center gap-2">
             <span>🎾 Atleti nel Torneo</span>
             <span class="bg-blue-100 text-blue-900 text-xs px-2 py-0.5 rounded-full font-bold">${this.state.players.length}</span>
           </button>
-          <button type="button" onclick="app.switchPlayersSubTab('accounts')" class="py-2.5 px-4 text-center border-b-2 border-blue-600 text-blue-700 font-bold transition flex items-center gap-2">
+          <button type="button" onclick="app.switchTab('admin-accounts')" class="py-2.5 px-4 text-center border-b-2 border-blue-600 text-blue-700 font-bold transition flex items-center gap-2">
             <span>👥 Tutti gli Account Registrati</span>
             <span class="bg-yellow-400 text-blue-950 text-xs px-2 py-0.5 rounded-full font-black shadow-sm">${accountsList.length}</span>
           </button>
         </div>
 
-        <!-- Barra Statistiche & Ricerca -->
-        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-5 border-b border-gray-100">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-xs font-bold text-gray-700">Riepilogo:</span>
-            <span class="bg-blue-100 text-blue-900 text-xs font-bold px-2.5 py-1 rounded-lg">
-              ${accountsList.length} account totali
-            </span>
-            <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1">
-              ✓ ${inTournamentCount} inseriti nel gioco
-            </span>
-            ${notInTournamentCount > 0 ? `
-              <span class="bg-amber-100 text-amber-900 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1">
-                ⏳ ${notInTournamentCount} non ancora inseriti
-              </span>
-            ` : `
-              <span class="bg-slate-100 text-slate-700 text-xs font-medium px-2.5 py-1 rounded-lg">
-                Tutti inseriti nel gioco
-              </span>
-            `}
+        <!-- Barra Filtri Competizioni & Ricerca Live -->
+        <div class="space-y-3 pb-5 border-b border-gray-100">
+          <!-- Filtri chip per categoria / iscrizione -->
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs font-bold text-gray-700 mr-1">Filtra per Competizione:</span>
+            ${[
+              { id: "all", label: "Tutti gli Account", count: accountsList.length },
+              { id: "enrolled", label: "✓ Iscritti al Torneo", count: inTournamentCount },
+              { id: "unenrolled", label: "⏳ Non ancora Iscritti", count: notInTournamentCount },
+              { id: "Pre Agonistica U12", label: "🏆 Pre Ag. U12", count: catCounts["Pre Agonistica U12"] },
+              { id: "Pre Agonistica", label: "🏆 Pre Agonistica", count: catCounts["Pre Agonistica"] },
+              { id: "SAT U14", label: "🏆 SAT U14", count: catCounts["SAT U14"] },
+              { id: "SAT", label: "🏆 SAT", count: catCounts["SAT"] }
+            ].map(chip => {
+              const isActive = activeFilter === chip.id;
+              const activeClass = isActive
+                ? "bg-blue-600 text-white font-bold shadow-sm"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200 font-medium";
+              return `
+                <button type="button" onclick="app.setAdminAccountsCategoryFilter('${chip.id}')" class="text-xs px-2.5 py-1 rounded-xl transition flex items-center gap-1.5 cursor-pointer ${activeClass}">
+                  <span>${chip.label}</span>
+                  <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold ${isActive ? 'bg-white text-blue-900' : 'bg-gray-200 text-gray-800'}">${chip.count}</span>
+                </button>
+              `;
+            }).join('')}
           </div>
 
-          <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-            <div class="relative w-full sm:w-72">
+          <!-- Barra Ricerca -->
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2">
+            <div class="relative w-full sm:w-80">
               <input type="text" id="accounts-search-input" value="${this.accountsSearchQuery}" placeholder="Cerca per nome, email o classifica..." class="w-full text-xs sm:text-sm pl-8 pr-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
               <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
               </svg>
             </div>
-            <button onclick="app.openAdminAccountModal()" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-3.5 py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer">
-              + Nuovo Account
-            </button>
+            <div class="text-xs text-gray-500">
+              Visualizzati <strong>${filteredAccounts.length}</strong> su <strong>${accountsList.length}</strong> account
+            </div>
           </div>
         </div>
     `;
@@ -2324,11 +2388,16 @@ class App {
           </div>
           <h3 class="text-base font-bold text-gray-800 mb-1">Nessun account trovato</h3>
           <p class="text-xs text-gray-500 max-w-sm mx-auto mb-4">
-            ${this.accountsSearchQuery ? `Nessun account corrisponde a "${this.accountsSearchQuery}".` : "Non ci sono account registrati nel sistema."}
+            ${this.accountsSearchQuery || activeFilter !== 'all' ? `Nessun account corrisponde ai filtri selezionati.` : "Non ci sono account registrati nel sistema."}
           </p>
-          <button onclick="app.openAdminAccountModal()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow transition">
-            + Crea Nuovo Account
-          </button>
+          <div class="flex items-center justify-center gap-2">
+            <button onclick="app.setAdminAccountsCategoryFilter('all'); app.accountsSearchQuery = ''; app.renderAdminAccountsView(document.getElementById('admin-accounts-container'));" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold px-3.5 py-2 rounded-xl transition">
+              Azzera Filtri
+            </button>
+            <button onclick="app.openAdminAccountModal(null, false)" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow transition">
+              + Crea Nuovo Account
+            </button>
+          </div>
         </div>
       `;
     } else {
@@ -2339,13 +2408,11 @@ class App {
               <tr class="bg-gray-50 text-gray-600 uppercase text-[11px] font-semibold border-b border-gray-200">
                 <th class="py-3 px-3 w-10 text-center">#</th>
                 <th class="py-3 px-3">Utente</th>
-                <th class="py-3 px-3">Email (Unica)</th>
+                <th class="py-3 px-3">Email (Account)</th>
                 <th class="py-3 px-3">Password</th>
-                <th class="py-3 px-3">Categoria</th>
-                <th class="py-3 px-3">Nascita</th>
-                <th class="py-3 px-3">Classifica</th>
+                <th class="py-3 px-3">Nascita / FITP</th>
                 <th class="py-3 px-3">Ruolo</th>
-                <th class="py-3 px-3">Stato nel Torneo</th>
+                <th class="py-3 px-3">Iscrizione Competizione</th>
                 <th class="py-3 px-3 text-right">Azioni</th>
               </tr>
             </thead>
@@ -2353,17 +2420,20 @@ class App {
               ${filteredAccounts.map((acc, idx) => {
                 const linkedPlayer = this.getPlayerForAccount(acc);
                 const safeEmail = (acc.email || "").toLowerCase().replace(/[^a-z0-9]/g, "_");
-                const avatarHtml = this.getAvatarMarkup(acc, "w-6 h-6", "text-[10px]");
+                const avatarHtml = this.getAvatarMarkup(acc, "w-7 h-7", "text-[10px]");
+                const compName = linkedPlayer
+                  ? (linkedPlayer.category || acc.category || "Da Assegnare")
+                  : (acc.category || "Pre Agonistica U12");
 
                 return `
                   <tr class="hover:bg-gray-50/80 transition ${!linkedPlayer ? 'bg-amber-50/25' : ''}">
                     <td class="py-3 px-3 font-mono text-center text-gray-400 font-semibold">${idx + 1}</td>
                     <td class="py-3 px-3 font-bold text-gray-900">
-                      <div class="flex items-center gap-2">
-                        <div class="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-blue-900 text-yellow-300">
+                      <div class="flex items-center gap-2.5">
+                        <div class="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-blue-900 text-yellow-300 shadow-sm font-bold">
                           ${avatarHtml}
                         </div>
-                        <span class="truncate max-w-[140px]">${acc.name || `${acc.firstName || ''} ${acc.lastName || ''}`.trim() || 'Utente'}</span>
+                        <span class="truncate max-w-[150px]">${acc.name || `${acc.firstName || ''} ${acc.lastName || ''}`.trim() || 'Utente'}</span>
                       </div>
                     </td>
                     <td class="py-3 px-3 font-medium text-gray-800 font-mono text-xs">
@@ -2380,12 +2450,9 @@ class App {
                         </button>
                       </div>
                     </td>
-                    <td class="py-3 px-3">${this.getCategoryBadgeMarkup(acc.category || this.tournamentManager.getPlayerCategory(acc))}</td>
-                    <td class="py-3 px-3 text-gray-600 font-mono text-xs">${this.formatDate(acc.birthDate)}</td>
-                    <td class="py-3 px-3">
-                      <span class="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-semibold">
-                        ${acc.ranking || 'NC'}
-                      </span>
+                    <td class="py-3 px-3 text-gray-600 font-mono text-xs whitespace-nowrap">
+                      <div>${this.formatDate(acc.birthDate)}</div>
+                      <div class="text-[10px] text-gray-400 font-sans font-semibold">FITP: <span class="text-gray-700 font-mono">${acc.ranking || 'NC'}</span></div>
                     </td>
                     <td class="py-3 px-3">
                       ${acc.role === 'admin' ? `
@@ -2396,18 +2463,38 @@ class App {
                     </td>
                     <td class="py-3 px-3">
                       ${linkedPlayer ? `
-                        <span class="bg-emerald-100 text-emerald-800 font-bold text-xs px-2.5 py-1 rounded-full inline-flex items-center gap-1">
-                          <svg class="w-3 h-3 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
-                          <span>Nel Torneo</span>
-                        </span>
+                        <div class="space-y-1">
+                          <div class="flex items-center gap-1.5 flex-wrap">
+                            ${this.getCategoryBadgeMarkup(compName)}
+                            <span class="bg-emerald-100 text-emerald-800 font-bold text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                              <svg class="w-3 h-3 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                              <span>Iscritto</span>
+                            </span>
+                          </div>
+                          <div class="flex items-center gap-1.5 text-[11px] text-gray-500">
+                            <span class="text-[10px]">Sposta:</span>
+                            <select onchange="app.changePlayerCategory('${linkedPlayer.id}', this.value)" class="text-[11px] py-0.5 px-1.5 border border-gray-300 rounded-md bg-white font-medium focus:ring-1 focus:ring-blue-500">
+                              ${TournamentManager.CATEGORIES.map(c => `<option value="${c}" ${c === compName ? 'selected' : ''}>${c}</option>`).join('')}
+                            </select>
+                            <button type="button" onclick="app.removeAccountFromTournament('${acc.email}')" title="Rimuovi dal torneo" class="text-[10px] text-rose-600 hover:text-rose-800 font-semibold px-1.5 py-0.5 rounded hover:bg-rose-50 transition cursor-pointer">
+                              Rimuovi
+                            </button>
+                          </div>
+                        </div>
                       ` : `
-                        <div class="flex items-center gap-1.5 flex-wrap">
-                          <span class="bg-amber-100 text-amber-900 font-semibold text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap">
-                            Non nel gioco
+                        <div class="space-y-1.5">
+                          <span class="inline-flex items-center gap-1 bg-amber-100 text-amber-900 font-semibold text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap">
+                            <svg class="w-3 h-3 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                            Non iscritto al torneo
                           </span>
-                          <button onclick="app.insertAccountIntoTournament('${acc.email}')" title="Inserisci questo account come atleta nel torneo" class="bg-yellow-400 hover:bg-yellow-500 text-blue-950 font-black text-[11px] px-2 py-0.5 rounded-lg shadow-sm transition whitespace-nowrap cursor-pointer">
-                            + Inserisci nel Gioco
-                          </button>
+                          <div class="flex items-center gap-1.5">
+                            <select id="enroll-cat-${safeEmail}" class="text-[11px] py-1 px-2 border border-gray-300 rounded-lg bg-white font-medium focus:ring-1 focus:ring-blue-500">
+                              ${TournamentManager.CATEGORIES.map(c => `<option value="${c}" ${c === compName ? 'selected' : ''}>${c}</option>`).join('')}
+                            </select>
+                            <button onclick="app.enrollAccountWithCategory('${acc.email}', document.getElementById('enroll-cat-${safeEmail}').value)" title="Iscrivi questo account alla competizione scelta" class="bg-yellow-400 hover:bg-yellow-500 text-blue-950 font-black text-[11px] px-2.5 py-1 rounded-lg shadow-sm transition whitespace-nowrap cursor-pointer">
+                              + Iscrivi
+                            </button>
+                          </div>
                         </div>
                       `}
                     </td>
@@ -2441,8 +2528,7 @@ class App {
     }
   }
 
-  // Modale per Admin: Modifica o Crea Account
-  openAdminAccountModal(email = null) {
+  openAdminAccountModal(email = null, forNewAthlete = false) {
     if (!this.isAdmin) {
       this.showToast("Solo l'amministratore può gestire gli account.", "error");
       return;
@@ -2494,8 +2580,8 @@ class App {
         }
       }
     } else {
-      if (titleEl) titleEl.textContent = "Crea Nuovo Account";
-      if (submitBtn) submitBtn.textContent = "Crea Account";
+      if (titleEl) titleEl.textContent = forNewAthlete ? "Nuovo Atleta - Creazione Profilo & Accesso" : "Crea Nuovo Account";
+      if (submitBtn) submitBtn.textContent = forNewAthlete ? "Crea Profilo & Inserisci nel Torneo" : "Crea Account";
       if (origEmailInput) origEmailInput.value = "";
       if (fnInput) fnInput.value = "";
       if (lnInput) lnInput.value = "";
@@ -2503,7 +2589,7 @@ class App {
       if (pwInput) pwInput.value = "";
       if (bdInput) bdInput.value = "";
       if (rkInput) rkInput.value = "NC";
-      if (catSelect) catSelect.value = (this.selectedCategory !== "all") ? this.selectedCategory : "Pre Agonistica U12";
+      if (catSelect) catSelect.value = (this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Pre Agonistica U12";
       if (roleSelect) roleSelect.value = "player";
       if (alsoPlayerWrapper) alsoPlayerWrapper.classList.remove("hidden");
       if (alsoPlayerCheckbox) alsoPlayerCheckbox.checked = true;
@@ -2670,8 +2756,8 @@ class App {
     this.render();
   }
 
-  // Inserisce un account registrato tra gli atleti ufficiali del torneo con 1 click
-  insertAccountIntoTournament(email) {
+  // Inserisce un account registrato tra gli atleti ufficiali del torneo
+  insertAccountIntoTournament(email, specificCategory = null) {
     if (!this.isAdmin) {
       this.showToast("Solo l'amministratore può inserire giocatori nel torneo.", "error");
       return;
@@ -2686,13 +2772,21 @@ class App {
 
     const existingPlayer = this.getPlayerForAccount(acc);
     if (existingPlayer) {
-      this.showToast(`L'atleta "${acc.name}" è già inserito nel torneo.`, "info");
+      if (specificCategory && existingPlayer.category !== specificCategory) {
+        this.changePlayerCategory(existingPlayer.id, specificCategory);
+      } else {
+        this.showToast(`L'atleta "${acc.name || cleanEmail}" è già iscritto nel torneo.`, "info");
+      }
       return;
     }
 
     const firstName = acc.firstName || (acc.name ? acc.name.split(" ")[0] : "");
     const lastName = acc.lastName || (acc.name ? acc.name.split(" ").slice(1).join(" ") : "");
     const fullName = acc.name || `${firstName} ${lastName}`.trim();
+    const chosenCat = specificCategory || (acc.category && acc.category !== "Da Assegnare" ? acc.category : ((this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Pre Agonistica U12"));
+
+    acc.category = chosenCat;
+    this.saveAccounts(accounts);
 
     const newPlayer = {
       id: `p-${Date.now()}`,
@@ -2701,7 +2795,7 @@ class App {
       name: fullName,
       birthDate: acc.birthDate || "",
       ranking: acc.ranking || "NC",
-      category: acc.category || this.tournamentManager.getPlayerCategory(acc),
+      category: chosenCat,
       notes: "",
       email: acc.email,
       userId: acc.email,
@@ -2711,8 +2805,57 @@ class App {
 
     this.state.players.push(newPlayer);
     this.saveState();
-    this.showToast(`Atleta "${fullName}" inserito con successo nel torneo!`, "success");
+    this.showToast(`Atleta "${fullName}" iscritto con successo a "${chosenCat}"!`, "success");
     this.render();
+  }
+
+  enrollAccountWithCategory(email, category) {
+    this.insertAccountIntoTournament(email, category);
+  }
+
+  changePlayerCategory(playerId, newCategory) {
+    if (!this.isAdmin) return;
+    const p = this.state.players.find(x => x.id === playerId);
+    if (!p) return;
+    p.category = newCategory;
+
+    const email = (p.email || p.userId || "").toLowerCase().trim();
+    if (email) {
+      const accounts = this.loadAccounts();
+      if (accounts[email]) {
+        accounts[email].category = newCategory;
+        this.saveAccounts(accounts);
+      }
+    }
+
+    this.tournamentManager.ensureCategories();
+    this.saveState();
+    this.showToast(`Competizione di ${p.name} modificata in "${newCategory}"!`, "success");
+    this.render();
+  }
+
+  removeAccountFromTournament(email) {
+    if (!this.isAdmin) return;
+    const cleanEmail = (email || "").toLowerCase().trim();
+    const accounts = this.loadAccounts();
+    const acc = accounts[cleanEmail];
+    const linkedPlayer = this.getPlayerForAccount(acc || { email: cleanEmail });
+    if (!linkedPlayer) return;
+
+    if (confirm(`Rimuovere "${linkedPlayer.name}" dalla competizione del torneo?\n\nL'account utente (${cleanEmail}) rimarrà attivo nell'app, ma l'atleta non parteciperà più alle gare.`)) {
+      this.state.players = this.state.players.filter(p => p.id !== linkedPlayer.id);
+      this.saveState();
+      this.showToast(`Atleta rimosso dal torneo. L'account rimane attivo.`, "info");
+      this.render();
+    }
+  }
+
+  setAdminAccountsCategoryFilter(filter) {
+    this.adminAccountsCategoryFilter = filter;
+    const container = document.getElementById("admin-accounts-container") || document.getElementById("players-container");
+    if (container) {
+      this.renderAdminAccountsView(container);
+    }
   }
 
   // Esporta tutti i dati (Account registrati e Torneo) in formato JSON
@@ -2805,7 +2948,28 @@ class App {
     reader.readAsText(file);
   }
 
+  // Mostra il modale di scelta: Nuovo Atleta (con Profilo) vs Seleziona tra Account Esistenti
   openNewPlayerModal(fromProfile = false) {
+    if (!this.isAdmin) {
+      this.showToast("Operazione riservata all'amministrazione del torneo.", "error");
+      return;
+    }
+    this.openModal("modal-choose-insert-athlete");
+  }
+
+  // Flusso 1: Crea da zero atleta con credenziali e profilo account
+  startCreateNewPlayerAndProfile() {
+    this.closeModal("modal-choose-insert-athlete");
+    this.openAdminAccountModal(null, true);
+  }
+
+  // Flusso rapido alternativo: solo scheda atleta (senza credenziali login)
+  startCreateQuickPlayerOnly() {
+    this.closeModal("modal-choose-insert-athlete");
+    this.openDirectPlayerModal();
+  }
+
+  openDirectPlayerModal() {
     if (!this.isAdmin) {
       this.showToast("Operazione riservata all'amministrazione del torneo.", "error");
       return;
@@ -2813,7 +2977,7 @@ class App {
 
     const modalTitle = document.getElementById("player-modal-title");
     const submitBtn = document.getElementById("player-submit-btn");
-    if (modalTitle) modalTitle.textContent = "Inserisci Atleta";
+    if (modalTitle) modalTitle.textContent = "Inserisci Atleta (Rapido)";
     if (submitBtn) submitBtn.textContent = "Aggiungi Atleta";
     
     document.getElementById("player-id-input").value = "";
@@ -2836,6 +3000,120 @@ class App {
     setTimeout(() => {
       fnInput.focus();
     }, 150);
+  }
+
+  // Flusso 2: Seleziona tra gli account già registrati nel sistema
+  openSelectExistingAccountModal() {
+    this.closeModal("modal-choose-insert-athlete");
+    this.selectAccountSearchQuery = "";
+    this.selectAccountFilter = "all";
+    const sInput = document.getElementById("select-account-search-input");
+    if (sInput) sInput.value = "";
+    this.setSelectAccountFilter("all");
+    this.openModal("modal-select-existing-account");
+  }
+
+  setSelectAccountFilter(filter) {
+    this.selectAccountFilter = filter;
+    const btnAll = document.getElementById("select-account-filter-all");
+    const btnUnenrolled = document.getElementById("select-account-filter-unenrolled");
+    if (filter === "all") {
+      if (btnAll) btnAll.className = "text-xs px-3 py-1.5 rounded-xl font-bold bg-blue-600 text-white shadow-sm transition";
+      if (btnUnenrolled) btnUnenrolled.className = "text-xs px-3 py-1.5 rounded-xl font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition";
+    } else {
+      if (btnAll) btnAll.className = "text-xs px-3 py-1.5 rounded-xl font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition";
+      if (btnUnenrolled) btnUnenrolled.className = "text-xs px-3 py-1.5 rounded-xl font-bold bg-amber-500 text-blue-950 shadow-sm transition";
+    }
+    this.renderSelectExistingAccountsList();
+  }
+
+  renderSelectExistingAccountsList() {
+    const container = document.getElementById("select-account-list-container");
+    const countLabel = document.getElementById("select-account-count-label");
+    if (!container) return;
+
+    const accounts = this.loadAccounts();
+    const accountsList = Object.values(accounts);
+
+    const q = (this.selectAccountSearchQuery || "").toLowerCase();
+    const filtered = accountsList.filter(acc => {
+      const linkedPlayer = this.getPlayerForAccount(acc);
+      if (this.selectAccountFilter === "unenrolled" && linkedPlayer) {
+        return false;
+      }
+      if (!q) return true;
+      const fn = (acc.firstName || "").toLowerCase();
+      const ln = (acc.lastName || "").toLowerCase();
+      const name = (acc.name || "").toLowerCase();
+      const em = (acc.email || "").toLowerCase();
+      return fn.includes(q) || ln.includes(q) || name.includes(q) || em.includes(q);
+    });
+
+    if (countLabel) {
+      const unenrolledTotal = accountsList.filter(a => !this.getPlayerForAccount(a)).length;
+      countLabel.textContent = `${filtered.length} account visualizzati • ${unenrolledTotal} non ancora iscritti al torneo`;
+    }
+
+    if (filtered.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-10 text-gray-500 text-xs">
+          <div class="w-10 h-10 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-2 font-bold">🔍</div>
+          Nessun account corrisponde ai criteri di ricerca.
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = filtered.map(acc => {
+      const linkedPlayer = this.getPlayerForAccount(acc);
+      const safeEmail = (acc.email || "").toLowerCase().replace(/[^a-z0-9]/g, "_");
+      const avatarHtml = this.getAvatarMarkup(acc, "w-9 h-9", "text-xs");
+      const defaultCat = (acc.category && acc.category !== "Da Assegnare")
+        ? acc.category
+        : ((this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Pre Agonistica U12");
+
+      return `
+        <div class="py-3 px-3 rounded-xl hover:bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-blue-900 text-yellow-300 font-bold shadow-sm">
+              ${avatarHtml}
+            </div>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-bold text-xs sm:text-sm text-gray-900 truncate">${acc.name || `${acc.firstName || ''} ${acc.lastName || ''}`.trim() || 'Utente'}</span>
+                ${acc.role === 'admin' ? '<span class="bg-yellow-400 text-blue-950 font-black text-[9px] uppercase px-1.5 py-0.2 rounded">Admin</span>' : ''}
+              </div>
+              <div class="text-[11px] text-gray-500 font-mono truncate" title="${acc.email}">${acc.email}</div>
+              <div class="text-[10px] text-gray-400 flex items-center gap-2 mt-0.5">
+                <span>Nascita: ${this.formatDate(acc.birthDate)}</span>
+                <span>•</span>
+                <span>FITP: ${acc.ranking || 'NC'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 flex-shrink-0 sm:self-center">
+            ${linkedPlayer ? `
+              <div class="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                <div class="text-[11px] font-bold text-emerald-900">
+                  Iscritto a: <span class="text-blue-950 font-black">${linkedPlayer.category || 'Competizione'}</span>
+                </div>
+              </div>
+            ` : `
+              <div class="flex items-center gap-1.5 w-full sm:w-auto">
+                <select id="modal-select-cat-${safeEmail}" class="text-xs py-1.5 px-2.5 border border-gray-300 rounded-xl bg-white font-medium focus:ring-1 focus:ring-blue-500 shadow-sm">
+                  ${TournamentManager.CATEGORIES.map(c => `<option value="${c}" ${c === defaultCat ? 'selected' : ''}>${c}</option>`).join('')}
+                </select>
+                <button type="button" onclick="app.enrollAccountWithCategory('${acc.email}', document.getElementById('modal-select-cat-${safeEmail}').value); app.closeModal('modal-select-existing-account');" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-1.5 rounded-xl shadow transition whitespace-nowrap cursor-pointer flex items-center gap-1">
+                  <span>+ Iscrivi</span>
+                </button>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }).join('');
   }
 
   editPlayer(id) {
@@ -4514,6 +4792,8 @@ class App {
     if (modal) {
       modal.classList.remove("hidden");
       modal.classList.add("flex");
+      document.body.classList.add("modal-open");
+      document.documentElement.classList.add("modal-open");
     }
   }
 
@@ -4522,6 +4802,11 @@ class App {
     if (modal) {
       modal.classList.add("hidden");
       modal.classList.remove("flex");
+    }
+    const openModals = document.querySelectorAll(".modal-backdrop:not(.hidden)");
+    if (!openModals || openModals.length === 0) {
+      document.body.classList.remove("modal-open");
+      document.documentElement.classList.remove("modal-open");
     }
   }
 

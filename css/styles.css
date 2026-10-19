@@ -41,10 +41,22 @@
   transform: translateY(-2px);
 }
 
-/* Modal Backdrop Animations */
+/* Blocco dello scorrimento dello sfondo quando una finestra modale è aperta */
+body.modal-open,
+html.modal-open {
+  overflow: hidden !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  touch-action: none;
+  -webkit-overflow-scrolling: auto;
+}
+
+/* Modal Backdrop Animations & Scroll Containment */
 .modal-backdrop {
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
 }
 
 /* STILI PER LA STAMPA SU CARTA A4 (TABELLONE BACHECA CIRCOLO) */
