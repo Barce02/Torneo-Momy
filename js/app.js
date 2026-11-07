@@ -42,8 +42,15 @@ class App {
     this.currentEditingMatchId = null;
     this.revealedPasswords = {};
 
-    this.selectedCategory = "Pre Agonistica U12"; // "all", "Pre Agonistica U12", "Pre Agonistica", "SAT U14", "SAT"
+    this.selectedCategory = "Pre Agonistica U12"; // "all", "Pre Agonistica U12", "Pre Agonistica", "SAT"
     this.pendingPasswordReset = this.loadPendingPasswordReset();
+
+    // Modalità Vista Utente per Admin (anteprima come vedono i non admin)
+    try {
+      this.viewAsUser = sessionStorage.getItem("torneo_view_as_user") === "true";
+    } catch (e) {
+      this.viewAsUser = false;
+    }
 
     // Filtri calendario
     this.schedulePhaseFilter = "all";
@@ -137,8 +144,10 @@ class App {
       localStorage.setItem(LAST_EMAIL_KEY, this.user.email);
     }
     this.user = null;
+    this.viewAsUser = false;
     try {
       localStorage.removeItem(USER_KEY);
+      sessionStorage.removeItem("torneo_view_as_user");
     } catch (e) {}
 
     this.renderUserBadge();
@@ -151,8 +160,34 @@ class App {
     }, 250);
   }
 
+  get isRealAdmin() {
+    return !!(this.user && (this.user.role === "admin" || isUserAdmin(this.user.email)));
+  }
+
   get isAdmin() {
-    return this.user && (this.user.role === "admin" || isUserAdmin(this.user.email));
+    if (this.viewAsUser) return false;
+    return this.isRealAdmin;
+  }
+
+  toggleViewAsUser() {
+    if (!this.isRealAdmin) return;
+    this.viewAsUser = !this.viewAsUser;
+    try {
+      sessionStorage.setItem("torneo_view_as_user", this.viewAsUser ? "true" : "false");
+    } catch (e) {}
+
+    // Se eravamo nella tab "admin-accounts" e passiamo a vista utente, spostiamo su "players"
+    if (this.viewAsUser && this.currentTab === "admin-accounts") {
+      this.currentTab = "players";
+    }
+
+    this.render();
+
+    if (this.viewAsUser) {
+      this.showToast("Passato a Vista Utente (come vedono i non admin)", "info");
+    } else {
+      this.showToast("Tornato a Vista Amministratore", "success");
+    }
   }
 
   // Caricamento dati torneo
@@ -479,8 +514,8 @@ class App {
           if (val) {
             const year = new Date(val).getFullYear();
             if (year >= 2014) cEl.value = "Pre Agonistica U12";
-            else if (year >= 2012) cEl.value = "SAT U14";
-            else cEl.value = "Pre Agonistica";
+            else if (year >= 2012) cEl.value = "Pre Agonistica";
+            else cEl.value = "SAT";
           }
         });
       }
@@ -1053,6 +1088,41 @@ class App {
     const accountLabel = document.getElementById("header-account-label");
     const navAccountLabel = document.getElementById("nav-account-label");
 
+    // Gestione Tasto e Banner "Vista Utente (Non Admin)"
+    const toggleViewBtn = document.getElementById("btn-toggle-view-user");
+    const viewBanner = document.getElementById("banner-view-as-user");
+
+    if (this.isRealAdmin) {
+      if (toggleViewBtn) {
+        toggleViewBtn.classList.remove("hidden");
+        if (this.viewAsUser) {
+          toggleViewBtn.className = "text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm font-black bg-yellow-400 text-slate-950 hover:bg-yellow-300 border border-yellow-500";
+          toggleViewBtn.innerHTML = `
+            <svg class="w-3.5 h-3.5 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <span>Torna a Vista Admin</span>
+          `;
+        } else {
+          toggleViewBtn.className = "text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm font-bold bg-white/15 hover:bg-white/25 text-yellow-300 border border-yellow-400/40";
+          toggleViewBtn.innerHTML = `
+            <svg class="w-3.5 h-3.5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+            <span>Vista Utente</span>
+          `;
+        }
+      }
+      if (viewBanner) {
+        viewBanner.classList.toggle("hidden", !this.viewAsUser);
+      }
+    } else {
+      if (toggleViewBtn) toggleViewBtn.classList.add("hidden");
+      if (viewBanner) viewBanner.classList.add("hidden");
+    }
+
     const adminNavTab = document.getElementById("nav-tab-admin-accounts");
     if (adminNavTab) {
       if (this.isAdmin) {
@@ -1380,9 +1450,10 @@ class App {
   }
 
   // ==========================================
-  // GESTIONE SELETTORE CATEGORIA (PRE AGONISTICA U12, PRE AGONISTICA, SAT U14, SAT)
+  // GESTIONE SELETTORE CATEGORIA (PRE AGONISTICA U12, PRE AGONISTICA, SAT)
   // ==========================================
   setCategory(cat) {
+    if (cat === "SAT U14") cat = "SAT";
     this.selectedCategory = cat;
     this.renderCategorySelector();
     this.renderTabContent();
@@ -1404,7 +1475,6 @@ class App {
       { id: "all", label: "Tutte", full: "Tutte le Categorie" },
       { id: "Pre Agonistica U12", label: "Pre Ag. U12", full: "Pre Agonistica U12" },
       { id: "Pre Agonistica", label: "Pre Agonistica", full: "Pre Agonistica" },
-      { id: "SAT U14", label: "SAT U14", full: "SAT U14" },
       { id: "SAT", label: "SAT", full: "SAT" }
     ];
 
@@ -1467,9 +1537,7 @@ class App {
       return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">Pre Ag. U12</span>`;
     } else if (cat === "Pre Agonistica") {
       return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-100 text-purple-900 border border-purple-300">Pre Agonistica</span>`;
-    } else if (cat === "SAT U14") {
-      return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-sky-100 text-sky-900 border border-sky-300">SAT U14</span>`;
-    } else if (cat === "SAT") {
+    } else if (cat === "SAT" || cat === "SAT U14") {
       return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">SAT</span>`;
     } else if (cat === "Da Assegnare") {
       return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">⏳ Da Assegnare</span>`;
@@ -2227,7 +2295,6 @@ class App {
     const catCounts = {
       "Pre Agonistica U12": 0,
       "Pre Agonistica": 0,
-      "SAT U14": 0,
       "SAT": 0,
       "Da Assegnare": 0
     };
@@ -2334,7 +2401,6 @@ class App {
               { id: "unenrolled", label: "⏳ Non ancora Iscritti", count: notInTournamentCount },
               { id: "Pre Agonistica U12", label: "🏆 Pre Ag. U12", count: catCounts["Pre Agonistica U12"] },
               { id: "Pre Agonistica", label: "🏆 Pre Agonistica", count: catCounts["Pre Agonistica"] },
-              { id: "SAT U14", label: "🏆 SAT U14", count: catCounts["SAT U14"] },
               { id: "SAT", label: "🏆 SAT", count: catCounts["SAT"] }
             ].map(chip => {
               const isActive = activeFilter === chip.id;
@@ -3947,7 +4013,7 @@ class App {
     if (!container) return;
 
     this.tournamentManager.ensureCategories();
-    const categories = TournamentManager.CATEGORIES; // ["Pre Agonistica U12", "Pre Agonistica", "SAT U14", "SAT"]
+    const categories = TournamentManager.CATEGORIES; // ["Pre Agonistica U12", "Pre Agonistica", "SAT"]
     const currentCat = this.selectedCategory || "all";
 
     // Calcolo statistiche per ciascuna categoria
@@ -4355,10 +4421,10 @@ class App {
           <div class="border-b pb-3">
             <div class="text-xs font-bold uppercase tracking-wider text-blue-800">Regolamento Ufficiale</div>
             <h2 class="text-xl font-extrabold text-gray-900 mt-0.5">
-              Torneo Momy 26/27 • Tennis Giovanile
+              Torneo Momy 26/27
             </h2>
             <p class="text-xs text-gray-500 mt-1">
-              Categorie Ufficiali: <strong>Pre Agonistica U12</strong>, <strong>Pre Agonistica</strong>, <strong>SAT U14</strong>, <strong>SAT</strong>
+              Categorie Ufficiali: <strong>Pre Agonistica U12</strong>, <strong>Pre Agonistica</strong>, <strong>SAT</strong>
             </p>
           </div>
 
@@ -4397,7 +4463,7 @@ class App {
             <div>
               <h3 class="font-extrabold text-sky-950 text-base flex items-center gap-2">
                 <span class="w-3 h-3 rounded-full bg-sky-600"></span>
-                <span>SAT (SAT U14 & SAT)</span>
+                <span>SAT</span>
               </h3>
               <div class="text-xs font-extrabold text-sky-800 mt-1 flex items-center gap-1.5 flex-wrap">
                 <span class="bg-sky-200 text-sky-900 px-2.5 py-0.5 rounded-lg border border-sky-300 inline-block">1 ora • La partita finisce dopo 1 ora (suono campana)</span>
@@ -4426,10 +4492,10 @@ class App {
           <div class="bg-slate-50 border border-slate-200 p-4 sm:p-5 rounded-2xl">
             <h4 class="font-bold text-gray-900 text-xs sm:text-sm mb-1.5 flex items-center gap-2">
               <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
-              <span>Fase a Girone Unico & Qualificazione al Tabellone Finale (TUTTI Qualificati, non solo i primi 8)</span>
+              <span>Fase a Girone Unico & Qualificazione al Tabellone Finale (Tutti Qualificati)</span>
             </h4>
             <p class="text-xs text-gray-700 leading-relaxed">
-              In ciascuna categoria (<strong>Pre Agonistica U12</strong>, <strong>Pre Agonistica</strong>, <strong>SAT U14</strong>, <strong>SAT</strong>) tutti i partecipanti disputano un <strong>Girone Unico all'italiana</strong>. Al completamento di ciascun incontro, il punteggio e la classifica si aggiornano da soli in tempo reale. <strong>A fine anno sono qualificati alla fase a tabellone finale TUTTI gli atleti, non solo i primi 8</strong>: la classifica finale del girone stabilirà la composizione del tabellone a eliminazione diretta e le teste di serie (le prime posizioni beneficeranno di eventuali passaggi diretti del turno / BYE).
+              In ciascuna categoria (<strong>Pre Agonistica U12</strong>, <strong>Pre Agonistica</strong>, <strong>SAT</strong>) tutti i partecipanti disputano un <strong>Girone Unico all'italiana</strong>. Al completamento di ciascun incontro, il punteggio e la classifica si aggiornano da soli in tempo reale. <strong>A fine anno sono qualificati alla fase a tabellone finale tutti gli atleti</strong>: la classifica finale del girone stabilirà la composizione del tabellone a eliminazione diretta e le teste di serie (le prime posizioni beneficeranno di eventuali passaggi diretti del turno / BYE).
             </p>
           </div>
 
@@ -4469,7 +4535,7 @@ class App {
             <div class="text-xs text-gray-600 space-y-2.5">
               <div><strong>Manifestazione:</strong> Torneo Momy 26/27</div>
               <div><strong>Amministrazione Ufficiale:</strong> Barcello Luca • Alessia Di Tullio</div>
-              <div><strong>Categorie:</strong> Pre Agonistica U12, Pre Agonistica, SAT U14, SAT</div>
+              <div><strong>Categorie:</strong> Pre Agonistica U12, Pre Agonistica, SAT</div>
               <div><strong>Gironi:</strong> Girone Unico per ogni Categoria</div>
               <div><strong>Regola Game:</strong> Killer point sul 40 pari</div>
               <div><strong>Fase Finale:</strong> Tutti qualificati al Tabellone Finale (a fine anno)</div>
@@ -4544,7 +4610,6 @@ class App {
     const catLabels = {
       "Pre Agonistica U12": "Pre Agonistica U12",
       "Pre Agonistica": "Pre Agonistica",
-      "SAT U14": "SAT U14",
       "SAT": "SAT",
       "Da Assegnare": "In attesa di assegnazione dai maestri"
     };
@@ -4687,7 +4752,6 @@ class App {
                     <option value="Da Assegnare" ${curCat === 'Da Assegnare' ? 'selected' : ''}>⏳ In attesa di assegnazione (Da Assegnare)</option>
                     <option value="Pre Agonistica U12" ${curCat === 'Pre Agonistica U12' ? 'selected' : ''}>Pre Agonistica U12</option>
                     <option value="Pre Agonistica" ${curCat === 'Pre Agonistica' ? 'selected' : ''}>Pre Agonistica</option>
-                    <option value="SAT U14" ${curCat === 'SAT U14' ? 'selected' : ''}>SAT U14</option>
                     <option value="SAT" ${curCat === 'SAT' ? 'selected' : ''}>SAT</option>
                   </select>
                   <p class="text-[10px] text-blue-700 mt-1 font-semibold">Modalità Amministratore: puoi assegnare o modificare la categoria di gara.</p>

@@ -8,7 +8,7 @@ class TournamentManager {
 
   // Categorie ufficiali del Torneo Momy
   static get CATEGORIES() {
-    return ["Pre Agonistica U12", "Pre Agonistica", "SAT U14", "SAT"];
+    return ["Pre Agonistica U12", "Pre Agonistica", "SAT"];
   }
 
   getPlayer(id) {
@@ -21,6 +21,9 @@ class TournamentManager {
     if (!player) return "Da Assegnare";
     if (player.category === "Da Assegnare") {
       return "Da Assegnare";
+    }
+    if (player.category === "SAT U14") {
+      return "SAT";
     }
     if (player.category && TournamentManager.CATEGORIES.includes(player.category)) {
       return player.category;
@@ -60,6 +63,10 @@ class TournamentManager {
     }
     delete this.state.categoryGroups["U10"];
     delete this.state.categoryGroups["U9"];
+    delete this.state.categoryGroups["SAT U14"];
+    if (this.state.categoryBrackets) {
+      delete this.state.categoryBrackets["SAT U14"];
+    }
 
     TournamentManager.CATEGORIES.forEach(cat => {
       if (!this.state.categoryGroups[cat]) {
@@ -667,7 +674,7 @@ class TournamentManager {
       throw new Error(`Servono almeno 2 atleti in classifica nel Girone Unico (${cat}) per poter comporre il tabellone finale.`);
     }
 
-    // A fine anno si qualificano TUTTI gli atleti della categoria (non solo i primi 8)
+    // A fine anno si qualificano tutti gli atleti della categoria
     const qualifiedPlayers = standings.map(s => s.player.id);
     const count = qualifiedPlayers.length;
 
