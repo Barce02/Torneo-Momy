@@ -187,9 +187,9 @@ class App {
     this.render();
 
     if (this.viewAsUser) {
-      this.showToast("Passato a Vista Utente (come vedono i non admin)", "info");
+      this.showToast("Attiva: Vista Utente", "info");
     } else {
-      this.showToast("Tornato a Vista Amministratore", "success");
+      this.showToast("Attiva: Vista Admin", "success");
     }
   }
 
@@ -982,7 +982,7 @@ class App {
     }
 
     if (account.password && account.password !== password) {
-      alert(`Password errata per l'account "${email}".\n\nPuoi visualizzare la password digitata cliccando sull'icona con l'occhio 👁️, oppure reimpostarla tramite il link "Password dimenticata?".`);
+      alert(`Password errata per l'account "${email}".\n\nPuoi visualizzare la password digitata cliccando sull'icona con l'occhio, oppure reimpostarla tramite il link "Password dimenticata?".`);
       return;
     }
 
@@ -1100,21 +1100,23 @@ class App {
         toggleViewBtn.classList.remove("hidden");
         if (this.viewAsUser) {
           toggleViewBtn.className = "text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm font-black bg-yellow-400 text-slate-950 hover:bg-yellow-300 border border-yellow-500";
+          toggleViewBtn.title = "Stai visualizzando come Utente (non-admin). Clicca per tornare a Vista Admin";
           toggleViewBtn.innerHTML = `
             <svg class="w-3.5 h-3.5 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-            </svg>
-            <span>Torna a Vista Admin</span>
-          `;
-        } else {
-          toggleViewBtn.className = "text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm font-bold bg-white/15 hover:bg-white/25 text-yellow-300 border border-yellow-400/40";
-          toggleViewBtn.innerHTML = `
-            <svg class="w-3.5 h-3.5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
             </svg>
             <span>Vista Utente</span>
+          `;
+        } else {
+          toggleViewBtn.className = "text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm font-bold bg-white/15 hover:bg-white/25 text-yellow-300 border border-yellow-400/40";
+          toggleViewBtn.title = "Stai visualizzando come Amministratore. Clicca per passare a Vista Utente";
+          toggleViewBtn.innerHTML = `
+            <svg class="w-3.5 h-3.5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <span>Vista Admin</span>
           `;
         }
       }
@@ -1475,7 +1477,7 @@ class App {
 
     const unassignedCount = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === "Da Assegnare").length;
     if (this.currentTab === "players" && unassignedCount > 0) {
-      cats.push({ id: "Da Assegnare", label: "⏳ Da Assegnare", full: "In attesa di Assegnazione" });
+      cats.push({ id: "Da Assegnare", label: "Da Assegnare", full: "In attesa di Assegnazione" });
     }
 
     const counts = { all: this.state.players.length, "Da Assegnare": unassignedCount };
@@ -1535,7 +1537,7 @@ class App {
     } else if (cat === "SAT" || cat === "SAT U14") {
       return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">SAT</span>`;
     } else if (cat === "Da Assegnare") {
-      return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">⏳ Da Assegnare</span>`;
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">Da Assegnare</span>`;
     }
     return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-300">${cat}</span>`;
   }
@@ -1677,8 +1679,12 @@ class App {
               <span>Stampa Girone (${cat})</span>
             </button>
             ${this.isAdmin ? `
-              <button onclick="app.handleAutoAssignGroups('${cat}')" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-1.5 cursor-pointer">
-                + Aggiorna Incontri Girone Unico (${cat})
+              <button onclick="app.openCreateMatchModal('${cat}')" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-1.5 cursor-pointer">
+                <svg class="w-4 h-4 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>+ Inserisci Partita (${cat})</span>
+              </button>
+              <button onclick="app.handleAutoAssignGroups('${cat}')" title="Sincronizza lista atleti del girone" class="w-full sm:w-auto bg-white/15 hover:bg-white/25 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-white/30 transition flex items-center justify-center gap-1.5 cursor-pointer">
+                <span>Sincronizza Iscritti (${cat})</span>
               </button>
               ${totalInGroup >= 2 ? `
                 <button onclick="app.handleGenerateBracketFromGroups('${cat}')" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl border border-blue-500 transition flex items-center justify-center gap-1.5 cursor-pointer shadow">
@@ -1730,7 +1736,7 @@ class App {
             <div class="bg-gradient-to-r from-blue-900 to-blue-950 text-white p-4 sm:p-5 flex items-center justify-between border-b border-blue-900/60">
               <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-yellow-400 text-blue-950 flex items-center justify-center font-black text-sm shadow-sm flex-shrink-0">
-                  🏆
+                  <svg class="w-5 h-5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
                 </div>
                 <div>
                   <h3 class="text-base sm:text-lg font-black tracking-tight">Classifica Girone Unico (${cat})</h3>
@@ -1800,7 +1806,7 @@ class App {
                 <div><span class="font-bold text-gray-800">Regola Game:</span> Killer point sul 40 pari (punto secco che aggiudica il game).</div>
                 <div><span class="font-bold text-gray-800">Punteggi Girone:</span> Vittoria 3 pt • Pareggio 1 pt • Sconfitta 0 pt.</div>
                 <div><span class="font-bold text-gray-800">Criteri classifica:</span> 1° Punti • 2° Scontro diretto • 3° Differenza game • 4° Game vinti • 5° Classifica FITP.</div>
-                <div class="text-emerald-800 font-semibold pt-0.5">⭐ A fine anno tutti gli atleti iscritti disputeranno il Tabellone Finale a eliminazione diretta (accoppiamenti determinati dalla classifica del girone).</div>
+                <div class="text-emerald-800 font-semibold pt-0.5">A fine anno tutti gli atleti iscritti disputeranno il Tabellone Finale a eliminazione diretta (accoppiamenti determinati dalla classifica del girone).</div>
               </div>
             </div>
           </div>
@@ -1812,7 +1818,7 @@ class App {
             <div class="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between border-b border-slate-800">
               <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shadow-sm flex-shrink-0">
-                  🎾
+                  <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 </div>
                 <div>
                   <h3 class="text-base sm:text-lg font-black tracking-tight">Partite Girone Unico</h3>
@@ -1820,9 +1826,14 @@ class App {
                 </div>
               </div>
               ${this.isAdmin ? `
-                <span class="text-[10px] bg-blue-500/30 text-blue-200 px-2 py-0.5 rounded border border-blue-400/40">
-                  Clicca per punteggio
-                </span>
+                <div class="flex items-center gap-2">
+                  <button onclick="app.openCreateMatchModal('${cat}')" class="text-xs bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black px-2.5 py-1.5 rounded-lg shadow-sm transition cursor-pointer">
+                    + Inserisci Partita
+                  </button>
+                  <span class="text-[10px] bg-blue-500/30 text-blue-200 px-2 py-0.5 rounded border border-blue-400/40 hidden sm:inline-block">
+                    Clicca per punteggio
+                  </span>
+                </div>
               ` : ''}
             </div>
 
@@ -1867,10 +1878,15 @@ class App {
                       <span class="font-medium text-gray-700">${m.court || 'Campo da definire'}</span>
                       <div class="flex items-center gap-1.5">
                         ${m.dateTime ? `
-                          <span class="text-[9px] font-bold text-blue-800 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">📅 ${this.formatShortDate(m.dateTime)}</span>
+                          <span class="text-[9px] font-bold text-blue-800 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">${this.formatShortDate(m.dateTime)}</span>
                         ` : `
                           <span class="text-[10px] text-gray-400">${formatInfo.shortDuration}</span>
                         `}
+                        ${this.isAdmin ? `
+                          <button onclick="event.stopPropagation(); app.deleteMatch('group', 'single', '${m.id}', '${cat}')" title="Elimina Partita" class="text-rose-500 hover:text-rose-700 p-0.5 rounded hover:bg-rose-50 cursor-pointer transition ml-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                          </button>
+                        ` : ''}
                       </div>
                     </div>
                   </div>
@@ -2123,11 +2139,11 @@ class App {
           <!-- Sub-Tabs Switcher per Admin -->
           <div class="flex border-b border-gray-200 mb-5 text-xs sm:text-sm font-semibold">
             <button type="button" onclick="app.switchPlayersSubTab('players')" class="py-2.5 px-4 text-center border-b-2 border-blue-600 text-blue-700 font-bold transition flex items-center gap-2">
-              <span>🎾 Atleti nel Torneo</span>
+              <span>Atleti nel Torneo</span>
               <span class="bg-blue-100 text-blue-900 text-xs px-2 py-0.5 rounded-full font-bold">${players.length}</span>
             </button>
             <button type="button" onclick="app.switchPlayersSubTab('accounts')" class="py-2.5 px-4 text-center border-b-2 border-transparent text-gray-500 hover:text-gray-800 transition flex items-center gap-2">
-              <span>👥 Tutti gli Account Registrati</span>
+              <span>Tutti gli Account Registrati</span>
               <span class="bg-yellow-400 text-blue-950 text-xs px-2 py-0.5 rounded-full font-black shadow-sm">${accountsCount}</span>
             </button>
           </div>
@@ -2195,7 +2211,7 @@ class App {
                 + Inserisci Atleta
               </button>
               <button onclick="app.switchPlayersSubTab('accounts')" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
-                👥 Gestisci Account (${accountsCount})
+                Gestisci Account (${accountsCount})
               </button>
             </div>
           ` : ''}
@@ -2373,11 +2389,11 @@ class App {
         <!-- Sub-Tabs Switcher per Admin -->
         <div class="flex border-b border-gray-200 mb-5 text-xs sm:text-sm font-semibold">
           <button type="button" onclick="app.switchTab('players')" class="py-2.5 px-4 text-center border-b-2 border-transparent text-gray-500 hover:text-gray-800 transition flex items-center gap-2">
-            <span>🎾 Atleti nel Torneo</span>
+            <span>Atleti nel Torneo</span>
             <span class="bg-blue-100 text-blue-900 text-xs px-2 py-0.5 rounded-full font-bold">${this.state.players.length}</span>
           </button>
           <button type="button" onclick="app.switchTab('admin-accounts')" class="py-2.5 px-4 text-center border-b-2 border-blue-600 text-blue-700 font-bold transition flex items-center gap-2">
-            <span>👥 Tutti gli Account Registrati</span>
+            <span>Tutti gli Account Registrati</span>
             <span class="bg-yellow-400 text-blue-950 text-xs px-2 py-0.5 rounded-full font-black shadow-sm">${accountsList.length}</span>
           </button>
         </div>
@@ -2389,11 +2405,11 @@ class App {
             <span class="text-xs font-bold text-gray-700 mr-1">Filtra per Competizione:</span>
             ${[
               { id: "all", label: "Tutti gli Account", count: accountsList.length },
-              { id: "enrolled", label: "✓ Iscritti al Torneo", count: inTournamentCount },
-              { id: "unenrolled", label: "⏳ Non ancora Iscritti", count: notInTournamentCount },
-              { id: "Pre Agonistica U12", label: "🏆 Pre Ag. U12", count: catCounts["Pre Agonistica U12"] },
-              { id: "Pre Agonistica", label: "🏆 Pre Agonistica", count: catCounts["Pre Agonistica"] },
-              { id: "SAT", label: "🏆 SAT", count: catCounts["SAT"] }
+              { id: "enrolled", label: "Iscritti al Torneo", count: inTournamentCount },
+              { id: "unenrolled", label: "Non ancora Iscritti", count: notInTournamentCount },
+              { id: "Pre Agonistica U12", label: "Pre Ag. U12", count: catCounts["Pre Agonistica U12"] },
+              { id: "Pre Agonistica", label: "Pre Agonistica", count: catCounts["Pre Agonistica"] },
+              { id: "SAT", label: "SAT", count: catCounts["SAT"] }
             ].map(chip => {
               const isActive = activeFilter === chip.id;
               const activeClass = isActive
@@ -3102,7 +3118,9 @@ class App {
     if (filtered.length === 0) {
       container.innerHTML = `
         <div class="text-center py-10 text-gray-500 text-xs">
-          <div class="w-10 h-10 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-2 font-bold">🔍</div>
+          <div class="w-10 h-10 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-2">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          </div>
           Nessun account corrisponde ai criteri di ricerca.
         </div>
       `;
@@ -3505,16 +3523,26 @@ class App {
               </p>
             </div>
 
-            <!-- Bottoni Switcher Modalità Admin -->
-            <div class="flex items-center gap-1.5 self-start md:self-auto bg-blue-900/80 p-1.5 rounded-xl border border-blue-700/80">
-              <button onclick="app.setAdminScheduleTab('quick')" class="text-xs font-bold px-3 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${this.adminScheduleTab === 'quick' ? 'bg-yellow-400 text-blue-950 shadow-md font-black' : 'text-blue-200 hover:text-white hover:bg-white/10'}">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                <span>Assegnazione Rapida (${unscheduledMatches.length})</span>
+            <!-- Bottoni Switcher & Azioni Rapide Admin -->
+            <div class="flex flex-wrap items-center gap-2 self-start md:self-auto">
+              <button onclick="app.openCreateMatchModal()" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2 rounded-xl shadow transition cursor-pointer flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>+ Crea Nuovo Incontro</span>
               </button>
-              <button onclick="app.setAdminScheduleTab('courts')" class="text-xs font-bold px-3 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${this.adminScheduleTab === 'courts' ? 'bg-yellow-400 text-blue-950 shadow-md font-black' : 'text-blue-200 hover:text-white hover:bg-white/10'}">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
-                <span>Tabellone Campi 0-7</span>
+              <button onclick="app.handleClearUnscheduledMatches()" title="Elimina tutte le partite senza data e ora" class="bg-white/10 hover:bg-rose-500/30 text-rose-200 font-bold text-xs px-3 py-2 rounded-xl border border-rose-400/30 transition cursor-pointer flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-rose-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                <span>Pulisci Non Assegnati</span>
               </button>
+              <div class="flex items-center gap-1 bg-blue-900/80 p-1 rounded-xl border border-blue-700/80">
+                <button onclick="app.setAdminScheduleTab('quick')" class="text-xs font-bold px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${this.adminScheduleTab === 'quick' ? 'bg-yellow-400 text-blue-950 shadow-md font-black' : 'text-blue-200 hover:text-white hover:bg-white/10'}">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                  <span>Assegnazione Rapida (${unscheduledMatches.length})</span>
+                </button>
+                <button onclick="app.setAdminScheduleTab('courts')" class="text-xs font-bold px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${this.adminScheduleTab === 'courts' ? 'bg-yellow-400 text-blue-950 shadow-md font-black' : 'text-blue-200 hover:text-white hover:bg-white/10'}">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                  <span>Tabellone Campi 0-7</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -3538,9 +3566,9 @@ class App {
 
               ${quickMatches.length === 0 ? `
                 <div class="p-6 text-center bg-slate-800/60 rounded-xl border border-slate-700">
-                  <div class="text-3xl mb-2">🎉</div>
+                  <div class="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-2"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg></div>
                   <h4 class="font-extrabold text-sm text-white">Nessun incontro da assegnare!</h4>
-                  <p class="text-xs text-slate-300 mt-1">Tutte le partite hanno già una data, un orario e un campo assegnati. Puoi visualizzarle nel Tabellone Campi o cambiare filtro in "Tutti gli Incontri".</p>
+                  <p class="text-xs text-slate-300 mt-1">Tutte le partite hanno già una data, un orario e un campo assegnati. Puoi visualizzarle nel Tabellone Campi o cliccare "+ Crea Nuovo Incontro" per inserire una nuova partita.</p>
                 </div>
               ` : `
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-3.5 max-h-[580px] overflow-y-auto pr-1">
@@ -3563,11 +3591,11 @@ class App {
                           <div>
                             ${m.dateTime ? `
                               <span class="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
-                                <span>✓</span> <span>${this.formatShortDate(m.dateTime)}</span>
+                                <span class="w-2 h-2 rounded-full bg-emerald-400"></span> <span>${this.formatShortDate(m.dateTime)}</span>
                               </span>
                             ` : `
                               <span class="text-[11px] font-bold text-amber-300 flex items-center gap-1">
-                                <span>⚠️</span> <span>Da assegnare</span>
+                                <span class="w-2 h-2 rounded-full bg-amber-400"></span> <span>Da assegnare</span>
                               </span>
                             `}
                           </div>
@@ -3609,6 +3637,9 @@ class App {
                             ` : ''}
                             <button title="Modifica dettagli" onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg border border-white/20 transition cursor-pointer">
                               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                            </button>
+                            <button title="Elimina definitivamente incontro" onclick="app.deleteMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white p-2 rounded-lg border border-rose-500/50 transition cursor-pointer">
+                              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                             </button>
                           </div>
                         </div>
@@ -3672,7 +3703,7 @@ class App {
                       <div class="p-3 flex-grow space-y-2.5 min-h-[160px]">
                         ${courtMatches.length === 0 ? `
                           <div class="h-full flex flex-col items-center justify-center text-center p-3 text-slate-400">
-                            <span class="text-lg opacity-40 mb-1">🏟️</span>
+                            <svg class="w-6 h-6 text-slate-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
                             <span class="text-xs font-medium">Nessuna partita</span>
                             <span class="text-[10px] text-slate-500">Campo libero per questa data</span>
                             <button onclick="app.openAssignCourtModal('${court.name}', '${this.adminScheduleDate}')" class="mt-2.5 text-[11px] font-bold text-yellow-300 hover:text-yellow-200 bg-yellow-400/10 hover:bg-yellow-400/20 px-2.5 py-1 rounded-lg border border-yellow-400/30 transition cursor-pointer flex items-center gap-1">
@@ -3711,6 +3742,10 @@ class App {
                                       <span class="text-slate-600">•</span>
                                       <button onclick="app.removeMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-rose-400 hover:text-rose-300 font-bold cursor-pointer">
                                         Libera
+                                      </button>
+                                      <span class="text-slate-600">•</span>
+                                      <button onclick="app.deleteMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-rose-400 hover:text-rose-300 font-bold cursor-pointer">
+                                        Elimina
                                       </button>
                                     </div>
                                   </div>
@@ -3807,10 +3842,10 @@ class App {
               <label class="font-bold text-gray-600">Stato:</label>
               <select onchange="app.setScheduleFilter('status', this.value)" class="text-xs border rounded-lg px-2.5 py-1 bg-white font-medium">
                 <option value="all" ${this.scheduleStatusFilter === 'all' ? 'selected' : ''}>Tutti gli incontri</option>
-                <option value="scheduled" ${this.scheduleStatusFilter === 'scheduled' ? 'selected' : ''}>📅 Programmati (con data e campo)</option>
-                <option value="unscheduled" ${this.scheduleStatusFilter === 'unscheduled' ? 'selected' : ''}>⏳ Da programmare</option>
-                <option value="live" ${this.scheduleStatusFilter === 'live' ? 'selected' : ''}>🎾 In corso (Live)</option>
-                <option value="completed" ${this.scheduleStatusFilter === 'completed' ? 'selected' : ''}>✓ Completati</option>
+                <option value="scheduled" ${this.scheduleStatusFilter === 'scheduled' ? 'selected' : ''}>Programmati (con data e campo)</option>
+                <option value="unscheduled" ${this.scheduleStatusFilter === 'unscheduled' ? 'selected' : ''}>Da programmare</option>
+                <option value="live" ${this.scheduleStatusFilter === 'live' ? 'selected' : ''}>In corso (Live)</option>
+                <option value="completed" ${this.scheduleStatusFilter === 'completed' ? 'selected' : ''}>Completati</option>
               </select>
             </div>
           </div>
@@ -3898,17 +3933,18 @@ class App {
           } else if (isCompleted) {
             scheduleStatusBadge = `
               <span class="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
-                ✓ Completato
+                Completato
               </span>`;
           } else if (hasDateTime) {
             scheduleStatusBadge = `
               <span class="bg-blue-100 text-blue-950 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-blue-300 shadow-2xs flex items-center gap-1">
-                <span>📅</span> <span>In Programma</span>
+                <span class="w-1.5 h-1.5 rounded-full bg-blue-700"></span>
+                <span>In Programma</span>
               </span>`;
           } else {
             scheduleStatusBadge = `
               <span class="bg-gray-100 text-gray-600 text-[10px] font-medium px-2 py-0.5 rounded-full border border-gray-200">
-                ⏳ Da programmare
+                Da programmare
               </span>`;
           }
 
@@ -3941,13 +3977,17 @@ class App {
                 <!-- Box Data & Orario -->
                 <div class="flex items-center gap-2.5 p-3 rounded-xl ${hasDateTime ? 'bg-blue-50/70 border border-blue-200' : 'bg-amber-50/50 border border-amber-200/60'}">
                   <div class="w-8 h-8 rounded-lg ${hasDateTime ? 'bg-blue-600 text-white' : 'bg-amber-100 text-amber-800'} flex items-center justify-center flex-shrink-0 font-bold text-sm shadow-xs">
-                    ${hasDateTime ? '📅' : '⏳'}
+                    ${hasDateTime ? `
+                      <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    ` : `
+                      <svg class="w-4 h-4 text-amber-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    `}
                   </div>
                   <div class="text-xs">
                     ${hasDateTime ? `
                       <span class="font-black text-gray-900 text-xs sm:text-sm block">${this.formatScheduleDateTime(m.dateTime)}</span>
                       <div class="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span class="text-blue-900 font-bold text-[11px] bg-blue-100/70 px-2 py-0.5 rounded">🏟️ ${courtBadge}</span>
+                        <span class="text-blue-900 font-bold text-[11px] bg-blue-100/70 px-2 py-0.5 rounded">${courtBadge}</span>
                         <span class="text-gray-500 text-[11px]">Durata: ${this.getCategoryFormatInfo(item.category).durationText} • ${this.getCategoryFormatInfo(item.category).formula}</span>
                       </div>
                     ` : `
@@ -4020,6 +4060,9 @@ class App {
                         Rimuovi
                       </button>
                     ` : ''}
+                    <button onclick="app.deleteMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-rose-600 hover:text-rose-800 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer">
+                      Elimina
+                    </button>
                     <button onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer">
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -4223,6 +4266,145 @@ class App {
     this.saveState();
     this.render();
     this.showToast("Programmazione dell'incontro rimossa.", "info");
+  }
+
+  openCreateMatchModal(category = null, court = null, dateTime = null) {
+    if (!this.isAdmin) return;
+    const cat = category || ((this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Pre Agonistica U12");
+
+    const catSelect = document.getElementById("create-match-category");
+    if (catSelect) catSelect.value = cat;
+
+    const phaseSelect = document.getElementById("create-match-phase");
+    if (phaseSelect) phaseSelect.value = "Girone Unico";
+
+    const courtSelect = document.getElementById("create-match-court");
+    if (courtSelect) {
+      courtSelect.value = court || "Campo 0 (Terra)";
+    }
+
+    const dtInput = document.getElementById("create-match-datetime");
+    if (dtInput) {
+      if (dateTime) {
+        dtInput.value = dateTime;
+      } else {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, "0");
+        const day = String(now.getDate()).padStart(2, "0");
+        dtInput.value = `${year}-${month}-${day}T15:00`;
+      }
+    }
+
+    this.onCategoryChangeInCreateMatchModal();
+    this.openModal("modal-create-match");
+  }
+
+  onCategoryChangeInCreateMatchModal() {
+    const catSelect = document.getElementById("create-match-category");
+    const cat = catSelect ? catSelect.value : "Pre Agonistica U12";
+
+    const p1Select = document.getElementById("create-match-player1");
+    const p2Select = document.getElementById("create-match-player2");
+    if (!p1Select || !p2Select) return;
+
+    // Recupera i giocatori appartenenti a questa categoria
+    const players = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === cat);
+
+    if (players.length === 0) {
+      p1Select.innerHTML = `<option value="">Nessun atleta in ${cat}</option>`;
+      p2Select.innerHTML = `<option value="">Nessun atleta in ${cat}</option>`;
+      return;
+    }
+
+    const opts1 = [`<option value="">-- Seleziona Giocatore 1 --</option>`];
+    const opts2 = [`<option value="">-- Seleziona Giocatore 2 --</option>`];
+
+    players.forEach((p, idx) => {
+      const label = `${p.name} (${p.ranking || 'NC'})`;
+      opts1.push(`<option value="${p.id}" ${idx === 0 ? 'selected' : ''}>${label}</option>`);
+      opts2.push(`<option value="${p.id}" ${idx === 1 ? 'selected' : ''}>${label}</option>`);
+    });
+
+    p1Select.innerHTML = opts1.join("");
+    p2Select.innerHTML = opts2.join("");
+  }
+
+  handleSaveCreateMatch() {
+    if (!this.isAdmin) return;
+    const catSelect = document.getElementById("create-match-category");
+    const phaseSelect = document.getElementById("create-match-phase");
+    const p1Select = document.getElementById("create-match-player1");
+    const p2Select = document.getElementById("create-match-player2");
+    const dtInput = document.getElementById("create-match-datetime");
+    const courtSelect = document.getElementById("create-match-court");
+
+    const category = catSelect?.value || "Pre Agonistica U12";
+    const phase = phaseSelect?.value || "Girone Unico";
+    const p1Id = p1Select?.value;
+    const p2Id = p2Select?.value;
+    const dateTime = dtInput?.value;
+    const court = courtSelect?.value || "Campo 0 (Terra)";
+
+    if (!p1Id || !p2Id) {
+      this.showToast("Seleziona entrambi i giocatori.", "warning");
+      return;
+    }
+    if (p1Id === p2Id) {
+      this.showToast("Non puoi selezionare lo stesso giocatore per entrambi i lati!", "error");
+      return;
+    }
+    if (!dateTime) {
+      this.showToast("Inserisci data e ora dell'incontro.", "warning");
+      return;
+    }
+
+    const newMatch = this.tournamentManager.createManualMatch(category, p1Id, p2Id, dateTime, court, phase);
+    if (!newMatch) {
+      this.showToast("Errore durante la creazione dell'incontro.", "error");
+      return;
+    }
+
+    this.saveState();
+    this.closeModal("modal-create-match");
+    this.render();
+
+    const p1 = this.tournamentManager.getPlayer(p1Id);
+    const p2 = this.tournamentManager.getPlayer(p2Id);
+    this.showToast(`Incontro creato: ${p1 ? p1.name : 'G1'} vs ${p2 ? p2.name : 'G2'} su ${court}!`, "success");
+  }
+
+  deleteMatch(type, groupKeyOrRound, matchId, category) {
+    if (!this.isAdmin) return;
+    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
+
+    if (!confirm("Sei sicuro di voler eliminare definitivamente questo incontro?")) {
+      return;
+    }
+
+    const success = this.tournamentManager.deleteMatch(type, groupKeyOrRound, matchId, cat);
+    if (success) {
+      this.saveState();
+      this.render();
+      this.showToast("Incontro eliminato con successo.", "info");
+    } else {
+      this.showToast("Impossibile eliminare l'incontro.", "error");
+    }
+  }
+
+  handleClearUnscheduledMatches(category = null) {
+    if (!this.isAdmin) return;
+    const cat = category || this.selectedCategory;
+    const catMsg = cat && cat !== "all" ? `nella categoria ${cat}` : "in tutte le categorie";
+
+    if (!confirm(`Vuoi rimuovere tutti gli incontri non giocati e non ancora programmati (senza data e ora) ${catMsg}? Le partite fissate o completate NON verranno toccate.`)) {
+      return;
+    }
+
+    const removed = this.tournamentManager.clearUnscheduledMatches(cat);
+    this.saveState();
+    this.render();
+    this.showToast(`${removed} incontri non assegnati rimossi con successo.`, "success");
   }
 
   openAssignCourtModal(courtName, dateStr) {
@@ -4737,7 +4919,7 @@ class App {
               </p>
               <div class="bg-white/95 p-3.5 rounded-xl border border-purple-200 space-y-2 shadow-xs">
                 <div class="font-bold text-purple-900 flex items-center gap-1.5">
-                  <span>⏱️ Limite di Tempo, Killer Point e Parità (Pre Agonistica):</span>
+                  <span>Limite di Tempo, Killer Point e Parità (Pre Agonistica):</span>
                 </div>
                 <ul class="list-disc list-inside space-y-1.5 text-purple-950 pl-1">
                   <li><strong>Killer Point sul 40 pari nel game:</strong> in ciascun game, se il punteggio arriva sul <strong>40-40</strong>, non si giocano i vantaggi: si disputa il <strong>killer point (punto secco)</strong> e chi lo vince conquista il game.</li>
@@ -4767,7 +4949,7 @@ class App {
               </p>
               <div class="bg-white/95 p-3.5 rounded-xl border border-sky-200 space-y-2 shadow-xs">
                 <div class="font-bold text-sky-900 flex items-center gap-1.5">
-                  <span>🔔 Limite di Tempo, Killer Point e Parità (SAT):</span>
+                  <span>Limite di Tempo, Killer Point e Parità (SAT):</span>
                 </div>
                 <ul class="list-disc list-inside space-y-1.5 text-sky-950 pl-1">
                   <li><strong>Killer Point sul 40 pari nel game:</strong> su ogni <strong>40-40</strong> si gioca il <strong>killer point (punto secco)</strong>: non ci sono vantaggi, il punto successivo aggiudica direttamente il game.</li>
@@ -4921,15 +5103,15 @@ class App {
                 <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">${this.escapeHtml(u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Utente')}</h2>
                 ${this.isAdmin ? `
                   <span class="bg-yellow-400 text-blue-950 font-black text-xs uppercase px-2.5 py-0.5 rounded shadow-sm">
-                    👑 Amministratore
+                    Amministratore
                   </span>
                 ` : linkedPlayer ? `
                   <span class="bg-emerald-500 text-white font-bold text-xs px-2.5 py-0.5 rounded shadow-sm">
-                    🎾 Atleta nel Torneo
+                    Atleta nel Torneo
                   </span>
                 ` : `
                   <span class="bg-blue-500/80 text-white font-medium text-xs px-2.5 py-0.5 rounded shadow-sm">
-                    👤 Account Registrato
+                    Account Registrato
                   </span>
                 `}
               </div>
@@ -5040,7 +5222,7 @@ class App {
                 <label class="block text-xs font-bold text-gray-700 mb-1">Categoria di Gioco *</label>
                 ${this.isAdmin ? `
                   <select id="account-page-category-select" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
-                    <option value="Da Assegnare" ${curCat === 'Da Assegnare' ? 'selected' : ''}>⏳ In attesa di assegnazione (Da Assegnare)</option>
+                    <option value="Da Assegnare" ${curCat === 'Da Assegnare' ? 'selected' : ''}>In attesa di assegnazione (Da Assegnare)</option>
                     <option value="Pre Agonistica U12" ${curCat === 'Pre Agonistica U12' ? 'selected' : ''}>Pre Agonistica U12</option>
                     <option value="Pre Agonistica" ${curCat === 'Pre Agonistica' ? 'selected' : ''}>Pre Agonistica</option>
                     <option value="SAT" ${curCat === 'SAT' ? 'selected' : ''}>SAT</option>

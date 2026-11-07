@@ -421,8 +421,7 @@ class TournamentManager {
     // Tutti gli atleti della categoria fanno parte del Girone Unico
     const catPlayers = this.getPlayersByCategory(cat);
     single.playerIds = catPlayers.map(p => p.id);
-
-    this.generateGroupMatches("single", cat);
+    if (!single.matches) single.matches = [];
 
     this.state.groups = catGroup;
     return catGroup;
@@ -436,60 +435,101 @@ class TournamentManager {
 
     if (!single.playerIds.includes(playerId)) {
       single.playerIds.push(playerId);
-      this.generateGroupMatches("single", cat);
     }
+    if (!single.matches) single.matches = [];
   }
 
+  // Non genera più automaticamente tutti gli incontri (troppe combinazioni).
+  // Gli incontri vengono creati manualmente dall'admin indicando giocatori, orario e campo.
   generateGroupMatches(groupKey = "single", category = "Pre Agonistica U12") {
     this.ensureCategories();
     const cat = category || "Pre Agonistica U12";
     const catGroup = this.state.categoryGroups[cat];
     const group = catGroup[groupKey] || catGroup.single;
     if (!group) return [];
+    if (!group.matches) group.matches = [];
+    return group.matches;
+  }
 
-    const playerIds = (group.playerIds || []).filter(id => this.getPlayer(id) !== null);
-    const existingMatches = group.matches || [];
-    const newMatches = [];
+  createManualMatch(category, player1Id, player2Id, dateTime = "", court = "Campo 0 (Terra)", phase = "Girone Unico") {
+    this.ensureCategories();
+    const cat = category || "Pre Agonistica U12";
+    const catGroup = this.state.categoryGroups[cat];
+    if (!catGroup) return null;
+    const single = catGroup.single;
+    if (!single.matches) single.matches = [];
 
-    let matchCount = 1;
-    for (let i = 0; i < playerIds.length; i++) {
-      for (let j = i + 1; j < playerIds.length; j++) {
-        const p1Id = playerIds[i];
-        const p2Id = playerIds[j];
+    // Assicura che i giocatori siano registrati nel girone unico
+    if (player1Id && !single.playerIds.includes(player1Id)) single.playerIds.push(player1Id);
+    if (player2Id && !single.playerIds.includes(player2Id)) single.playerIds.push(player2Id);
 
-        const existing = existingMatches.find(m =>
-          (m.player1Id === p1Id && m.player2Id === p2Id) ||
-          (m.player1Id === p2Id && m.player2Id === p1Id)
-        );
+    const matchId = `m-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const newMatch = {
+      id: matchId,
+      groupKey: "single",
+      category: cat,
+      phase: phase || `Girone Unico • ${cat}`,
+      player1Id: player1Id,
+      player2Id: player2Id,
+      dateTime: dateTime || "",
+      court: court || "Campo 0 (Terra)",
+      games1: null,
+      games2: null,
+      scores: "",
+      winnerId: null,
+      isDraw: false,
+      status: "in_programma"
+    };
 
-        if (existing) {
-          existing.groupKey = "single";
-          newMatches.push(existing);
-        } else {
-          newMatches.push({
-            id: `gm-${cat.toLowerCase().replace(/[^a-z0-9]/g, '')}-${matchCount}`,
-            groupKey: "single",
-            category: cat,
-            player1Id: p1Id,
-            player2Id: p2Id,
-            games1: null,
-            games2: null,
-            scores: "",
-            winnerId: null,
-            isDraw: false,
-            court: (matchCount % 2 === 0) ? "Campo 0 (Terra)" : "Campo 1 (Terra)",
-            dateTime: "",
-            p1Acceptance: null,
-            p2Acceptance: null,
-            status: "in_programma"
-          });
+    single.matches.push(newMatch);
+    return newMatch;
+  }
+
+  deleteMatch(type, groupKeyOrRound, matchId, category = null) {
+    this.ensureCategories();
+    const cat = category || "Pre Agonistica U12";
+
+    if (type === "group" || !type) {
+      const catGroup = this.state.categoryGroups[cat];
+      if (catGroup && catGroup.single && catGroup.single.matches) {
+        const idx = catGroup.single.matches.findIndex(m => m.id === matchId);
+        if (idx !== -1) {
+          catGroup.single.matches.splice(idx, 1);
+          return true;
         }
-        matchCount++;
+      }
+    } else if (type === "bracket") {
+      const bracket = this.state.categoryBrackets?.[cat];
+      if (bracket && bracket.rounds) {
+        for (let r of bracket.rounds) {
+          const idx = (r.matches || []).findIndex(m => m.id === matchId);
+          if (idx !== -1) {
+            r.matches.splice(idx, 1);
+            return true;
+          }
+        }
       }
     }
+    return false;
+  }
 
-    group.matches = newMatches;
-    return newMatches;
+  clearUnscheduledMatches(category = null) {
+    this.ensureCategories();
+    const cats = category && category !== "all" ? [category] : TournamentManager.CATEGORIES;
+    let removedCount = 0;
+
+    cats.forEach(cat => {
+      const catGroup = this.state.categoryGroups[cat];
+      if (catGroup && catGroup.single && catGroup.single.matches) {
+        const before = catGroup.single.matches.length;
+        catGroup.single.matches = catGroup.single.matches.filter(m => {
+          return m.status === "completato" || (m.dateTime && m.dateTime.trim() !== "");
+        });
+        removedCount += (before - catGroup.single.matches.length);
+      }
+    });
+
+    return removedCount;
   }
 
   updateGroupMatch(groupKey = "single", matchId, matchData, category = null) {

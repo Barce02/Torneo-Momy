@@ -97,7 +97,7 @@
     <div class="max-w-7xl mx-auto flex items-center justify-between gap-3 text-xs">
       <div class="flex items-center gap-2 font-bold">
         <span class="w-2.5 h-2.5 rounded-full bg-blue-900 animate-pulse"></span>
-        <span>👁️ Modalità Utente attiva: stai visualizzando il sito esattamente come lo vedono i non-admin.</span>
+        <span>Modalità Utente attiva: stai visualizzando il sito esattamente come lo vedono i non-admin.</span>
       </div>
       <button onclick="app.toggleViewAsUser()" class="bg-slate-950 hover:bg-slate-800 text-yellow-300 font-black px-3.5 py-1.5 rounded-lg shadow-sm transition cursor-pointer flex-shrink-0 text-xs flex items-center gap-1.5">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -398,7 +398,7 @@
           <div class="bg-blue-50/70 border border-blue-200 rounded-xl p-3">
             <div class="flex items-center justify-between mb-1">
               <label class="block text-xs font-bold text-gray-800">Categoria Torneo</label>
-              <span class="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 font-extrabold px-2 py-0.5 rounded-full">⏳ Assegnata dall'Admin</span>
+              <span class="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 font-extrabold px-2 py-0.5 rounded-full">Assegnata dall'Admin</span>
             </div>
             <p class="text-[11px] text-gray-600 leading-relaxed">
               L'inserimento nel torneo specifico (<strong>Pre Agonistica</strong> o <strong>SAT</strong>) verrà effettuato direttamente dai maestri e amministratori del torneo dopo la registrazione.
@@ -545,7 +545,9 @@
       <div class="flex justify-between items-center pb-3 mb-4 border-b">
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-sm">
-            🎾
+            <svg class="w-4 h-4 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+            </svg>
           </div>
           <div>
             <h3 class="font-bold text-base text-gray-900">Inserisci Atleta nel Torneo</h3>
@@ -566,7 +568,7 @@
           <div class="flex-grow">
             <div class="flex items-center justify-between">
               <h4 class="font-bold text-sm text-blue-950 group-hover:text-blue-700">Inserisci da Nuovo (Crea Profilo)</h4>
-              <span class="text-blue-600 font-bold text-xs group-hover:translate-x-1 transition">➔</span>
+              <span class="text-blue-600 font-bold text-xs group-hover:translate-x-1 transition">&rarr;</span>
             </div>
             <p class="text-xs text-gray-600 mt-1 leading-relaxed">
               Crea da zero la scheda anagrafica dell'atleta e il relativo profilo con credenziali di accesso (Email e Password) per accedere all'app.
@@ -577,12 +579,14 @@
         <!-- Opzione 2: Seleziona tra Account Esistenti -->
         <button type="button" onclick="app.openSelectExistingAccountModal()" class="w-full text-left p-4 rounded-2xl border-2 border-amber-200 bg-amber-50/40 hover:bg-amber-100/60 hover:border-amber-500 transition-all flex items-start gap-3.5 group cursor-pointer shadow-sm hover:shadow">
           <div class="w-11 h-11 rounded-2xl bg-yellow-400 text-blue-950 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition shadow-sm font-bold text-lg">
-            👥
+            <svg class="w-5 h-5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+            </svg>
           </div>
           <div class="flex-grow">
             <div class="flex items-center justify-between">
               <h4 class="font-bold text-sm text-gray-900 group-hover:text-amber-900">Seleziona tra Account già Esistenti</h4>
-              <span class="text-amber-700 font-bold text-xs group-hover:translate-x-1 transition">➔</span>
+              <span class="text-amber-700 font-bold text-xs group-hover:translate-x-1 transition">&rarr;</span>
             </div>
             <p class="text-xs text-gray-600 mt-1 leading-relaxed">
               Scegli tra gli utenti già registrati nell'app e iscrivili alla loro competizione con 1 click.
@@ -708,7 +712,7 @@
         <div>
           <label class="block text-xs font-semibold text-gray-700 mb-1">Categoria Torneo *</label>
           <select id="player-category-select" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
-            <option value="Da Assegnare">⏳ In attesa di assegnazione (Da Assegnare)</option>
+            <option value="Da Assegnare">In attesa di assegnazione (Da Assegnare)</option>
             <option value="Pre Agonistica U12" selected>Pre Agonistica U12</option>
             <option value="Pre Agonistica">Pre Agonistica</option>
             <option value="SAT">SAT</option>
@@ -1160,7 +1164,9 @@
       <div class="flex justify-between items-center pb-3 mb-4 border-b">
         <div class="flex items-center gap-2">
           <div class="w-7 h-7 rounded-lg bg-yellow-100 text-yellow-900 flex items-center justify-center font-bold text-xs">
-            🏟️
+            <svg class="w-4 h-4 text-yellow-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+            </svg>
           </div>
           <h3 class="font-bold text-base text-gray-900">Assegna Incontro a Campo</h3>
         </div>
@@ -1190,6 +1196,85 @@
         <div class="flex gap-2 pt-2 border-t">
           <button type="button" onclick="app.closeModal('modal-quick-court-assign')" class="w-1/2 py-2 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition cursor-pointer">Annulla</button>
           <button type="submit" class="w-1/2 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow transition cursor-pointer">Assegna al Campo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALE: CREAZIONE MANUALE INCONTRO (ADMIN) -->
+  <!-- ======================================================== -->
+  <div id="modal-create-match" class="fixed inset-0 bg-slate-950/65 modal-backdrop z-50 hidden items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-200 max-h-[92vh] overflow-y-auto">
+      <div class="flex justify-between items-center pb-3 mb-4 border-b">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-blue-100 text-blue-900 flex items-center justify-center font-bold text-xs">
+            <svg class="w-4 h-4 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+          </div>
+          <h3 class="font-bold text-base text-gray-900">Inserisci Nuovo Incontro</h3>
+        </div>
+        <button type="button" onclick="app.closeModal('modal-create-match')" class="text-gray-400 hover:text-gray-600 text-sm font-bold cursor-pointer">Chiudi</button>
+      </div>
+
+      <form id="create-match-form" class="space-y-4" onsubmit="event.preventDefault(); app.handleSaveCreateMatch();">
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Categoria *</label>
+          <select id="create-match-category" onchange="app.onCategoryChangeInCreateMatchModal()" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
+            <option value="Pre Agonistica U12">Pre Agonistica U12</option>
+            <option value="Pre Agonistica">Pre Agonistica</option>
+            <option value="SAT">SAT</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Fase del Torneo *</label>
+          <select id="create-match-phase" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
+            <option value="Girone Unico">Girone Unico</option>
+            <option value="Quarti di Finale">Quarti di Finale</option>
+            <option value="Semifinali">Semifinali</option>
+            <option value="Finale">Finale</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Giocatore 1 *</label>
+            <select id="create-match-player1" class="w-full text-xs px-3 py-2.5 border rounded-xl bg-white font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+              <!-- Popolato dinamicamente in base alla categoria -->
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Giocatore 2 *</label>
+            <select id="create-match-player2" class="w-full text-xs px-3 py-2.5 border rounded-xl bg-white font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+              <!-- Popolato dinamicamente in base alla categoria -->
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Data & Ora Incontro *</label>
+          <input type="datetime-local" id="create-match-datetime" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Campo di Gioco *</label>
+          <select id="create-match-court" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium" required>
+            <option value="Campo 0 (Terra)">Campo 0 (Terra)</option>
+            <option value="Campo 1 (Terra)">Campo 1 (Terra)</option>
+            <option value="Campo 2 (Terra)">Campo 2 (Terra)</option>
+            <option value="Campo 3 (Greenset)">Campo 3 (Greenset)</option>
+            <option value="Campo 4 (Greenset)">Campo 4 (Greenset)</option>
+            <option value="Campo 5 (Terra)">Campo 5 (Terra)</option>
+            <option value="Campo 6 (Terra)">Campo 6 (Terra)</option>
+            <option value="Campo 7 (Terra)">Campo 7 (Terra)</option>
+          </select>
+        </div>
+
+        <div class="flex gap-2 pt-2 border-t">
+          <button type="button" onclick="app.closeModal('modal-create-match')" class="w-1/2 py-2.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition cursor-pointer">Annulla</button>
+          <button type="submit" class="w-1/2 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow transition cursor-pointer">Crea Incontro</button>
         </div>
       </form>
     </div>
@@ -1284,7 +1369,7 @@
         <div>
           <label class="block text-xs font-semibold text-gray-700 mb-1">Categoria Torneo</label>
           <select id="admin-account-category-select" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium">
-            <option value="Da Assegnare">⏳ In attesa di assegnazione (Da Assegnare)</option>
+            <option value="Da Assegnare">In attesa di assegnazione (Da Assegnare)</option>
             <option value="Pre Agonistica U12" selected>Pre Agonistica U12</option>
             <option value="Pre Agonistica">Pre Agonistica</option>
             <option value="SAT">SAT</option>
