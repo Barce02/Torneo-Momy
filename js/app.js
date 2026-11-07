@@ -57,6 +57,9 @@ class App {
     this.scheduleCourtFilter = "all";
     this.scheduleStatusFilter = "all";
     this.scheduleSearchQuery = "";
+    this.adminScheduleTab = "quick"; // "quick" (Assegnazione Rapida) o "courts" (Planning Campi 0-7)
+    this.adminScheduleFilter = "unscheduled"; // "unscheduled" o "all"
+    this.adminScheduleDate = "";
     this.adminAccountsCategoryFilter = "all";
     this.selectAccountSearchQuery = "";
     this.selectAccountFilter = "all";
@@ -1192,33 +1195,25 @@ class App {
   }
 
   getPendingScheduleMatchesForUser() {
-    const cp = this.getCurrentPlayer();
-    if (!cp) return [];
-
-    const allMatches = this.getAllMatches();
-    return allMatches.filter(item => {
-      const m = item.match;
-      if (!m.dateTime || m.status === "completato") return false;
-      const isP1 = m.player1Id === cp.id;
-      const isP2 = m.player2Id === cp.id;
-      if (!isP1 && !isP2) return false;
-
-      if (isP1 && (!m.p1Acceptance || m.p1Acceptance === "pending")) return true;
-      if (isP2 && (!m.p2Acceptance || m.p2Acceptance === "pending")) return true;
-      return false;
-    });
+    // Le proposte non vengono più usate: orari e campi sono ufficiali e definitivi
+    return [];
   }
 
   updateScheduleBadge() {
     const badge = document.getElementById("schedule-nav-badge");
     if (!badge) return;
-    const pending = this.getPendingScheduleMatchesForUser();
-    if (pending.length > 0) {
-      badge.textContent = `${pending.length}`;
-      badge.classList.remove("hidden");
-    } else {
-      badge.classList.add("hidden");
+    // Per gli admin evidenziamo il numero di partite ancora da assegnare
+    if (this.isAdmin && !this.viewAsUser) {
+      const allMatches = this.getAllMatches();
+      const unscheduled = allMatches.filter(x => !x.match.dateTime);
+      if (unscheduled.length > 0) {
+        badge.textContent = `${unscheduled.length}`;
+        badge.title = `${unscheduled.length} incontri da programmare`;
+        badge.classList.remove("hidden");
+        return;
+      }
     }
+    badge.classList.add("hidden");
   }
 
   getAvatarMarkup(user, sizeClass = "w-6 h-6", textClass = "text-xs") {
@@ -1869,16 +1864,13 @@ class App {
                     </div>
 
                     <div class="flex items-center justify-between text-[11px] text-gray-500 pt-1.5 border-t border-gray-100">
-                      <span>${m.court || 'Campo da definire'}</span>
+                      <span class="font-medium text-gray-700">${m.court || 'Campo da definire'}</span>
                       <div class="flex items-center gap-1.5">
-                        ${m.dateTime ? (
-                          m.p1Acceptance === 'accepted' && m.p2Acceptance === 'accepted'
-                            ? `<span class="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">✓ Confermato</span>`
-                            : (m.p1Acceptance === 'rejected' || m.p2Acceptance === 'rejected')
-                              ? `<span class="text-[9px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">✕ Rifiutato</span>`
-                              : `<span class="text-[9px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">⏳ In attesa</span>`
-                        ) : ''}
-                        <span>${m.dateTime ? this.formatShortDate(m.dateTime) : (formatInfo.shortDuration + ' di gioco')}</span>
+                        ${m.dateTime ? `
+                          <span class="text-[9px] font-bold text-blue-800 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">📅 ${this.formatShortDate(m.dateTime)}</span>
+                        ` : `
+                          <span class="text-[10px] text-gray-400">${formatInfo.shortDuration}</span>
+                        `}
                       </div>
                     </div>
                   </div>
@@ -3355,18 +3347,42 @@ class App {
     this.renderScheduleView();
   }
 
+  setAdminScheduleTab(tab) {
+    this.adminScheduleTab = tab;
+    this.renderScheduleView();
+  }
+
+  setAdminScheduleFilter(filter) {
+    this.adminScheduleFilter = filter;
+    this.renderScheduleView();
+  }
+
+  setAdminScheduleDate(dateStr) {
+    this.adminScheduleDate = dateStr;
+    this.renderScheduleView();
+  }
+
+  getAvailableScheduleDates(allMatches) {
+    const dates = new Set();
+    (allMatches || []).forEach(item => {
+      if (item.match && item.match.dateTime) {
+        const dStr = item.match.dateTime.substring(0, 10);
+        if (dStr && dStr.length === 10) dates.add(dStr);
+      }
+    });
+    return Array.from(dates).sort();
+  }
+
   renderScheduleView() {
     const container = document.getElementById("schedule-container");
     if (!container) return;
 
     const allMatches = this.getAllMatches();
     const scheduledMatches = allMatches.filter(x => x.match.dateTime);
+    const unscheduledMatches = allMatches.filter(x => !x.match.dateTime);
     const completedMatches = allMatches.filter(x => x.match.status === "completato");
-    const confirmedMatches = allMatches.filter(x => x.match.dateTime && x.match.p1Acceptance === "accepted" && x.match.p2Acceptance === "accepted");
-    const pendingMatches = allMatches.filter(x => x.match.dateTime && x.match.status !== "completato" && x.match.p1Acceptance !== "rejected" && x.match.p2Acceptance !== "rejected" && !(x.match.p1Acceptance === "accepted" && x.match.p2Acceptance === "accepted"));
-    const rejectedMatches = allMatches.filter(x => x.match.dateTime && (x.match.p1Acceptance === "rejected" || x.match.p2Acceptance === "rejected"));
 
-    // Filtraggio
+    // Filtraggio lista pubblica
     const filtered = allMatches.filter(item => {
       // Filtro Categoria attiva
       if (this.selectedCategory !== "all" && item.category !== this.selectedCategory) return false;
@@ -3391,15 +3407,6 @@ class App {
       if (this.scheduleStatusFilter === "unscheduled" && m.dateTime) return false;
       if (this.scheduleStatusFilter === "live" && m.status !== "in_corso") return false;
       if (this.scheduleStatusFilter === "completed" && m.status !== "completato") return false;
-      if (this.scheduleStatusFilter === "confirmed") {
-        if (!m.dateTime || m.p1Acceptance !== "accepted" || m.p2Acceptance !== "accepted") return false;
-      }
-      if (this.scheduleStatusFilter === "pending_acceptance") {
-        if (!m.dateTime || m.status === "completato" || m.p1Acceptance === "rejected" || m.p2Acceptance === "rejected" || (m.p1Acceptance === "accepted" && m.p2Acceptance === "accepted")) return false;
-      }
-      if (this.scheduleStatusFilter === "rejected") {
-        if (!m.dateTime || (m.p1Acceptance !== "rejected" && m.p2Acceptance !== "rejected")) return false;
-      }
 
       // Ricerca Atleta
       if (this.scheduleSearchQuery) {
@@ -3410,7 +3417,7 @@ class App {
       return true;
     });
 
-    // Ordinamento cronologico
+    // Ordinamento cronologico (incontri con orario prima, non programmati dopo)
     filtered.sort((a, b) => {
       const dtA = a.match.dateTime ? new Date(a.match.dateTime).getTime() : Infinity;
       const dtB = b.match.dateTime ? new Date(b.match.dateTime).getTime() : Infinity;
@@ -3418,12 +3425,22 @@ class App {
       return a.phase.localeCompare(b.phase);
     });
 
-    const myPendingMatches = this.getPendingScheduleMatchesForUser();
+    // Elenco 8 campi del torneo Momy
+    const courtsList = [
+      { name: "Campo 0 (Terra)", label: "Campo 0", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" },
+      { name: "Campo 1 (Terra)", label: "Campo 1", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" },
+      { name: "Campo 2 (Terra)", label: "Campo 2", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" },
+      { name: "Campo 3 (Greenset)", label: "Campo 3", surface: "Greenset", badgeColor: "bg-emerald-100 text-emerald-900 border-emerald-300" },
+      { name: "Campo 4 (Greenset)", label: "Campo 4", surface: "Greenset", badgeColor: "bg-emerald-100 text-emerald-900 border-emerald-300" },
+      { name: "Campo 5 (Terra)", label: "Campo 5", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" },
+      { name: "Campo 6 (Terra)", label: "Campo 6", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" },
+      { name: "Campo 7 (Terra)", label: "Campo 7", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" }
+    ];
 
     let html = `
       <div class="space-y-6">
 
-        <!-- Banner Intestazione Calendario -->
+        <!-- Banner Intestazione Calendario Ufficiale -->
         <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 rounded-2xl p-5 sm:p-6 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <div class="flex items-center gap-2 mb-1">
@@ -3432,11 +3449,11 @@ class App {
             </div>
             <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Calendario Incontri & Campi</h2>
             <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
-              Date, orari e campi programmati dall'Amministrazione (<strong>Barcello Luca & Alessia Di Tullio</strong>). Entrambi gli atleti devono confermare o rifiutare l'orario per la disputa dell'incontro.
+              Date, orari e campi ufficiali stabiliti dalla Direzione del Torneo (<strong>Barcello Luca & Alessia Di Tullio</strong>). Tutti gli incontri hanno orario e campo assegnati per la regolare disputa delle partite.
             </p>
           </div>
 
-          ${this.isAdmin ? `
+          ${this.isAdmin && !this.viewAsUser ? `
             <div class="bg-yellow-400 text-blue-950 text-xs font-black px-4 py-2.5 rounded-xl shadow border border-yellow-300 flex items-center gap-2">
               <svg class="w-4 h-4 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
@@ -3445,26 +3462,282 @@ class App {
             </div>
           ` : `
             <div class="text-xs text-blue-200 bg-white/10 px-3.5 py-2 rounded-xl border border-white/20">
-              Orari programmati dall'Amministrazione del Torneo
+              Orari ufficiali assegnati dalla Direzione del Torneo
             </div>
           `}
         </div>
+    `;
 
-        ${myPendingMatches.length > 0 ? `
-          <!-- Banner Notifica Atleta Partite da Confermare -->
-          <div class="bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-slate-950 p-4 rounded-2xl shadow-md border border-amber-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-pulse">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-white text-amber-900 flex items-center justify-center font-black text-lg shadow-sm flex-shrink-0">
-                🔔
+    // ========================================================
+    // SEZIONE DEDICATA AGLI ADMIN: ASSEGNAZIONE ORARI E CAMPI
+    // ========================================================
+    if (this.isAdmin && !this.viewAsUser) {
+      const availableDates = this.getAvailableScheduleDates(allMatches);
+      const todayIso = new Date().toISOString().split('T')[0];
+      if (!this.adminScheduleDate) {
+        this.adminScheduleDate = availableDates.length > 0 ? availableDates[0] : todayIso;
+      }
+
+      // Incontri per la vista rapida
+      const quickMatches = (this.adminScheduleFilter === "unscheduled" ? unscheduledMatches : allMatches).filter(item => {
+        if (this.selectedCategory !== "all" && item.category !== this.selectedCategory) return false;
+        return true;
+      });
+
+      html += `
+        <div class="bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 rounded-2xl p-5 sm:p-6 text-white shadow-xl border-2 border-yellow-400/80 space-y-5">
+          
+          <!-- Intestazione Sezione Admin -->
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-blue-800/80">
+            <div>
+              <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                <span class="inline-flex items-center gap-1.5 bg-yellow-400 text-blue-950 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
+                  <svg class="w-3.5 h-3.5 text-blue-950" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM11 14a1 1 0 11-2 0 1 1 0 012 0zm0-7a1 1 0 10-2 0v3a1 1 0 102 0V7z" clip-rule="evenodd"/></svg>
+                  Area Direzione Torneo
+                </span>
+                <span class="text-xs text-yellow-300 font-bold">Barcello Luca & Alessia Di Tullio</span>
               </div>
-              <div>
-                <h4 class="font-extrabold text-sm sm:text-base">Hai ${myPendingMatches.length} ${myPendingMatches.length === 1 ? 'partita in programma in attesa' : 'partite in programma in attesa'} della tua conferma orario!</h4>
-                <p class="text-xs text-slate-900/85 mt-0.5">L'organizzatore ha proposto data e ora. Clicca su <strong>"Accetta Orario"</strong> o <strong>"Rifiuta Orario"</strong> sulla tua partita per confermare la tua presenza.</p>
-              </div>
+              <h3 class="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+                <span>Pannello Assegnazione Orari & Campi</span>
+              </h3>
+              <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
+                Inserisci direttamente data, ora e campo (Campi 0-7) per ogni partita. Gli orari sono ufficiali e visibili subito nel calendario senza bisogno di approvazione degli atleti.
+              </p>
+            </div>
+
+            <!-- Bottoni Switcher Modalità Admin -->
+            <div class="flex items-center gap-1.5 self-start md:self-auto bg-blue-900/80 p-1.5 rounded-xl border border-blue-700/80">
+              <button onclick="app.setAdminScheduleTab('quick')" class="text-xs font-bold px-3 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${this.adminScheduleTab === 'quick' ? 'bg-yellow-400 text-blue-950 shadow-md font-black' : 'text-blue-200 hover:text-white hover:bg-white/10'}">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span>Assegnazione Rapida (${unscheduledMatches.length})</span>
+              </button>
+              <button onclick="app.setAdminScheduleTab('courts')" class="text-xs font-bold px-3 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${this.adminScheduleTab === 'courts' ? 'bg-yellow-400 text-blue-950 shadow-md font-black' : 'text-blue-200 hover:text-white hover:bg-white/10'}">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                <span>Tabellone Campi 0-7</span>
+              </button>
             </div>
           </div>
-        ` : ''}
 
+          ${this.adminScheduleTab === 'quick' ? `
+            <!-- VISTA 1: ASSEGNAZIONE RAPIDA INCONTRI -->
+            <div class="space-y-4">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold text-slate-300">Mostra:</span>
+                  <button onclick="app.setAdminScheduleFilter('unscheduled')" class="text-xs px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${this.adminScheduleFilter === 'unscheduled' ? 'bg-yellow-400 text-blue-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}">
+                    Solo Da Assegnare (${unscheduledMatches.length})
+                  </button>
+                  <button onclick="app.setAdminScheduleFilter('all')" class="text-xs px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${this.adminScheduleFilter === 'all' ? 'bg-yellow-400 text-blue-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}">
+                    Tutti gli Incontri (${allMatches.length})
+                  </button>
+                </div>
+                <div class="text-xs text-blue-200">
+                  Categoria attiva: <strong>${this.selectedCategory === 'all' ? 'Tutte' : this.selectedCategory}</strong>
+                </div>
+              </div>
+
+              ${quickMatches.length === 0 ? `
+                <div class="p-6 text-center bg-slate-800/60 rounded-xl border border-slate-700">
+                  <div class="text-3xl mb-2">🎉</div>
+                  <h4 class="font-extrabold text-sm text-white">Nessun incontro da assegnare!</h4>
+                  <p class="text-xs text-slate-300 mt-1">Tutte le partite hanno già una data, un orario e un campo assegnati. Puoi visualizzarle nel Tabellone Campi o cambiare filtro in "Tutti gli Incontri".</p>
+                </div>
+              ` : `
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-3.5 max-h-[580px] overflow-y-auto pr-1">
+                  ${quickMatches.map(item => {
+                    const m = item.match;
+                    const p1 = this.tournamentManager.getPlayer(m.player1Id);
+                    const p2 = this.tournamentManager.getPlayer(m.player2Id);
+                    const defaultCourt = m.court || "Campo 0 (Terra)";
+
+                    return `
+                      <div class="bg-slate-800/90 rounded-xl p-3.5 border ${m.dateTime ? 'border-slate-700' : 'border-amber-400/50 ring-1 ring-amber-400/20'} space-y-2.5 shadow-sm">
+                        
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                          <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="text-[10px] font-black px-2 py-0.5 rounded bg-blue-900/90 text-blue-200 border border-blue-700/60 uppercase tracking-wider">
+                              ${item.phase}
+                            </span>
+                            ${this.getCategoryBadgeMarkup(item.category)}
+                          </div>
+                          <div>
+                            ${m.dateTime ? `
+                              <span class="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
+                                <span>✓</span> <span>${this.formatShortDate(m.dateTime)}</span>
+                              </span>
+                            ` : `
+                              <span class="text-[11px] font-bold text-amber-300 flex items-center gap-1">
+                                <span>⚠️</span> <span>Da assegnare</span>
+                              </span>
+                            `}
+                          </div>
+                        </div>
+
+                        <div class="flex items-center justify-between font-bold text-xs sm:text-sm text-white bg-slate-900/70 p-2.5 rounded-lg border border-slate-700/80">
+                          <div class="flex items-center gap-1.5 truncate max-w-[45%]">
+                            <span class="truncate">${p1 ? p1.name : (m.player1Id || 'In attesa')}</span>
+                            ${p1 && p1.ranking ? `<span class="text-[9px] bg-slate-800 text-slate-300 px-1 rounded">${p1.ranking}</span>` : ''}
+                          </div>
+                          <span class="text-yellow-400 font-black text-xs px-2 flex-shrink-0">VS</span>
+                          <div class="flex items-center gap-1.5 truncate max-w-[45%] justify-end">
+                            ${p2 && p2.ranking ? `<span class="text-[9px] bg-slate-800 text-slate-300 px-1 rounded">${p2.ranking}</span>` : ''}
+                            <span class="truncate">${p2 ? p2.name : (m.player2Id || 'In attesa')}</span>
+                          </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 pt-1.5 items-end">
+                          <div class="sm:col-span-5">
+                            <label class="block text-[10px] font-bold text-slate-300 mb-1">Data & Ora *</label>
+                            <input type="datetime-local" id="admin-dt-${item.type}-${m.id}" value="${m.dateTime || ''}" class="w-full text-xs px-2.5 py-1.5 bg-slate-900 border border-slate-600 rounded-lg text-white font-medium focus:ring-2 focus:ring-yellow-400 focus:outline-none">
+                          </div>
+                          <div class="sm:col-span-4">
+                            <label class="block text-[10px] font-bold text-slate-300 mb-1">Campo *</label>
+                            <select id="admin-court-${item.type}-${m.id}" class="w-full text-xs px-2.5 py-1.5 bg-slate-900 border border-slate-600 rounded-lg text-white font-medium focus:ring-2 focus:ring-yellow-400 focus:outline-none">
+                              ${courtsList.map(c => `
+                                <option value="${c.name}" ${defaultCourt === c.name || (defaultCourt && defaultCourt.includes(c.label)) ? 'selected' : ''}>${c.name}</option>
+                              `).join('')}
+                            </select>
+                          </div>
+                          <div class="sm:col-span-3 flex items-center gap-1.5 pt-1 sm:pt-0">
+                            <button onclick="app.quickAssignMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}', 'admin-dt-${item.type}-${m.id}', 'admin-court-${item.type}-${m.id}')" class="flex-1 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs py-2 px-2.5 rounded-lg shadow transition cursor-pointer text-center">
+                              Salva
+                            </button>
+                            ${m.dateTime ? `
+                              <button title="Libera orario e campo" onclick="app.removeMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="bg-rose-500/25 hover:bg-rose-500 text-rose-200 hover:text-white p-2 rounded-lg border border-rose-400/40 transition cursor-pointer">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                              </button>
+                            ` : ''}
+                            <button title="Modifica dettagli" onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg border border-white/20 transition cursor-pointer">
+                              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                            </button>
+                          </div>
+                        </div>
+
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              `}
+            </div>
+          ` : `
+            <!-- VISTA 2: TABELLONE CAMPI 0-7 (PLANNING GIORNALIERO) -->
+            <div class="space-y-4">
+              
+              <!-- Barra Selezione Giorno -->
+              <div class="bg-slate-800/90 p-3.5 rounded-xl border border-slate-700 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-xs font-bold text-slate-300">Data Tabellone:</span>
+                  <input type="date" value="${this.adminScheduleDate}" onchange="app.setAdminScheduleDate(this.value)" class="text-xs px-3 py-1.5 bg-slate-900 border border-yellow-400 rounded-lg text-white font-bold focus:ring-2 focus:ring-yellow-400">
+                  <button onclick="app.setAdminScheduleDate('${todayIso}')" class="text-xs px-2.5 py-1.5 rounded-lg font-bold bg-slate-700 hover:bg-slate-600 text-white transition cursor-pointer">
+                    Oggi
+                  </button>
+                  ${availableDates.map(dStr => `
+                    <button onclick="app.setAdminScheduleDate('${dStr}')" class="text-xs px-2.5 py-1.5 rounded-lg font-bold transition cursor-pointer ${this.adminScheduleDate === dStr ? 'bg-yellow-400 text-blue-950 font-black' : 'bg-slate-900/80 text-blue-200 hover:bg-slate-700'}">
+                      ${dStr.split('-').reverse().slice(0, 2).join('/')}
+                    </button>
+                  `).join('')}
+                </div>
+
+                <div class="text-xs text-yellow-300 font-bold">
+                  8 Campi Disponibili (0, 1, 2, 5, 6, 7 Terra • 3, 4 Greenset)
+                </div>
+              </div>
+
+              <!-- Griglia 8 Campi -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                ${courtsList.map(court => {
+                  const courtMatches = allMatches.filter(item => {
+                    const m = item.match;
+                    if (!m.dateTime || !m.dateTime.startsWith(this.adminScheduleDate)) return false;
+                    return m.court === court.name || (m.court && m.court.includes(court.label));
+                  }).sort((a, b) => new Date(a.match.dateTime) - new Date(b.match.dateTime));
+
+                  return `
+                    <div class="bg-slate-800/80 rounded-xl border border-slate-700 overflow-hidden flex flex-col justify-between shadow-sm">
+                      
+                      <!-- Header Campo -->
+                      <div class="p-3 border-b border-slate-700 bg-slate-900/80 flex items-center justify-between">
+                        <div>
+                          <h4 class="font-black text-sm text-white">${court.label}</h4>
+                          <span class="text-[10px] font-bold px-1.5 py-0.2 rounded border ${court.badgeColor}">
+                            ${court.surface}
+                          </span>
+                        </div>
+                        <span class="text-[11px] font-black px-2 py-0.5 rounded-full ${courtMatches.length > 0 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-slate-700 text-slate-400'}">
+                          ${courtMatches.length} ${courtMatches.length === 1 ? 'partita' : 'partite'}
+                        </span>
+                      </div>
+
+                      <!-- Lista Partite del Campo per la data selezionata -->
+                      <div class="p-3 flex-grow space-y-2.5 min-h-[160px]">
+                        ${courtMatches.length === 0 ? `
+                          <div class="h-full flex flex-col items-center justify-center text-center p-3 text-slate-400">
+                            <span class="text-lg opacity-40 mb-1">🏟️</span>
+                            <span class="text-xs font-medium">Nessuna partita</span>
+                            <span class="text-[10px] text-slate-500">Campo libero per questa data</span>
+                            <button onclick="app.openAssignCourtModal('${court.name}', '${this.adminScheduleDate}')" class="mt-2.5 text-[11px] font-bold text-yellow-300 hover:text-yellow-200 bg-yellow-400/10 hover:bg-yellow-400/20 px-2.5 py-1 rounded-lg border border-yellow-400/30 transition cursor-pointer flex items-center gap-1">
+                              <span>+</span> <span>Assegna Incontro</span>
+                            </button>
+                          </div>
+                        ` : `
+                          <div class="space-y-2">
+                            ${courtMatches.map(item => {
+                              const m = item.match;
+                              const p1 = this.tournamentManager.getPlayer(m.player1Id);
+                              const p2 = this.tournamentManager.getPlayer(m.player2Id);
+                              const timeStr = m.dateTime ? new Date(m.dateTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '';
+
+                              return `
+                                <div class="bg-slate-900/90 rounded-lg p-2.5 border border-slate-700 space-y-1.5">
+                                  <div class="flex items-center justify-between text-[11px]">
+                                    <span class="font-black text-yellow-400 bg-yellow-400/10 px-1.5 py-0.2 rounded border border-yellow-400/20">
+                                      ore ${timeStr}
+                                    </span>
+                                    <span class="text-[9px] font-bold text-slate-400 uppercase truncate max-w-[100px]">
+                                      ${item.category}
+                                    </span>
+                                  </div>
+
+                                  <div class="text-xs font-bold text-white truncate">
+                                    ${p1 ? p1.name : (m.player1Id || 'In attesa')} <span class="text-yellow-400 text-[10px]">vs</span> ${p2 ? p2.name : (m.player2Id || 'In attesa')}
+                                  </div>
+
+                                  <div class="flex items-center justify-between pt-1 border-t border-slate-800 text-[10px]">
+                                    <span class="text-slate-400">${item.phase}</span>
+                                    <div class="flex items-center gap-1">
+                                      <button onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-blue-300 hover:text-white font-bold cursor-pointer">
+                                        Modifica
+                                      </button>
+                                      <span class="text-slate-600">•</span>
+                                      <button onclick="app.removeMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-rose-400 hover:text-rose-300 font-bold cursor-pointer">
+                                        Libera
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              `;
+                            }).join('')}
+
+                            <button onclick="app.openAssignCourtModal('${court.name}', '${this.adminScheduleDate}')" class="w-full text-center text-[10.5px] font-bold text-yellow-300 hover:text-yellow-200 bg-yellow-400/10 hover:bg-yellow-400/20 py-1.5 rounded-lg border border-yellow-400/30 transition cursor-pointer">
+                              + Aggiungi altra partita a questo campo
+                            </button>
+                          </div>
+                        `}
+                      </div>
+
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+
+            </div>
+          `}
+
+        </div>
+      `;
+    }
+
+    html += `
         <!-- Box Statistiche Incontri -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div class="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm text-center">
@@ -3472,20 +3745,16 @@ class App {
             <div class="text-xl sm:text-2xl font-black text-gray-900 mt-0.5">${allMatches.length}</div>
           </div>
           <div class="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm text-center">
-            <div class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Confermati (2/2)</div>
-            <div class="text-xl sm:text-2xl font-black text-emerald-700 mt-0.5">${confirmedMatches.length}</div>
+            <div class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Programmati (Data & Campo)</div>
+            <div class="text-xl sm:text-2xl font-black text-emerald-700 mt-0.5">${scheduledMatches.length}</div>
           </div>
           <div class="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm text-center">
-            <div class="text-[11px] font-bold text-amber-600 uppercase tracking-wider">In Attesa Risposta</div>
-            <div class="text-xl sm:text-2xl font-black text-amber-900 mt-0.5">${pendingMatches.length}</div>
+            <div class="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Da Assegnare</div>
+            <div class="text-xl sm:text-2xl font-black text-amber-900 mt-0.5">${unscheduledMatches.length}</div>
           </div>
           <div class="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm text-center">
-            <div class="text-[11px] font-bold ${rejectedMatches.length > 0 ? 'text-rose-600' : 'text-blue-600'} uppercase tracking-wider">
-              ${rejectedMatches.length > 0 ? 'Da Riprogrammare' : 'Da Fissare'}
-            </div>
-            <div class="text-xl sm:text-2xl font-black ${rejectedMatches.length > 0 ? 'text-rose-700' : 'text-blue-900'} mt-0.5">
-              ${rejectedMatches.length > 0 ? rejectedMatches.length : (allMatches.length - scheduledMatches.length)}
-            </div>
+            <div class="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Completati</div>
+            <div class="text-xl sm:text-2xl font-black text-blue-900 mt-0.5">${completedMatches.length}</div>
           </div>
         </div>
 
@@ -3537,14 +3806,11 @@ class App {
             <div class="flex items-center gap-2">
               <label class="font-bold text-gray-600">Stato:</label>
               <select onchange="app.setScheduleFilter('status', this.value)" class="text-xs border rounded-lg px-2.5 py-1 bg-white font-medium">
-                <option value="all" ${this.scheduleStatusFilter === 'all' ? 'selected' : ''}>Tutti gli stati</option>
-                <option value="confirmed" ${this.scheduleStatusFilter === 'confirmed' ? 'selected' : ''}>✅ Accettati da entrambi (Confermati)</option>
-                <option value="pending_acceptance" ${this.scheduleStatusFilter === 'pending_acceptance' ? 'selected' : ''}>⏳ In attesa di accettazione</option>
-                <option value="rejected" ${this.scheduleStatusFilter === 'rejected' ? 'selected' : ''}>❌ Rifiutati (Da riprogrammare)</option>
-                <option value="scheduled" ${this.scheduleStatusFilter === 'scheduled' ? 'selected' : ''}>Tutti con data/ora fissata</option>
-                <option value="unscheduled" ${this.scheduleStatusFilter === 'unscheduled' ? 'selected' : ''}>Da programmare</option>
-                <option value="live" ${this.scheduleStatusFilter === 'live' ? 'selected' : ''}>In corso (Live)</option>
-                <option value="completed" ${this.scheduleStatusFilter === 'completed' ? 'selected' : ''}>Completati</option>
+                <option value="all" ${this.scheduleStatusFilter === 'all' ? 'selected' : ''}>Tutti gli incontri</option>
+                <option value="scheduled" ${this.scheduleStatusFilter === 'scheduled' ? 'selected' : ''}>📅 Programmati (con data e campo)</option>
+                <option value="unscheduled" ${this.scheduleStatusFilter === 'unscheduled' ? 'selected' : ''}>⏳ Da programmare</option>
+                <option value="live" ${this.scheduleStatusFilter === 'live' ? 'selected' : ''}>🎾 In corso (Live)</option>
+                <option value="completed" ${this.scheduleStatusFilter === 'completed' ? 'selected' : ''}>✓ Completati</option>
               </select>
             </div>
           </div>
@@ -3613,9 +3879,6 @@ class App {
           const currentPlayer = this.getCurrentPlayer();
           const isMeP1 = currentPlayer && p1 && (currentPlayer.id === p1.id || (currentPlayer.email && p1.email && currentPlayer.email.toLowerCase() === p1.email.toLowerCase()));
           const isMeP2 = currentPlayer && p2 && (currentPlayer.id === p2.id || (currentPlayer.email && p2.email && currentPlayer.email.toLowerCase() === p2.email.toLowerCase()));
-          const isMyMatch = isMeP1 || isMeP2;
-          const myRole = isMeP1 ? "p1" : (isMeP2 ? "p2" : null);
-          const myAcc = isMeP1 ? p1Acc : (isMeP2 ? p2Acc : null);
 
           const isGroup = item.type === "group";
           const phaseColor = isGroup
@@ -3635,51 +3898,22 @@ class App {
           } else if (isCompleted) {
             scheduleStatusBadge = `
               <span class="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
-                Completato
+                ✓ Completato
               </span>`;
           } else if (hasDateTime) {
-            if (isBothAccepted) {
-              scheduleStatusBadge = `
-                <span class="bg-emerald-100 text-emerald-950 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-300 shadow-2xs flex items-center gap-1">
-                  <span>✓</span> <span>Confermato (2/2)</span>
-                </span>`;
-            } else if (isAnyRejected) {
-              scheduleStatusBadge = `
-                <span class="bg-rose-100 text-rose-950 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-rose-300 shadow-2xs flex items-center gap-1">
-                  <span>✕</span> <span>Orario Rifiutato</span>
-                </span>`;
-            } else {
-              scheduleStatusBadge = `
-                <span class="bg-amber-100 text-amber-950 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-amber-300 flex items-center gap-1">
-                  <span>⏳</span> <span>In attesa (${acceptedCount}/2)</span>
-                </span>`;
-            }
+            scheduleStatusBadge = `
+              <span class="bg-blue-100 text-blue-950 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-blue-300 shadow-2xs flex items-center gap-1">
+                <span>📅</span> <span>In Programma</span>
+              </span>`;
           } else {
             scheduleStatusBadge = `
               <span class="bg-gray-100 text-gray-600 text-[10px] font-medium px-2 py-0.5 rounded-full border border-gray-200">
-                Da fissare
+                ⏳ Da programmare
               </span>`;
           }
 
-          // Badge accettazione singoli atleti
-          const p1StatusBadge = !hasDateTime ? '' : (
-            p1Acc === 'accepted'
-              ? `<span class="text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md border border-emerald-300 flex items-center gap-1 shadow-2xs"><span>✓</span> <span>Accettato</span></span>`
-              : p1Acc === 'rejected'
-                ? `<span class="text-[10px] font-bold text-rose-800 bg-rose-100/90 px-2 py-0.5 rounded-md border border-rose-300 flex items-center gap-1 shadow-2xs"><span>✕</span> <span>Rifiutato</span></span>`
-                : `<span class="text-[10px] font-medium text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-300 flex items-center gap-1"><span>⏳</span> <span>In attesa</span></span>`
-          );
-
-          const p2StatusBadge = !hasDateTime ? '' : (
-            p2Acc === 'accepted'
-              ? `<span class="text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md border border-emerald-300 flex items-center gap-1 shadow-2xs"><span>✓</span> <span>Accettato</span></span>`
-              : p2Acc === 'rejected'
-                ? `<span class="text-[10px] font-bold text-rose-800 bg-rose-100/90 px-2 py-0.5 rounded-md border border-rose-300 flex items-center gap-1 shadow-2xs"><span>✕</span> <span>Rifiutato</span></span>`
-                : `<span class="text-[10px] font-medium text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-300 flex items-center gap-1"><span>⏳</span> <span>In attesa</span></span>`
-          );
-
           return `
-            <div class="bg-white rounded-2xl border ${hasDateTime ? (isBothAccepted ? 'border-emerald-300 ring-1 ring-emerald-100' : isAnyRejected ? 'border-rose-300 ring-1 ring-rose-100' : 'border-gray-200') : 'border-dashed border-gray-300'} shadow-sm hover:shadow-md transition overflow-hidden flex flex-col justify-between">
+            <div class="bg-white rounded-2xl border ${hasDateTime ? 'border-gray-200 hover:border-blue-300' : 'border-dashed border-gray-300'} shadow-sm hover:shadow-md transition overflow-hidden flex flex-col justify-between">
               
               <!-- Barra Superiore Incontro -->
               <div class="p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/70">
@@ -3688,7 +3922,7 @@ class App {
                     ${item.phase}
                   </span>
                   ${this.getCategoryBadgeMarkup(item.category)}
-                  <span class="text-[11px] font-semibold text-gray-600 flex items-center gap-1">
+                  <span class="text-[11px] font-semibold text-gray-700 flex items-center gap-1">
                     <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
                     </svg>
@@ -3705,31 +3939,25 @@ class App {
               <div class="p-4 sm:p-5 flex-grow space-y-3">
                 
                 <!-- Box Data & Orario -->
-                <div class="flex items-center gap-2.5 p-3 rounded-xl ${hasDateTime ? (isBothAccepted ? 'bg-emerald-50/80 border border-emerald-200' : isAnyRejected ? 'bg-rose-50/80 border border-rose-200' : 'bg-blue-50/70 border border-blue-200') : 'bg-amber-50/50 border border-amber-200/60'}">
-                  <div class="w-8 h-8 rounded-lg ${hasDateTime ? (isBothAccepted ? 'bg-emerald-600 text-white' : isAnyRejected ? 'bg-rose-600 text-white' : 'bg-blue-600 text-white') : 'bg-amber-100 text-amber-800'} flex items-center justify-center flex-shrink-0 font-bold text-sm shadow-xs">
-                    ${hasDateTime ? (isBothAccepted ? '✓' : isAnyRejected ? '✕' : '📅') : '⏳'}
+                <div class="flex items-center gap-2.5 p-3 rounded-xl ${hasDateTime ? 'bg-blue-50/70 border border-blue-200' : 'bg-amber-50/50 border border-amber-200/60'}">
+                  <div class="w-8 h-8 rounded-lg ${hasDateTime ? 'bg-blue-600 text-white' : 'bg-amber-100 text-amber-800'} flex items-center justify-center flex-shrink-0 font-bold text-sm shadow-xs">
+                    ${hasDateTime ? '📅' : '⏳'}
                   </div>
                   <div class="text-xs">
                     ${hasDateTime ? `
                       <span class="font-black text-gray-900 text-xs sm:text-sm block">${this.formatScheduleDateTime(m.dateTime)}</span>
                       <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span class="text-blue-900 font-bold text-[11px] bg-blue-100/70 px-2 py-0.5 rounded">🏟️ ${courtBadge}</span>
                         <span class="text-gray-500 text-[11px]">Durata: ${this.getCategoryFormatInfo(item.category).durationText} • ${this.getCategoryFormatInfo(item.category).formula}</span>
-                        ${isBothAccepted ? `
-                          <span class="text-[11px] font-extrabold text-emerald-700">• Orario accettato da entrambi</span>
-                        ` : isAnyRejected ? `
-                          <span class="text-[11px] font-extrabold text-rose-700">• Orario rifiutato da un atleta</span>
-                        ` : `
-                          <span class="text-[11px] font-semibold text-amber-800">• Proposto dall'admin • In attesa di risposta (${acceptedCount}/2)</span>
-                        `}
                       </div>
                     ` : `
-                      <span class="font-semibold text-amber-900 italic">Data e ora non ancora fissate</span>
-                      <span class="text-amber-700 text-[11px] block">In attesa di programmazione da parte dell'admin</span>
+                      <span class="font-semibold text-amber-900 italic">Data e ora non ancora assegnate</span>
+                      <span class="text-amber-700 text-[11px] block">In attesa di assegnazione campo e orario da parte dell'amministrazione</span>
                     `}
                   </div>
                 </div>
 
-                <!-- Atleti a Confronto con Stato Accettazione -->
+                <!-- Atleti a Confronto -->
                 <div class="space-y-2 pt-1">
                   <!-- Giocatore 1 -->
                   <div class="flex items-center justify-between p-2.5 rounded-xl ${m.winnerId && m.winnerId === m.player1Id ? 'bg-blue-50/90 font-bold border border-blue-200' : 'bg-gray-50'} border border-gray-100">
@@ -3746,7 +3974,6 @@ class App {
                     </div>
 
                     <div class="flex items-center gap-2 flex-shrink-0">
-                      ${p1StatusBadge}
                       ${m.games1 !== null && m.games1 !== undefined ? `
                         <span class="font-mono text-xs font-black text-blue-900 bg-white px-2 py-0.5 rounded border">
                           ${m.games1}
@@ -3772,7 +3999,6 @@ class App {
                     </div>
 
                     <div class="flex items-center gap-2 flex-shrink-0">
-                      ${p2StatusBadge}
                       ${m.games2 !== null && m.games2 !== undefined ? `
                         <span class="font-mono text-xs font-black text-blue-900 bg-white px-2 py-0.5 rounded border">
                           ${m.games2}
@@ -3782,56 +4008,23 @@ class App {
                   </div>
                 </div>
 
-                <!-- Box Azione Accetta / Rifiuta per l'Atleta Coinvolto -->
-                ${isMyMatch && hasDateTime && !isCompleted ? `
-                  <div class="mt-2 p-3 rounded-xl border ${myAcc === 'accepted' ? 'bg-emerald-50/90 border-emerald-300' : myAcc === 'rejected' ? 'bg-rose-50/90 border-rose-300' : 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-300'} space-y-2">
-                    <div class="flex items-center justify-between text-xs">
-                      <span class="font-extrabold ${myAcc === 'accepted' ? 'text-emerald-950' : myAcc === 'rejected' ? 'text-rose-950' : 'text-amber-950'}">
-                        ${myAcc === 'accepted' ? '✓ Hai confermato questo orario' : myAcc === 'rejected' ? '✕ Hai rifiutato questo orario' : '👉 Conferma la tua presenza per questo orario:'}
-                      </span>
-                      <span class="text-[10px] font-black uppercase tracking-wider text-gray-500">Tua Risposta</span>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-2">
-                      <button onclick="app.respondMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}', '${myRole}', 'accepted')"
-                              class="py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm ${myAcc === 'accepted' ? 'bg-emerald-600 text-white ring-2 ring-emerald-400' : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300'}">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                        <span>${myAcc === 'accepted' ? 'Orario Accettato' : 'Accetta Orario'}</span>
-                      </button>
-                      <button onclick="app.respondMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}', '${myRole}', 'rejected')"
-                              class="py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm ${myAcc === 'rejected' ? 'bg-rose-600 text-white ring-2 ring-rose-400' : 'bg-white hover:bg-rose-50 text-rose-700 border border-rose-300'}">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                        <span>${myAcc === 'rejected' ? 'Orario Rifiutato' : 'Rifiuta Orario'}</span>
-                      </button>
-                    </div>
-                  </div>
-                ` : (!this.user || this.user.email === 'ospite@torneo.it') && hasDateTime && !isCompleted ? `
-                  <div class="text-[11px] text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100 flex items-center justify-between">
-                    <span>Sei uno dei due giocatori?</span>
-                    <button onclick="app.openLoginModal('login')" class="text-blue-600 font-bold hover:underline">Accedi per confermare</button>
-                  </div>
-                ` : ''}
-
               </div>
 
               <!-- Footer con Azioni Admin -->
-              ${this.isAdmin ? `
-                <div class="p-3 bg-gray-50 border-t border-gray-100 space-y-2">
-                  ${isAnyRejected ? `
-                    <div class="text-[11px] font-bold text-rose-800 bg-rose-50 p-2 rounded-lg border border-rose-200 flex items-center gap-1.5">
-                      <svg class="w-4 h-4 text-rose-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                      </svg>
-                      <span>L'orario è stato rifiutato. Proponi una nuova data e ora agli atleti.</span>
-                    </div>
-                  ` : ''}
-                  <div class="flex items-center justify-between">
-                    <span class="text-[11px] text-gray-400">ID: ${m.id}</span>
+              ${this.isAdmin && !this.viewAsUser ? `
+                <div class="p-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                  <span class="text-[11px] text-gray-400">ID: ${m.id}</span>
+                  <div class="flex items-center gap-2">
+                    ${hasDateTime ? `
+                      <button onclick="app.removeMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-rose-600 hover:text-rose-800 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer">
+                        Rimuovi
+                      </button>
+                    ` : ''}
                     <button onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer">
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                       </svg>
-                      <span>${hasDateTime ? 'Modifica Data, Ora & Conferme' : 'Imposta Data, Ora & Campo'}</span>
+                      <span>${hasDateTime ? 'Modifica Orario & Campo' : 'Assegna Orario & Campo'}</span>
                     </button>
                   </div>
                 </div>
@@ -3921,20 +4114,18 @@ class App {
     document.getElementById("schedule-match-p1-name").textContent = p1 ? p1.name : "In attesa";
     document.getElementById("schedule-match-p2-name").textContent = p2 ? p2.name : "In attesa";
 
-    // Etichette atleti per le conferme
-    const p1Label = document.getElementById("schedule-modal-p1-label");
-    if (p1Label) p1Label.textContent = p1 ? p1.name : "Atleta 1";
-    const p2Label = document.getElementById("schedule-modal-p2-label");
-    if (p2Label) p2Label.textContent = p2 ? p2.name : "Atleta 2";
-
-    const p1Acc = document.getElementById("schedule-match-p1-acceptance");
-    if (p1Acc) p1Acc.value = targetMatch.p1Acceptance || "pending";
-    const p2Acc = document.getElementById("schedule-match-p2-acceptance");
-    if (p2Acc) p2Acc.value = targetMatch.p2Acceptance || "pending";
-
     document.getElementById("schedule-match-datetime").value = targetMatch.dateTime || "";
     document.getElementById("schedule-match-court").value = targetMatch.court || "Campo 0 (Terra)";
     document.getElementById("schedule-match-status").value = targetMatch.status || "in_programma";
+
+    const clearBtn = document.getElementById("schedule-match-clear-btn");
+    if (clearBtn) {
+      if (targetMatch.dateTime) {
+        clearBtn.classList.remove("hidden");
+      } else {
+        clearBtn.classList.add("hidden");
+      }
+    }
 
     this.openModal("modal-schedule-match");
   }
@@ -3950,15 +4141,10 @@ class App {
     const court = document.getElementById("schedule-match-court").value;
     const status = document.getElementById("schedule-match-status").value;
 
-    const p1Acceptance = document.getElementById("schedule-match-p1-acceptance")?.value || "pending";
-    const p2Acceptance = document.getElementById("schedule-match-p2-acceptance")?.value || "pending";
-
     const updatePayload = {
       dateTime,
       court,
-      status,
-      p1Acceptance: dateTime ? p1Acceptance : null,
-      p2Acceptance: dateTime ? p2Acceptance : null
+      status
     };
 
     if (type === "group") {
@@ -3974,18 +4160,35 @@ class App {
     this.showToast("Data, orario e campo programmati con successo!", "success");
   }
 
-  respondMatchSchedule(type, groupKeyOrRound, matchId, category, role, response) {
-    if (!this.user || this.user.email === "ospite@torneo.it") {
-      this.showToast("Effettua l'accesso con il tuo account per confermare o rifiutare l'orario.", "warning");
-      this.openLoginModal("login");
+  handleClearScheduleMatch() {
+    if (!this.isAdmin) return;
+    const type = document.getElementById("schedule-match-type").value;
+    const groupKeyOrRound = document.getElementById("schedule-match-group-or-round").value;
+    const matchId = document.getElementById("schedule-match-id").value;
+    const category = document.getElementById("schedule-match-category")?.value || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
+
+    this.removeMatchSchedule(type, groupKeyOrRound, matchId, category);
+    this.closeModal("modal-schedule-match");
+  }
+
+  quickAssignMatchSchedule(type, groupKeyOrRound, matchId, category, dtInputId, courtInputId) {
+    if (!this.isAdmin) return;
+    const dtEl = document.getElementById(dtInputId);
+    const courtEl = document.getElementById(courtInputId);
+    const dateTime = dtEl ? dtEl.value : "";
+    const court = courtEl ? courtEl.value : "Campo 0 (Terra)";
+
+    if (!dateTime) {
+      this.showToast("Seleziona una data e ora valida prima di assegnare la partita.", "warning");
       return;
     }
 
-    const updatePayload = {};
-    if (role === "p1") updatePayload.p1Acceptance = response;
-    if (role === "p2") updatePayload.p2Acceptance = response;
-
     const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
+    const updatePayload = {
+      dateTime,
+      court,
+      status: "in_programma"
+    };
 
     if (type === "group") {
       this.tournamentManager.ensureGroups(cat);
@@ -3997,12 +4200,100 @@ class App {
 
     this.saveState();
     this.render();
+    this.showToast(`Incontro programmato con successo su ${court}!`, "success");
+  }
 
-    if (response === "accepted") {
-      this.showToast("Disponibilità per l'orario CONFERMATA! 👍", "success");
-    } else {
-      this.showToast("Orario RIFIUTATO. L'organizzatore Luca Barcello proporrà una nuova data/ora.", "info");
+  removeMatchSchedule(type, groupKeyOrRound, matchId, category) {
+    if (!this.isAdmin) return;
+    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
+    const updatePayload = {
+      dateTime: "",
+      court: "",
+      status: "in_programma"
+    };
+
+    if (type === "group") {
+      this.tournamentManager.ensureGroups(cat);
+      this.tournamentManager.updateGroupMatch(groupKeyOrRound, matchId, updatePayload, cat);
+    } else if (type === "bracket") {
+      this.tournamentManager.ensureBrackets(cat);
+      this.tournamentManager.updateBracketMatch(matchId, updatePayload, cat);
     }
+
+    this.saveState();
+    this.render();
+    this.showToast("Programmazione dell'incontro rimossa.", "info");
+  }
+
+  openAssignCourtModal(courtName, dateStr) {
+    if (!this.isAdmin) return;
+    const allMatches = this.getAllMatches();
+    const unscheduled = allMatches.filter(x => !x.match.dateTime);
+
+    if (unscheduled.length === 0) {
+      this.showToast("Tutti gli incontri del torneo sono già stati assegnati!", "info");
+      return;
+    }
+
+    const selectEl = document.getElementById("quick-court-assign-match-select");
+    if (!selectEl) return;
+
+    selectEl.innerHTML = unscheduled.map(item => {
+      const p1 = this.tournamentManager.getPlayer(item.match.player1Id);
+      const p2 = this.tournamentManager.getPlayer(item.match.player2Id);
+      const p1Name = p1 ? p1.name : "In attesa";
+      const p2Name = p2 ? p2.name : "In attesa";
+      return `<option value="${item.type}|${item.groupKey !== undefined ? item.groupKey : item.roundIndex}|${item.match.id}|${item.category}">[${item.category}] ${p1Name} vs ${p2Name} (${item.phase})</option>`;
+    }).join('');
+
+    document.getElementById("quick-court-assign-court-name").value = courtName;
+    document.getElementById("quick-court-assign-court-display").textContent = courtName;
+
+    const dStr = dateStr || new Date().toISOString().split('T')[0];
+    document.getElementById("quick-court-assign-datetime").value = `${dStr}T15:00`;
+
+    this.openModal("modal-quick-court-assign");
+  }
+
+  handleSaveQuickCourtAssign() {
+    if (!this.isAdmin) return;
+    const selectEl = document.getElementById("quick-court-assign-match-select");
+    const courtName = document.getElementById("quick-court-assign-court-name").value;
+    const dateTime = document.getElementById("quick-court-assign-datetime").value;
+
+    if (!selectEl || !selectEl.value || !dateTime || !courtName) {
+      this.showToast("Compila tutti i campi obbligatori.", "warning");
+      return;
+    }
+
+    const parts = selectEl.value.split('|');
+    const type = parts[0];
+    const groupKeyOrRound = parts[1];
+    const matchId = parts[2];
+    const category = parts[3];
+
+    const updatePayload = {
+      dateTime,
+      court: courtName,
+      status: "in_programma"
+    };
+
+    if (type === "group") {
+      this.tournamentManager.ensureGroups(category);
+      this.tournamentManager.updateGroupMatch(groupKeyOrRound, matchId, updatePayload, category);
+    } else if (type === "bracket") {
+      this.tournamentManager.ensureBrackets(category);
+      this.tournamentManager.updateBracketMatch(matchId, updatePayload, category);
+    }
+
+    this.saveState();
+    this.closeModal("modal-quick-court-assign");
+    this.render();
+    this.showToast(`Incontro assegnato a ${courtName} con successo!`, "success");
+  }
+
+  respondMatchSchedule(type, groupKeyOrRound, matchId, category, role, response) {
+    // Metodo mantenuto per retrocompatibilità (non più utilizzato nei flussi UI)
   }
 
   // ==========================================
