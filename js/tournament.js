@@ -159,6 +159,26 @@ class TournamentManager {
     return this.state.categoryBrackets[cat] || null;
   }
 
+  // Helper per calcolare le posizioni delle teste di serie in un tabellone tennistico classico a eliminazione diretta
+  getSeedPositions(bracketSize) {
+    let positions = [0, 1];
+    while (positions.length < bracketSize) {
+      const next = [];
+      const len = positions.length * 2;
+      for (let i = 0; i < positions.length; i++) {
+        if (i % 2 === 0) {
+          next.push(positions[i]);
+          next.push(len - 1 - positions[i]);
+        } else {
+          next.push(len - 1 - positions[i]);
+          next.push(positions[i]);
+        }
+      }
+      positions = next;
+    }
+    return positions;
+  }
+
   // Genera un tabellone a eliminazione diretta per una categoria
   generateBracket(playersList = null, category = "Pre Agonistica U12") {
     this.ensureCategories();
@@ -181,23 +201,15 @@ class TournamentManager {
     });
 
     let bracketSize = 4;
-    if (sortedPlayers.length > 16) bracketSize = 32;
+    if (sortedPlayers.length > 32) bracketSize = 64;
+    else if (sortedPlayers.length > 16) bracketSize = 32;
     else if (sortedPlayers.length > 8) bracketSize = 16;
     else if (sortedPlayers.length > 4) bracketSize = 8;
-    else bracketSize = 4;
+    else if (sortedPlayers.length > 2) bracketSize = 4;
+    else bracketSize = 2;
 
     const slots = new Array(bracketSize).fill(null);
-
-    let seedPositions = [];
-    if (bracketSize === 4) {
-      seedPositions = [0, 3, 1, 2];
-    } else if (bracketSize === 8) {
-      seedPositions = [0, 7, 4, 3, 2, 5, 6, 1];
-    } else if (bracketSize === 16) {
-      seedPositions = [0, 15, 8, 7, 4, 11, 12, 3, 2, 13, 10, 5, 6, 9, 14, 1];
-    } else {
-      seedPositions = Array.from({ length: bracketSize }, (_, i) => i);
-    }
+    const seedPositions = this.getSeedPositions(bracketSize);
 
     let pIdx = 0;
     for (let pos of seedPositions) {
@@ -217,7 +229,8 @@ class TournamentManager {
       2: ["Semifinali", "Finale"],
       3: ["Quarti di Finale", "Semifinali", "Finale"],
       4: ["Ottavi di Finale", "Quarti di Finale", "Semifinali", "Finale"],
-      5: ["Sedicesimi di Finale", "Ottavi di Finale", "Quarti di Finale", "Semifinali", "Finale"]
+      5: ["Sedicesimi di Finale", "Ottavi di Finale", "Quarti di Finale", "Semifinali", "Finale"],
+      6: ["Trentaduesimi di Finale", "Sedicesimi di Finale", "Ottavi di Finale", "Quarti di Finale", "Semifinali", "Finale"]
     };
 
     const names = roundNamesMap[totalRounds] || ["Turno 1", "Turno 2", "Semifinali", "Finale"];
@@ -654,49 +667,38 @@ class TournamentManager {
       throw new Error(`Servono almeno 2 atleti in classifica nel Girone Unico (${cat}) per poter comporre il tabellone finale.`);
     }
 
-    // A fine anno si qualificano i migliori 8 di ogni categoria
-    const qualifiedCount = Math.min(standings.length, 8);
-    const topPlayers = standings.slice(0, qualifiedCount).map(s => s.player.id);
+    // A fine anno si qualificano TUTTI gli atleti della categoria (non solo i primi 8)
+    const qualifiedPlayers = standings.map(s => s.player.id);
+    const count = qualifiedPlayers.length;
 
-    let bracketSize = 8;
-    if (topPlayers.length <= 4) {
-      bracketSize = 4;
-    }
+    let bracketSize = 4;
+    if (count > 32) bracketSize = 64;
+    else if (count > 16) bracketSize = 32;
+    else if (count > 8) bracketSize = 16;
+    else if (count > 4) bracketSize = 8;
+    else if (count > 2) bracketSize = 4;
+    else bracketSize = 2;
 
     const slots = new Array(bracketSize).fill("BYE");
+    const seedPositions = this.getSeedPositions(bracketSize);
 
-    if (bracketSize === 8) {
-      // Accoppiamenti tabellone classico a 8 teste di serie:
-      // Quarto 1: 1° vs 8°
-      // Quarto 2: 4° vs 5°
-      // Quarto 3: 3° vs 6°
-      // Quarto 4: 2° vs 7°
-      const seedToSlot = { 1: 0, 8: 1, 4: 2, 5: 3, 3: 4, 6: 5, 2: 6, 7: 7 };
-      for (let seed = 1; seed <= topPlayers.length; seed++) {
-        const slotIdx = seedToSlot[seed];
-        if (slotIdx !== undefined) {
-          slots[slotIdx] = topPlayers[seed - 1];
-        }
-      }
-    } else {
-      // bracketSize === 4
-      // Semi 1: 1° vs 4°
-      // Semi 2: 2° vs 3°
-      const seedToSlot = { 1: 0, 4: 1, 2: 2, 3: 3 };
-      for (let seed = 1; seed <= topPlayers.length; seed++) {
-        const slotIdx = seedToSlot[seed];
-        if (slotIdx !== undefined) {
-          slots[slotIdx] = topPlayers[seed - 1];
-        }
+    for (let seed = 1; seed <= qualifiedPlayers.length; seed++) {
+      const slotIdx = seedPositions[seed - 1];
+      if (slotIdx !== undefined) {
+        slots[slotIdx] = qualifiedPlayers[seed - 1];
       }
     }
 
     const totalRounds = Math.log2(bracketSize);
     const roundNamesMap = {
+      1: ["Finale"],
       2: ["Semifinali", "Finale"],
-      3: ["Quarti di Finale", "Semifinali", "Finale"]
+      3: ["Quarti di Finale", "Semifinali", "Finale"],
+      4: ["Ottavi di Finale", "Quarti di Finale", "Semifinali", "Finale"],
+      5: ["Sedicesimi di Finale", "Ottavi di Finale", "Quarti di Finale", "Semifinali", "Finale"],
+      6: ["Trentaduesimi di Finale", "Sedicesimi di Finale", "Ottavi di Finale", "Quarti di Finale", "Semifinali", "Finale"]
     };
-    const names = roundNamesMap[totalRounds] || ["Quarti di Finale", "Semifinali", "Finale"];
+    const names = roundNamesMap[totalRounds] || ["Turno Preliminare", "Quarti di Finale", "Semifinali", "Finale"];
 
     // Round 1
     const r1Matches = [];
@@ -772,7 +774,7 @@ class TournamentManager {
     const bracket = {
       category: cat,
       rounds: rounds,
-      source: "top8_groups",
+      source: "all_qualified_groups",
       createdAt: new Date().toISOString()
     };
 

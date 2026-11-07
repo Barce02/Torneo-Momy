@@ -1485,8 +1485,8 @@ class App {
         type: "pre_agonistica",
         durationText: "1 ora e mezza (90 min)",
         shortDuration: "1h 30m",
-        formula: "Long-set ai 9",
-        summary: "Partite da 1 ora e mezza • Formula Long-set ai 9",
+        formula: "Long-set ai 9 • Killer point sul 40 pari",
+        summary: "Partita da 1h 30m (dopo 1h 30m la partita finisce) • Long-set ai 9 • Killer point sul 40 pari",
         badgeColor: "bg-purple-100 text-purple-900 border-purple-300"
       };
     } else {
@@ -1494,8 +1494,8 @@ class App {
         type: "sat",
         durationText: "1 ora (60 min)",
         shortDuration: "1h",
-        formula: "1 ora suono della campana",
-        summary: "Partite da 1 ora continua fino al suono della campana",
+        formula: "1 ora suono campana • Killer point sul 40 pari",
+        summary: "Partita da 1 ora (dopo 1 ora la partita finisce al suono della campana) • Killer point sul 40 pari",
         badgeColor: "bg-sky-100 text-sky-900 border-sky-300"
       };
     }
@@ -1600,9 +1600,9 @@ class App {
             </div>
             <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Girone Unico (${cat})</h2>
             <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
-              Formula: <strong>${formatInfo.durationText}</strong> (${formatInfo.formula}). Se in parità al termine del tempo, <strong>rimane il pareggio (1 punto ciascuno)</strong>.
+              Formula: <strong>${formatInfo.durationText}</strong> (${formatInfo.formula}). Killer point sul 40 pari nel game. Se in parità allo scadere del tempo, <strong>rimane il pareggio (1 punto ciascuno)</strong>.
               Vittoria: 3 pt • Pareggio: 1 pt • Sconfitta: 0 pt. Il punteggio e la classifica si aggiornano da soli al termine di ogni partita.
-              <strong>A fine anno, i migliori 8 atleti disputeranno il Tabellone Finale</strong>.
+              <strong>A fine anno, tutti gli atleti disputeranno la fase a Tabellone Finale</strong>.
             </p>
           </div>
 
@@ -1619,7 +1619,7 @@ class App {
               </button>
               ${totalInGroup >= 2 ? `
                 <button onclick="app.handleGenerateBracketFromGroups('${cat}')" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl border border-blue-500 transition flex items-center justify-center gap-1.5 cursor-pointer shadow">
-                  Genera Tabellone Finale Top 8 (${cat})
+                  Genera Tabellone Finale (${cat})
                 </button>
               ` : ''}
             ` : ''}
@@ -1675,7 +1675,7 @@ class App {
                 </div>
               </div>
               <span class="bg-emerald-400 text-slate-950 text-[10px] font-black px-2.5 py-1 rounded-full shadow-sm">
-                Top 8 a fine anno
+                Tutti al Tabellone Finale
               </span>
             </div>
 
@@ -1698,13 +1698,11 @@ class App {
                   <tbody class="divide-y divide-gray-100">
                     ${standings.map((s, idx) => {
                       const isMe = this.user && s.player.email && this.user.email && (s.player.email.toLowerCase() === this.user.email.toLowerCase());
-                      const isTop8 = idx < 8;
-                      const is8th = idx === 7;
                       
-                      let rowHtml = `
+                      return `
                         <tr class="hover:bg-blue-50/50 transition ${isMe ? 'bg-blue-50/70 font-semibold' : ''}">
                           <td class="py-2.5 px-2 text-center font-mono font-bold">
-                            <span class="inline-flex items-center justify-center w-5 h-5 rounded-md ${isTop8 ? 'bg-emerald-100 text-emerald-800 text-[10px]' : 'text-gray-400 text-xs'}">
+                            <span class="inline-flex items-center justify-center w-5 h-5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-200">
                               ${idx + 1}
                             </span>
                           </td>
@@ -1712,7 +1710,7 @@ class App {
                             <div class="flex items-center gap-1.5 truncate">
                               <span class="truncate">${s.player.name}</span>
                               ${s.player.ranking ? `<span class="text-[9px] font-mono bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-semibold">${s.player.ranking}</span>` : ''}
-                              ${isTop8 ? `<span class="text-[8px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 rounded font-bold">Top 8</span>` : ''}
+                              <span class="text-[8px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 rounded font-bold">Qualificato</span>
                             </div>
                           </td>
                           <td class="py-2.5 px-2 text-center bg-blue-50/30">
@@ -1730,27 +1728,16 @@ class App {
                           </td>
                         </tr>
                       `;
-
-                      if (is8th && standings.length > 8) {
-                        rowHtml += `
-                          <tr class="bg-emerald-50/80 border-y border-emerald-300">
-                            <td colspan="9" class="py-1 px-3 text-center text-[10px] font-extrabold text-emerald-800 uppercase tracking-wider">
-                              ▲ Limite Qualificazione al Tabellone Finale Top 8 (Fine Anno) ▲
-                            </td>
-                          </tr>
-                        `;
-                      }
-
-                      return rowHtml;
                     }).join('')}
                   </tbody>
                 </table>
               </div>
 
               <div class="text-[11px] text-gray-600 bg-slate-50 rounded-xl p-3 border border-slate-200 leading-relaxed space-y-1">
-                <div><span class="font-bold text-gray-800">Punteggi:</span> Vittoria 3 pt • Pareggio 1 pt • Sconfitta 0 pt.</div>
+                <div><span class="font-bold text-gray-800">Regola Game:</span> Killer point sul 40 pari (punto secco che aggiudica il game).</div>
+                <div><span class="font-bold text-gray-800">Punteggi Girone:</span> Vittoria 3 pt • Pareggio 1 pt • Sconfitta 0 pt.</div>
                 <div><span class="font-bold text-gray-800">Criteri classifica:</span> 1° Punti • 2° Scontro diretto • 3° Differenza game • 4° Game vinti • 5° Classifica FITP.</div>
-                <div class="text-emerald-800 font-semibold pt-0.5">⭐ A fine anno i primi 8 atleti disputeranno il Tabellone Finale a eliminazione diretta.</div>
+                <div class="text-emerald-800 font-semibold pt-0.5">⭐ A fine anno tutti gli atleti iscritti disputeranno il Tabellone Finale a eliminazione diretta (accoppiamenti determinati dalla classifica del girone).</div>
               </div>
             </div>
           </div>
@@ -1861,13 +1848,13 @@ class App {
   handleGenerateBracketFromGroups(category = null) {
     if (!this.isAdmin) return;
     const cat = category || (this.selectedCategory === "all" ? "Pre Agonistica U12" : this.selectedCategory);
-    if (confirm(`Vuoi generare il Tabellone Finale a eliminazione diretta (${cat}) con i migliori 8 atleti del Girone Unico?`)) {
+    if (confirm(`Vuoi generare il Tabellone Finale a eliminazione diretta (${cat}) con tutti gli atleti del Girone Unico?`)) {
       try {
         this.tournamentManager.generateBracketFromGroups(cat);
         this.saveState();
         this.setCategory(cat);
         this.switchTab("bracket");
-        this.showToast(`Tabellone Finale Top 8 (${cat}) generato con successo!`, "success");
+        this.showToast(`Tabellone Finale (${cat}) generato con successo!`, "success");
       } catch (e) {
         alert(e.message);
       }
@@ -4041,12 +4028,12 @@ class App {
           <div>
             <div class="flex items-center gap-2 mb-1 flex-wrap">
               <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
-              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Tabellone Finale • Top 8 a Fine Anno</span>
+              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Tabellone Finale • Qualificazione di Tutti gli Atleti</span>
               <span class="text-[10px] px-2 py-0.5 rounded-md font-bold bg-white/20 text-yellow-200">${formatInfo.shortDuration} • ${formatInfo.formula}</span>
             </div>
             <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Tabellone Finale (${cat})</h2>
             <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
-              Formula: <strong>${formatInfo.durationText}</strong> (${formatInfo.formula}). Tabellone a eliminazione diretta riservato ai <strong>migliori 8 atleti</strong> del Girone Unico di <strong>${cat}</strong> (${categoryPlayers.length} iscritti), generato al termine dell'anno.
+              Formula: <strong>${formatInfo.durationText}</strong> (${formatInfo.formula}). Tabellone a eliminazione diretta aperto a <strong>tutti i partecipanti</strong> del Girone Unico di <strong>${cat}</strong> (${categoryPlayers.length} iscritti), generato al termine dell'anno in base alla classifica finale.
             </p>
           </div>
 
@@ -4063,7 +4050,7 @@ class App {
             ${this.isAdmin ? `
               ${isGenerated ? `
                 <button onclick="app.handleGenerateBracketFromGroups('${cat}')" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition cursor-pointer">
-                  Rigenera Tabellone Top 8 (${cat})
+                  Rigenera Tabellone (${cat})
                 </button>
                 <button onclick="app.handleResetBracket('${cat}')" class="w-full sm:w-auto bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium text-xs px-3 py-2.5 rounded-xl border border-rose-200 transition cursor-pointer">
                   Azzera (${cat})
@@ -4071,7 +4058,7 @@ class App {
               ` : `
                 ${categoryPlayers.length >= 2 ? `
                   <button onclick="app.handleGenerateBracketFromGroups('${cat}')" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-4 py-2.5 rounded-xl shadow transition cursor-pointer">
-                    + Genera Tabellone Finale Top 8 (${cat})
+                    + Genera Tabellone Finale (${cat})
                   </button>
                 ` : `
                   <button onclick="app.switchTab('players')" class="bg-white/20 hover:bg-white/30 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-white/30 transition cursor-pointer">
@@ -4084,10 +4071,9 @@ class App {
         </div>
     `;
 
-    // Se non ancora generato per questa categoria: mostra anteprima Top 8
+    // Se non ancora generato per questa categoria: mostra anteprima qualificati
     if (!isGenerated) {
       const groupStandings = this.tournamentManager.getGroupStandings("single", cat);
-      const top8 = groupStandings.slice(0, 8);
 
       html += `
         <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-5">
@@ -4099,27 +4085,27 @@ class App {
             </div>
             <h3 class="text-lg font-extrabold text-gray-900 mb-1">Tabellone Finale a Fine Anno (${cat})</h3>
             <p class="text-xs sm:text-sm text-gray-600 max-w-lg mx-auto leading-relaxed">
-              Il Tabellone Finale a eliminazione diretta verrà generato a <strong>fine anno</strong> e vedrà sfidarsi i <strong>migliori 8 atleti</strong> della classifica del Girone Unico di <strong>${cat}</strong>.
+              Il Tabellone Finale a eliminazione diretta verrà generato a <strong>fine anno</strong>: <strong>tutti gli atleti</strong> del Girone Unico di <strong>${cat}</strong> si qualificano alla fase a tabellone con accoppiamenti e teste di serie stabiliti dalla classifica finale.
             </p>
           </div>
 
-          <!-- Anteprima Migliori 8 Attuali -->
+          <!-- Anteprima Atleti Qualificati -->
           <div class="bg-slate-50 rounded-2xl p-4 sm:p-5 border border-slate-200 space-y-3">
             <div class="flex items-center justify-between flex-wrap gap-2">
               <div class="flex items-center gap-2">
                 <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                <span class="text-xs font-bold text-gray-800 uppercase tracking-wider">Qualificati Attuali al Tabellone Finale (Top 8 ${cat})</span>
+                <span class="text-xs font-bold text-gray-800 uppercase tracking-wider">Qualificati al Tabellone Finale (${cat} - Tutti gli Atleti)</span>
               </div>
               <span class="text-[11px] font-semibold text-gray-500 bg-white px-2.5 py-1 rounded-lg border border-gray-200 shadow-2xs">
                 ${categoryPlayers.length} atleti iscritti nella categoria
               </span>
             </div>
 
-            ${top8.length === 0 ? `
+            ${groupStandings.length === 0 ? `
               <p class="text-xs text-gray-400 italic text-center py-4">Nessun atleta o partita registrata nel girone unico.</p>
             ` : `
               <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                ${top8.map((s, idx) => `
+                ${groupStandings.map((s, idx) => `
                   <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between shadow-2xs">
                     <div class="flex items-center gap-2.5 truncate">
                       <span class="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-black flex items-center justify-center flex-shrink-0">
@@ -4142,7 +4128,7 @@ class App {
           ${this.isAdmin && categoryPlayers.length >= 2 ? `
             <div class="text-center pt-2">
               <button onclick="app.handleGenerateBracketFromGroups('${cat}')" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
-                Genera Ora Tabellone Finale Top 8 (${cat})
+                Genera Ora Tabellone Finale (${cat})
               </button>
             </div>
           ` : `
@@ -4257,7 +4243,7 @@ class App {
       this.tournamentManager.generateBracketFromGroups(cat);
       this.saveState();
       this.renderBracketView();
-      this.showToast(`Tabellone Finale Top 8 (${cat}) generato con successo!`, "success");
+      this.showToast(`Tabellone Finale (${cat}) generato con successo!`, "success");
     } catch (e) {
       alert(e.message);
     }
@@ -4383,21 +4369,23 @@ class App {
                 <span class="w-3 h-3 rounded-full bg-purple-600"></span>
                 <span>Pre Agonistica (Pre Agonistica U12 & Pre Agonistica)</span>
               </h3>
-              <div class="text-xs font-extrabold text-purple-800 mt-1 flex items-center gap-1.5">
-                <span class="bg-purple-200 text-purple-900 px-2.5 py-0.5 rounded-lg border border-purple-300 inline-block">1 ora e mezza (90 min) • Long-Set ai 9</span>
+              <div class="text-xs font-extrabold text-purple-800 mt-1 flex items-center gap-1.5 flex-wrap">
+                <span class="bg-purple-200 text-purple-900 px-2.5 py-0.5 rounded-lg border border-purple-300 inline-block">1 ora e mezza (90 min) • La partita finisce dopo 1h 30m</span>
+                <span class="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-lg border border-amber-300 inline-block font-bold">Killer Point sul 40 pari</span>
               </div>
             </div>
             <div class="text-xs text-purple-950 leading-relaxed space-y-2">
               <p>
-                <strong>Durata e Formula:</strong> Le partite hanno una durata massima di <strong>1 ora e mezza (90 minuti)</strong> e si giocano con la formula del <strong>Long-Set ai 9 game</strong> (vince chi per primo raggiunge 9 game).
+                <strong>Durata e Formula:</strong> Le partite si giocano con la formula del <strong>Long-Set ai 9 game</strong> (vince chi per primo raggiunge 9 game). <strong>Dopo un'ora e mezza (90 minuti) la partita finisce tassativamente</strong>.
               </p>
               <div class="bg-white/95 p-3.5 rounded-xl border border-purple-200 space-y-2 shadow-xs">
                 <div class="font-bold text-purple-900 flex items-center gap-1.5">
-                  <span>⏱️ Limite di Tempo e Parità (Pre Agonistica):</span>
+                  <span>⏱️ Limite di Tempo, Killer Point e Parità (Pre Agonistica):</span>
                 </div>
                 <ul class="list-disc list-inside space-y-1.5 text-purple-950 pl-1">
-                  <li>Se allo scadere del tempo di 1 ora e mezza la partita non si è conclusa a 9 game, <strong>vince chi si trova in vantaggio nel computo dei game</strong>.</li>
-                  <li><strong>Fase a Gironi:</strong> se allo scadere del tempo il punteggio è in parità (es. 6-6, 7-7), la partita termina con il <strong>pareggio</strong> (1 punto ciascuno in classifica).</li>
+                  <li><strong>Killer Point sul 40 pari nel game:</strong> in ciascun game, se il punteggio arriva sul <strong>40-40</strong>, non si giocano i vantaggi: si disputa il <strong>killer point (punto secco)</strong> e chi lo vince conquista il game.</li>
+                  <li><strong>Fine partita dopo 1 ora e mezza:</strong> trascorsa 1 ora e mezza di gioco la partita termina immediatamente. Se non si è arrivati a 9 game, <strong>vince chi si trova in vantaggio nel computo dei game</strong>.</li>
+                  <li><strong>Fase a Gironi:</strong> se dopo 1 ora e mezza il punteggio è in parità (es. 6-6, 7-7), la partita termina con il <strong>pareggio</strong> (1 punto ciascuno in classifica).</li>
                   <li><strong>Fase Finale (Tabellone):</strong> se allo scadere del tempo il punteggio è in parità, si gioca un <strong>tie-break di spareggio</strong> per decretare il vincitore che accede al turno successivo.</li>
                 </ul>
               </div>
@@ -4411,34 +4399,37 @@ class App {
                 <span class="w-3 h-3 rounded-full bg-sky-600"></span>
                 <span>SAT (SAT U14 & SAT)</span>
               </h3>
-              <div class="text-xs font-extrabold text-sky-800 mt-1 flex items-center gap-1.5">
-                <span class="bg-sky-200 text-sky-900 px-2.5 py-0.5 rounded-lg border border-sky-300 inline-block">1 ora suono della campana</span>
+              <div class="text-xs font-extrabold text-sky-800 mt-1 flex items-center gap-1.5 flex-wrap">
+                <span class="bg-sky-200 text-sky-900 px-2.5 py-0.5 rounded-lg border border-sky-300 inline-block">1 ora • La partita finisce dopo 1 ora (suono campana)</span>
+                <span class="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-lg border border-amber-300 inline-block font-bold">Killer Point sul 40 pari</span>
               </div>
             </div>
             <div class="text-xs text-sky-950 leading-relaxed space-y-2">
               <p>
-                <strong>Durata e Formula:</strong> Le partite hanno una durata prefissata di <strong>1 ora (60 minuti)</strong>. Si disputa un <strong>set unico continuo fino al suono della campana</strong>: al termine dell'ora, chi è avanti nel conteggio dei game vince l'incontro.
+                <strong>Durata e Formula:</strong> Si disputa un <strong>set unico continuo fino al compimento dell'ora</strong>. <strong>Dopo un'ora (60 minuti) la partita finisce tassativamente al suono della campana</strong>: al termine dell'ora, chi è avanti nel conteggio dei game vince l'incontro.
               </p>
               <div class="bg-white/95 p-3.5 rounded-xl border border-sky-200 space-y-2 shadow-xs">
                 <div class="font-bold text-sky-900 flex items-center gap-1.5">
-                  <span>🔔 Regola del Pareggio al Suono della Campana (SAT):</span>
+                  <span>🔔 Limite di Tempo, Killer Point e Parità (SAT):</span>
                 </div>
                 <ul class="list-disc list-inside space-y-1.5 text-sky-950 pl-1">
-                  <li><strong>Fase a Gironi (Girone Unico):</strong> se al suono della campana il punteggio è in parità (es. 4-4, 5-5), <strong>la partita termina con il pareggio</strong>. A ciascun atleta viene assegnato <strong>1 punto</strong> in classifica (Vittoria: 3 punti, Pareggio: 1 punto, Sconfitta: 0 punti).</li>
+                  <li><strong>Killer Point sul 40 pari nel game:</strong> su ogni <strong>40-40</strong> si gioca il <strong>killer point (punto secco)</strong>: non ci sono vantaggi, il punto successivo aggiudica direttamente il game.</li>
+                  <li><strong>Fine partita dopo 1 ora:</strong> trascorsa esattamente 1 ora (al suono della campana) la partita si conclude. Chi ha totalizzato più game vince l'incontro.</li>
+                  <li><strong>Fase a Gironi (Girone Unico):</strong> se allo scadere dell'ora il punteggio è in parità (es. 4-4, 5-5), <strong>la partita termina con il pareggio</strong>. A ciascun atleta viene assegnato <strong>1 punto</strong> in classifica (Vittoria: 3 punti, Pareggio: 1 punto, Sconfitta: 0 punti).</li>
                   <li><strong>Fase Finale a Eliminazione Diretta (Tabellone):</strong> nel tabellone finale non sono ammessi pareggi; se al suono della campana si è in parità, si disputa subito un <strong>rapido tie-break ai 5 punti</strong> per decretare il vincitore che passa al turno successivo.</li>
                 </ul>
               </div>
             </div>
           </div>
 
-          <!-- Girone Unico e Qualificazione dei Migliori 8 al Tabellone Finale -->
+          <!-- Girone Unico e Qualificazione di TUTTI al Tabellone Finale -->
           <div class="bg-slate-50 border border-slate-200 p-4 sm:p-5 rounded-2xl">
             <h4 class="font-bold text-gray-900 text-xs sm:text-sm mb-1.5 flex items-center gap-2">
               <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
-              <span>Fase a Girone Unico & Qualificazione dei Migliori 8 a Fine Anno</span>
+              <span>Fase a Girone Unico & Qualificazione al Tabellone Finale (TUTTI Qualificati, non solo i primi 8)</span>
             </h4>
             <p class="text-xs text-gray-700 leading-relaxed">
-              In ciascuna categoria (<strong>Pre Agonistica U12</strong>, <strong>Pre Agonistica</strong>, <strong>SAT U14</strong>, <strong>SAT</strong>) tutti i partecipanti disputano un <strong>Girone Unico all'italiana</strong>. Al completamento di ciascun incontro, il punteggio e la classifica si aggiornano da soli in tempo reale. <strong>A fine anno, i migliori 8 atleti di ogni categoria accederanno al rispettivo Tabellone Finale a eliminazione diretta</strong> (1° vs 8°, 4° vs 5°, 3° vs 6°, 2° vs 7°).
+              In ciascuna categoria (<strong>Pre Agonistica U12</strong>, <strong>Pre Agonistica</strong>, <strong>SAT U14</strong>, <strong>SAT</strong>) tutti i partecipanti disputano un <strong>Girone Unico all'italiana</strong>. Al completamento di ciascun incontro, il punteggio e la classifica si aggiornano da soli in tempo reale. <strong>A fine anno sono qualificati alla fase a tabellone finale TUTTI gli atleti, non solo i primi 8</strong>: la classifica finale del girone stabilirà la composizione del tabellone a eliminazione diretta e le teste di serie (le prime posizioni beneficeranno di eventuali passaggi diretti del turno / BYE).
             </p>
           </div>
 
@@ -4480,9 +4471,10 @@ class App {
               <div><strong>Amministrazione Ufficiale:</strong> Barcello Luca • Alessia Di Tullio</div>
               <div><strong>Categorie:</strong> Pre Agonistica U12, Pre Agonistica, SAT U14, SAT</div>
               <div><strong>Gironi:</strong> Girone Unico per ogni Categoria</div>
-              <div><strong>Fase Finale:</strong> Migliori 8 al Tabellone Finale (a fine anno)</div>
-              <div><strong>Formula Pre Agonistica:</strong> 1h 30m • Long-Set ai 9</div>
-              <div><strong>Formula SAT:</strong> 1 ora • Suono della campana</div>
+              <div><strong>Regola Game:</strong> Killer point sul 40 pari</div>
+              <div><strong>Fase Finale:</strong> Tutti qualificati al Tabellone Finale (a fine anno)</div>
+              <div><strong>Formula Pre Agonistica:</strong> 1h 30m (dopo 1h 30m finisce) • Long-Set ai 9</div>
+              <div><strong>Formula SAT:</strong> 1 ora (dopo 1 ora finisce) • Suono campana</div>
               <div><strong>Campi da Gioco:</strong> Campi 0-2 (Terra), 3-4 (Greenset), 5-7 (Terra)</div>
             </div>
           </div>
