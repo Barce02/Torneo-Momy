@@ -3654,7 +3654,7 @@ class App {
       this.scheduleSelectedDay = "sabato";
     }
 
-    // Elenco 8 campi ufficiali del Momy Sport Village (Campo 0 Terra Battuta, Campi 1-7)
+    // Elenco 8 campi ufficiali del Momy Sport Village (Campi 0-7)
     const courtsList = [
       { name: "Campo 0 (Terra)", label: "Campo 0", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" },
       { name: "Campo 1 (Terra)", label: "Campo 1", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" },
@@ -3818,7 +3818,7 @@ class App {
                   <span class="text-xs font-black text-yellow-300">Profilo Collegato:</span>
                   <span class="text-xs font-bold text-white">${this.user.name || this.user.firstName || 'Atleta'}</span>
                 </div>
-                <p class="text-xs text-blue-200 mt-0.5">Non hai ancora un incontro assegnato in questo turno. Puoi consultare il programma completo dei 7 campi per Sabato e Domenica qui sotto.</p>
+                <p class="text-xs text-blue-200 mt-0.5">Non hai ancora un incontro assegnato in questo turno. Puoi consultare il programma completo degli 8 campi (Campi 0-7) per Sabato e Domenica qui sotto.</p>
               </div>
             </div>
             ${this.user.email ? `
@@ -3861,7 +3861,7 @@ class App {
                 <span class="text-xs text-blue-200 font-medium">Gestione Ufficiale Programmazione</span>
               </div>
               <h3 class="text-lg sm:text-xl font-black text-white tracking-tight">Pannello Gestione Orari & Campi</h3>
-              <p class="text-xs text-blue-200 mt-0.5">Assegna direttamente giorno (Sabato / Domenica), orario e campo (Campo 0 Terra Battuta, Campi 1-7) per ogni partita del torneo.</p>
+              <p class="text-xs text-blue-200 mt-0.5">Assegna direttamente giorno (Sabato / Domenica), orario e campo (Campi 0-7) per ogni partita del torneo.</p>
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
@@ -3982,7 +3982,7 @@ class App {
     `;
 
     // ========================================================
-    // SEZIONE 3: I 7 CAMPI DEL GIORNO SELEZIONATO
+    // SEZIONE 3: GLI 8 CAMPI DEL GIORNO SELEZIONATO (CAMPI 0-7)
     // ========================================================
     if (this.scheduleSelectedDay === "sabato" || this.scheduleSelectedDay === "domenica") {
       const activeDayDate = this.scheduleSelectedDay === "sabato" ? satDate : sunDate;
@@ -4024,7 +4024,7 @@ class App {
           ` : ''}
         </div>
 
-        <!-- GRIGLIA DEI 7 CAMPI -->
+        <!-- GRIGLIA DEGLI 8 CAMPI (CAMPI 0-7) -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           ${courtsList.map(court => {
             const courtId = (court.name || "").toLowerCase().replace(/[^a-z0-9]/g, '-');
@@ -5191,7 +5191,7 @@ class App {
               <div><strong>Fase Finale:</strong> Tutti qualificati al Tabellone Finale (a fine anno)</div>
               <div><strong>Formula Pre Agonistica:</strong> 1h 30m (dopo 1h 30m finisce) • Long-Set ai 9</div>
               <div><strong>Formula SAT:</strong> 1 ora (dopo 1 ora finisce) • Suono campana</div>
-              <div><strong>Campi da Gioco:</strong> Campo 0-2 (Terra), 3-4 (Greenset), 5-7 (Terra)</div>
+              <div><strong>Campi da Gioco:</strong> Campi 0-2 (Terra), 3-4 (Greenset), 5-7 (Terra) — 8 Campi totali</div>
             </div>
           </div>
 
