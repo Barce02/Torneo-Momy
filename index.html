@@ -85,7 +85,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
               </svg>
             </span>
-            <span id="header-account-label" class="font-bold tracking-tight">Account</span>
+            <span id="header-account-label" class="font-bold tracking-tight">Profilo</span>
           </button>
         </div>
       </div>
@@ -111,25 +111,16 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex space-x-2 sm:space-x-3 py-2 overflow-x-auto">
         
-        <!-- Tab Admin: Gestione Account (Tutti gli Account - Riservato Admin) -->
-        <button id="nav-tab-admin-accounts" class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap hidden" data-tab="admin-accounts">
-          <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
-          </svg>
-          <span>Tutti gli Account</span>
-          <span id="nav-admin-accounts-badge" class="bg-yellow-400 text-blue-950 font-black text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">0</span>
-        </button>
-
-        <!-- Tab 1: Gironi (Girone Unico) -->
-        <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap" data-tab="groups">
+        <!-- Tab 1: Classifica (Sostituisce Gironi - Attivo di Default) -->
+        <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-semibold border-b-2 border-blue-600 text-blue-700 bg-blue-50/70 flex items-center gap-2 transition whitespace-nowrap" data-tab="groups">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
           </svg>
-          <span>Gironi</span>
+          <span>Classifica</span>
         </button>
 
-        <!-- Tab 2: Calendario Partite (Attivo di Default) -->
-        <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-semibold border-b-2 border-blue-600 text-blue-700 bg-blue-50/70 flex items-center gap-2 transition whitespace-nowrap" data-tab="schedule">
+        <!-- Tab 2: Calendario Partite -->
+        <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap" data-tab="schedule">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
           </svg>
@@ -137,15 +128,15 @@
           <span id="schedule-nav-badge" class="hidden ml-1 px-1.5 py-0.5 bg-amber-400 text-blue-950 font-black text-[10px] rounded-full shadow-sm animate-pulse"></span>
         </button>
 
-        <!-- Tab 4: Tabellone Finale -->
+        <!-- Tab 3: Tabellone Finale -->
         <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap" data-tab="bracket">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
           </svg>
-          <span>Tabellone Finale</span>
+          <span>Tabellone</span>
         </button>
 
-        <!-- Tab 5: Regolamento -->
+        <!-- Tab 4: Regolamento -->
         <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap" data-tab="rules">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -153,12 +144,21 @@
           <span>Regolamento</span>
         </button>
 
-        <!-- Tab 6: Account Personale -->
+        <!-- Tab 5: Profilo Personale -->
         <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap" data-tab="account">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
           </svg>
-          <span id="nav-account-label">Account</span>
+          <span id="nav-account-label">Profilo</span>
+        </button>
+
+        <!-- Tab 6: Gestione Account (Tutti gli Account - Riservato Esclusivamente Admin) -->
+        <button id="nav-tab-admin-accounts" class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap hidden" data-tab="admin-accounts">
+          <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+          </svg>
+          <span>Tutti gli Account</span>
+          <span id="nav-admin-accounts-badge" class="bg-yellow-400 text-blue-950 font-black text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">0</span>
         </button>
 
       </div>
@@ -188,39 +188,34 @@
   <!-- CONTENUTO PRINCIPALE -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full">
     
-    <!-- SEZIONE 1: ISCRITTI (Rimosso da navigazione, accessibile in Tutti gli Account per Admin) -->
-    <div id="tab-panel-players" class="hidden">
-      <div id="players-container"></div>
-    </div>
-
-    <!-- SEZIONE ADMIN: TUTTI GLI ACCOUNT & COMPETIZIONI -->
-    <div id="tab-panel-admin-accounts" class="hidden">
-      <div id="admin-accounts-container"></div>
-    </div>
-
-    <!-- SEZIONE 2: FASE A GIRONI (GIRONE UNICO) -->
-    <div id="tab-panel-groups" class="hidden">
+    <!-- SEZIONE 1: CLASSIFICA (ATTIVA DI DEFAULT) -->
+    <div id="tab-panel-groups">
       <div id="groups-container"></div>
     </div>
 
-    <!-- SEZIONE 3: CALENDARIO PARTITE (ORARI & CAMPI - ATTIVO) -->
-    <div id="tab-panel-schedule">
+    <!-- SEZIONE 2: CALENDARIO PARTITE (ORARI & CAMPI) -->
+    <div id="tab-panel-schedule" class="hidden">
       <div id="schedule-container"></div>
     </div>
 
-    <!-- SEZIONE 4: TABELLONE FINALE -->
+    <!-- SEZIONE 3: TABELLONE FINALE -->
     <div id="tab-panel-bracket" class="hidden">
       <div id="bracket-container"></div>
     </div>
 
-    <!-- SEZIONE 5: REGOLAMENTO -->
+    <!-- SEZIONE 4: REGOLAMENTO -->
     <div id="tab-panel-rules" class="hidden">
       <div id="rules-container"></div>
     </div>
 
-    <!-- SEZIONE 6: IL MIO ACCOUNT -->
+    <!-- SEZIONE 5: PROFILO / IL MIO ACCOUNT -->
     <div id="tab-panel-account" class="hidden">
       <div id="account-container"></div>
+    </div>
+
+    <!-- SEZIONE 6 ADMIN: TUTTI GLI ACCOUNT & COMPETIZIONI -->
+    <div id="tab-panel-admin-accounts" class="hidden">
+      <div id="admin-accounts-container"></div>
     </div>
 
   </main>

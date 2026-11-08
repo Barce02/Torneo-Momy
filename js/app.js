@@ -34,7 +34,7 @@ class App {
     this.user = this.loadUser();
     this.state = this.loadState();
     this.tournamentManager = new TournamentManager(this.state);
-    this.currentTab = "schedule";
+    this.currentTab = "groups";
     this.playersSubTab = "players";
     this.authMode = "login";
     this.searchQuery = "";
@@ -180,11 +180,12 @@ class App {
       sessionStorage.setItem("torneo_view_as_user", this.viewAsUser ? "true" : "false");
     } catch (e) {}
 
-    // Se eravamo nella tab "admin-accounts" o "players" e passiamo a vista utente, spostiamo su "schedule"
+    // Se eravamo nella tab "admin-accounts" o "players" e passiamo a vista utente, spostiamo su "groups" (Classifica)
     if (this.viewAsUser && (this.currentTab === "admin-accounts" || this.currentTab === "players")) {
-      this.currentTab = "schedule";
+      this.currentTab = "groups";
     }
 
+    this.renderUserBadge();
     this.render();
 
     if (this.viewAsUser) {
@@ -1100,7 +1101,7 @@ class App {
       if (toggleViewBtn) {
         toggleViewBtn.classList.remove("hidden");
         if (this.viewAsUser) {
-          toggleViewBtn.className = "text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm font-black bg-yellow-400 text-slate-950 hover:bg-yellow-300 border border-yellow-500";
+          toggleViewBtn.className = "text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm font-black bg-amber-400 text-slate-950 hover:bg-amber-300 border border-amber-500";
           toggleViewBtn.title = "Stai visualizzando come Utente (non-admin). Clicca per tornare a Vista Admin";
           toggleViewBtn.innerHTML = `
             <svg class="w-3.5 h-3.5 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1110,10 +1111,10 @@ class App {
             <span>Vista Utente</span>
           `;
         } else {
-          toggleViewBtn.className = "text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm font-bold bg-white/15 hover:bg-white/25 text-yellow-300 border border-yellow-400/40";
+          toggleViewBtn.className = "text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm font-black bg-emerald-500 text-slate-950 hover:bg-emerald-400 border border-emerald-400";
           toggleViewBtn.title = "Stai visualizzando come Amministratore. Clicca per passare a Vista Utente";
           toggleViewBtn.innerHTML = `
-            <svg class="w-3.5 h-3.5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-3.5 h-3.5 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
             </svg>
@@ -1139,7 +1140,7 @@ class App {
       } else {
         adminNavTab.classList.add("hidden");
         if (this.currentTab === "admin-accounts" || this.currentTab === "players") {
-          this.switchTab("schedule");
+          this.switchTab("groups");
         }
       }
     }
@@ -1153,10 +1154,10 @@ class App {
         `;
       }
       if (accountLabel) {
-        accountLabel.textContent = "Account";
+        accountLabel.textContent = "Profilo";
       }
       if (navAccountLabel) {
-        navAccountLabel.textContent = "Account";
+        navAccountLabel.textContent = "Profilo";
       }
       this.updateScheduleBadge();
       return;
@@ -1168,12 +1169,12 @@ class App {
     }
 
     if (accountLabel) {
-      const displayName = this.user.firstName || (this.user.name ? this.user.name.split(" ")[0] : "Account");
+      const displayName = this.user.firstName || (this.user.name ? this.user.name.split(" ")[0] : "Profilo");
       accountLabel.textContent = displayName;
     }
 
     if (navAccountLabel) {
-      const displayName = this.user.firstName || "Account";
+      const displayName = this.user.firstName || "Profilo";
       navAccountLabel.textContent = displayName;
     }
 
@@ -1423,17 +1424,17 @@ class App {
   }
 
   // ==========================================
-  // NAVIGAZIONE TAB (GIRONI, CALENDARIO, TABELLONE, REGOLAMENTO)
+  // NAVIGAZIONE TAB (CLASSIFICA, CALENDARIO, TABELLONE, REGOLAMENTO)
   // ==========================================
   switchTab(tab) {
     // Se viene invocata la tab "players" (rimossa), reindirizza:
     if (tab === "players") {
-      tab = (this.isAdmin && !this.viewAsUser) ? "admin-accounts" : "schedule";
+      tab = (this.isAdmin && !this.viewAsUser) ? "admin-accounts" : "groups";
     }
 
     // Sicurezza: gli utenti standard e l'admin in preview utente non possono vedere tutti gli account
     if (tab === "admin-accounts" && (!this.isAdmin || this.viewAsUser)) {
-      tab = "schedule";
+      tab = "groups";
     }
 
     this.currentTab = tab;
@@ -1619,6 +1620,7 @@ class App {
     this.tournamentManager.ensureCategories();
     this.tournamentManager.ensureGroups(this.selectedCategory === "all" ? "Pre Agonistica U12" : this.selectedCategory);
 
+    this.renderUserBadge();
     this.renderCategorySelector();
 
     // Aggiorna contatore iscritti nell'header nav
@@ -1671,10 +1673,10 @@ class App {
           <div>
             <div class="flex items-center gap-2 mb-1 flex-wrap">
               <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
-              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Girone Unico • Categoria ${cat}</span>
+              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Classifica Ufficiale • Categoria ${cat}</span>
               <span class="text-[10px] px-2 py-0.5 rounded-md font-bold bg-white/20 text-yellow-300">${formatInfo.shortDuration} • ${formatInfo.formula}</span>
             </div>
-            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Girone Unico (${cat})</h2>
+            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Classifica Ufficiale (${cat})</h2>
             <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
               Formula: <strong>${formatInfo.durationText}</strong> (${formatInfo.formula}). Killer point sul 40 pari nel game. Se in parità allo scadere del tempo, <strong>rimane il pareggio (1 punto ciascuno)</strong>.
               Vittoria: 3 pt • Pareggio: 1 pt • Sconfitta: 0 pt. Il punteggio e la classifica si aggiornano da soli al termine di ogni partita.
@@ -1687,7 +1689,7 @@ class App {
               <svg class="w-4 h-4 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
               </svg>
-              <span>Stampa Girone (${cat})</span>
+              <span>Stampa Classifica (${cat})</span>
             </button>
             ${this.isAdmin ? `
               <button onclick="app.openCreateMatchModal('${cat}')" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-1.5 cursor-pointer">
@@ -3940,12 +3942,6 @@ class App {
               </button>
             ` : ''}
 
-          </div>
-
-          <!-- Indicatore Campi -->
-          <div class="text-xs font-semibold text-gray-600 flex items-center gap-2 self-start sm:self-auto bg-slate-50 px-3 py-1.5 rounded-xl border border-gray-200">
-            <span class="w-2 h-2 rounded-full bg-blue-600"></span>
-            <span>I Campi da Gioco del Torneo (Campo 0 Terra Battuta • Campi 1-7)</span>
           </div>
 
         </div>
