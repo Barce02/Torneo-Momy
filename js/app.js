@@ -53,6 +53,7 @@ class App {
     }
 
     // Filtri calendario
+    this.scheduleSelectedDay = "sabato"; // "sabato", "domenica", "unscheduled"
     this.schedulePhaseFilter = "all";
     this.scheduleCourtFilter = "all";
     this.scheduleStatusFilter = "all";
@@ -1990,7 +1991,7 @@ class App {
 
     document.getElementById("group-match-score1").value = foundMatch.games1 !== null ? foundMatch.games1 : "";
     document.getElementById("group-match-score2").value = foundMatch.games2 !== null ? foundMatch.games2 : "";
-    document.getElementById("group-match-court").value = foundMatch.court || "Campo 0 (Terra)";
+    document.getElementById("group-match-court").value = foundMatch.court || "Campo 1 (Terra)";
     document.getElementById("group-match-datetime").value = foundMatch.dateTime || "";
     document.getElementById("group-match-status").value = foundMatch.status || "in_programma";
 
@@ -3365,6 +3366,170 @@ class App {
     this.renderScheduleView();
   }
 
+  setScheduleDay(day) {
+    this.scheduleSelectedDay = day; // "sabato", "domenica", "unscheduled"
+    this.renderScheduleView();
+  }
+
+  setWeekendDates(satDate, sunDate) {
+    if (!this.state.tournament) this.state.tournament = {};
+    if (satDate) this.state.tournament.saturdayDate = satDate;
+    if (sunDate) this.state.tournament.sundayDate = sunDate;
+    this.saveState();
+    this.renderScheduleView();
+    this.showToast("Date del fine settimana aggiornate!", "success");
+  }
+
+  getTournamentWeekendDates(allMatches) {
+    let satDate = this.state.tournament?.saturdayDate || null;
+    let sunDate = this.state.tournament?.sundayDate || null;
+
+    if (!satDate || !sunDate) {
+      (allMatches || []).forEach(item => {
+        const dt = item.match && item.match.dateTime;
+        if (dt) {
+          const d = new Date(dt);
+          if (!isNaN(d.getTime())) {
+            const dayOfWeek = d.getDay(); // 0 is Sun, 6 is Sat
+            const dStr = dt.substring(0, 10);
+            if (dayOfWeek === 6 && !satDate) satDate = dStr;
+            if (dayOfWeek === 0 && !sunDate) sunDate = dStr;
+          }
+        }
+      });
+    }
+
+    if (!satDate || !sunDate) {
+      const now = new Date();
+      const curDay = now.getDay();
+      let sat = new Date(now);
+      if (curDay === 6) {
+        // oggi è sabato
+      } else if (curDay === 0) {
+        // oggi è domenica, sabato era ieri
+        sat.setDate(now.getDate() - 1);
+      } else {
+        sat.setDate(now.getDate() + (6 - curDay));
+      }
+      const defSat = sat.toISOString().split('T')[0];
+
+      const sun = new Date(sat);
+      sun.setDate(sat.getDate() + 1);
+      const defSun = sun.toISOString().split('T')[0];
+
+      if (!satDate) satDate = defSat;
+      if (!sunDate) sunDate = defSun;
+    }
+
+    return { satDate, sunDate };
+  }
+
+  formatDayDate(dateStr) {
+    if (!dateStr) return "";
+    try {
+      const d = new Date(dateStr.length === 10 ? dateStr + 'T12:00:00' : dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  isMatchOnDay(m, targetDay, satDate, sunDate) {
+    if (!m || !m.dateTime) return false;
+    const dStr = m.dateTime.substring(0, 10);
+    const d = new Date(m.dateTime);
+    const isDateValid = !isNaN(d.getTime());
+    const dayOfWeek = isDateValid ? d.getDay() : null;
+
+    if (targetDay === "sabato") {
+      if (satDate && dStr === satDate) return true;
+      return dayOfWeek === 6;
+    }
+    if (targetDay === "domenica") {
+      if (sunDate && dStr === sunDate) return true;
+      return dayOfWeek === 0;
+    }
+    return false;
+  }
+
+  isMatchOnCourt(match, court) {
+    if (!match || !match.court) return false;
+    return match.court === court.name || match.court.includes(court.label);
+  }
+
+  isMatchForUser(match, user) {
+    if (!match || !user) return false;
+
+    const userEmail = (user.email || "").toLowerCase().trim();
+    const userName = (user.name || `${user.firstName || ''} ${user.lastName || ''}`).toLowerCase().trim();
+    const userFirst = (user.firstName || "").toLowerCase().trim();
+    const userLast = (user.lastName || "").toLowerCase().trim();
+
+    const cp = this.getCurrentPlayer();
+    const cpId = cp ? cp.id : null;
+    const cpEmail = cp?.email?.toLowerCase().trim();
+    const cpName = cp?.name?.toLowerCase().trim();
+
+    const p1 = this.tournamentManager.getPlayer(match.player1Id);
+    const p2 = this.tournamentManager.getPlayer(match.player2Id);
+
+    const checkSide = (sideId, playerObj) => {
+      if (!sideId && !playerObj) return false;
+      if (cpId && sideId === cpId) return true;
+      if (playerObj && cpId && playerObj.id === cpId) return true;
+
+      if (userEmail) {
+        if (sideId && sideId.toLowerCase().trim() === userEmail) return true;
+        if (playerObj?.email && playerObj.email.toLowerCase().trim() === userEmail) return true;
+        if (playerObj?.userId && playerObj.userId.toLowerCase().trim() === userEmail) return true;
+      }
+      if (cpEmail) {
+        if (playerObj?.email && playerObj.email.toLowerCase().trim() === cpEmail) return true;
+        if (playerObj?.userId && playerObj.userId.toLowerCase().trim() === cpEmail) return true;
+      }
+
+      const rawName = (playerObj ? playerObj.name : sideId || "").toLowerCase().trim();
+      if (userName && rawName === userName) return true;
+      if (cpName && rawName === cpName) return true;
+      if (userFirst && userLast && rawName.includes(userFirst) && rawName.includes(userLast)) return true;
+
+      return false;
+    };
+
+    return checkSide(match.player1Id, p1) || checkSide(match.player2Id, p2);
+  }
+
+  getUserMatches(user) {
+    if (!user) return [];
+    const allMatches = this.getAllMatches();
+    return allMatches.filter(item => this.isMatchForUser(item.match, user));
+  }
+
+  scrollToCourt(courtName, day) {
+    if (day && (day === "sabato" || day === "domenica")) {
+      this.scheduleSelectedDay = day;
+      this.renderScheduleView();
+    }
+    setTimeout(() => {
+      const courtId = "court-card-" + (courtName || "").toLowerCase().replace(/[^a-z0-9]/g, '-');
+      const el = document.getElementById(courtId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-4', 'ring-yellow-400');
+        setTimeout(() => el.classList.remove('ring-4', 'ring-yellow-400'), 2500);
+      }
+    }, 60);
+  }
+
+  openScoreModalForMatch(type, groupKeyOrRound, matchId, category) {
+    if (type === "group") {
+      this.openGroupMatchModal(groupKeyOrRound, matchId, category);
+    } else {
+      this.openMatchModal(matchId, category);
+    }
+  }
+
   setAdminScheduleTab(tab) {
     this.adminScheduleTab = tab;
     this.renderScheduleView();
@@ -3400,52 +3565,18 @@ class App {
     const unscheduledMatches = allMatches.filter(x => !x.match.dateTime);
     const completedMatches = allMatches.filter(x => x.match.status === "completato");
 
-    // Filtraggio lista pubblica
-    const filtered = allMatches.filter(item => {
-      // Filtro Categoria attiva
-      if (this.selectedCategory !== "all" && item.category !== this.selectedCategory) return false;
+    // Calcolo date e conteggi Sabato & Domenica
+    const { satDate, sunDate } = this.getTournamentWeekendDates(allMatches);
+    const satMatches = allMatches.filter(x => this.isMatchOnDay(x.match, "sabato", satDate, sunDate));
+    const sunMatches = allMatches.filter(x => this.isMatchOnDay(x.match, "domenica", satDate, sunDate));
 
-      const m = item.match;
-      const p1 = this.tournamentManager.getPlayer(m.player1Id);
-      const p2 = this.tournamentManager.getPlayer(m.player2Id);
-      const p1Name = p1 ? p1.name.toLowerCase() : "";
-      const p2Name = p2 ? p2.name.toLowerCase() : "";
+    // Se non è selezionato né sabato né domenica né unscheduled, default a sabato
+    if (!["sabato", "domenica", "unscheduled"].includes(this.scheduleSelectedDay)) {
+      this.scheduleSelectedDay = "sabato";
+    }
 
-      // Filtro Fase
-      if (this.schedulePhaseFilter === "group" && item.type !== "group") return false;
-      if (this.schedulePhaseFilter === "bracket" && item.type !== "bracket") return false;
-
-      // Filtro Campo
-      if (this.scheduleCourtFilter !== "all") {
-        if (!m.court || !m.court.includes(this.scheduleCourtFilter)) return false;
-      }
-
-      // Filtro Stato
-      if (this.scheduleStatusFilter === "scheduled" && !m.dateTime) return false;
-      if (this.scheduleStatusFilter === "unscheduled" && m.dateTime) return false;
-      if (this.scheduleStatusFilter === "live" && m.status !== "in_corso") return false;
-      if (this.scheduleStatusFilter === "completed" && m.status !== "completato") return false;
-
-      // Ricerca Atleta
-      if (this.scheduleSearchQuery) {
-        const q = this.scheduleSearchQuery;
-        if (!p1Name.includes(q) && !p2Name.includes(q)) return false;
-      }
-
-      return true;
-    });
-
-    // Ordinamento cronologico (incontri con orario prima, non programmati dopo)
-    filtered.sort((a, b) => {
-      const dtA = a.match.dateTime ? new Date(a.match.dateTime).getTime() : Infinity;
-      const dtB = b.match.dateTime ? new Date(b.match.dateTime).getTime() : Infinity;
-      if (dtA !== dtB) return dtA - dtB;
-      return a.phase.localeCompare(b.phase);
-    });
-
-    // Elenco 8 campi del torneo Momy
+    // Elenco 7 campi ufficiali del Momy Sport Village
     const courtsList = [
-      { name: "Campo 0 (Terra)", label: "Campo 0", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" },
       { name: "Campo 1 (Terra)", label: "Campo 1", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" },
       { name: "Campo 2 (Terra)", label: "Campo 2", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" },
       { name: "Campo 3 (Greenset)", label: "Campo 3", surface: "Greenset", badgeColor: "bg-emerald-100 text-emerald-900 border-emerald-300" },
@@ -3455,76 +3586,216 @@ class App {
       { name: "Campo 7 (Terra)", label: "Campo 7", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" }
     ];
 
-    let html = `
-      <div class="space-y-6">
+    // Se esistono partite storiche registrate su Campo 0, mostriamolo per non perdere dati
+    const hasCampo0 = allMatches.some(x => x.match && x.match.court && x.match.court.includes("Campo 0"));
+    if (hasCampo0) {
+      courtsList.unshift({
+        name: "Campo 0 (Terra)",
+        label: "Campo 0",
+        surface: "Terra Battuta",
+        badgeColor: "bg-amber-100 text-amber-900 border-amber-300"
+      });
+    }
 
-        <!-- Banner Intestazione Calendario Ufficiale -->
-        <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 rounded-2xl p-5 sm:p-6 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <div class="flex items-center gap-2 mb-1">
-              <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
-              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Programma Ufficiale Partite</span>
-            </div>
-            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Calendario Incontri & Campi</h2>
-            <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
-              Date, orari e campi ufficiali stabiliti dalla Direzione del Torneo (<strong>Barcello Luca & Alessia Di Tullio</strong>). Tutti gli incontri hanno orario e campo assegnati per la regolare disputa delle partite.
-            </p>
-          </div>
+    // Partite dell'utente attualmente collegato (Utente in Evidenza)
+    const userMatches = this.user ? this.getUserMatches(this.user) : [];
 
-          ${this.isAdmin && !this.viewAsUser ? `
-            <div class="bg-yellow-400 text-blue-950 text-xs font-black px-4 py-2.5 rounded-xl shadow border border-yellow-300 flex items-center gap-2">
-              <svg class="w-4 h-4 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
-              </svg>
-              <span>Gestione Orari e Campi Attiva</span>
-            </div>
-          ` : `
-            <div class="text-xs text-blue-200 bg-white/10 px-3.5 py-2 rounded-xl border border-white/20">
-              Orari ufficiali assegnati dalla Direzione del Torneo
-            </div>
-          `}
-        </div>
-    `;
+    let html = `<div class="space-y-6">`;
 
     // ========================================================
-    // SEZIONE DEDICATA AGLI ADMIN: ASSEGNAZIONE ORARI E CAMPI
+    // SEZIONE 1: UTENTE IN EVIDENZA (IL PROPRIO INCONTRO)
+    // ========================================================
+    if (this.user) {
+      if (userMatches.length > 0) {
+        html += `
+          <div class="bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 rounded-2xl p-5 sm:p-6 text-white shadow-xl border-2 border-yellow-400 space-y-4">
+            
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-blue-800/80">
+              <div class="flex items-center gap-2.5">
+                <span class="w-3 h-3 rounded-full bg-yellow-400 animate-pulse shadow-xs"></span>
+                <div>
+                  <span class="text-[10.5px] font-black uppercase tracking-wider text-yellow-300 block">In Evidenza per il Tuo Account</span>
+                  <h3 class="text-lg sm:text-xl font-black text-white tracking-tight">Il Tuo Incontro in Programma</h3>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2 self-start sm:self-auto">
+                <span class="bg-yellow-400 text-blue-950 text-xs font-black px-3 py-1 rounded-xl shadow-xs">
+                  ${this.user.name || `${this.user.firstName || ''} ${this.user.lastName || ''}`.trim() || 'Tuo Account'}
+                </span>
+                ${userMatches.length > 1 ? `
+                  <span class="text-[11px] font-bold text-blue-200 bg-white/10 px-2 py-0.5 rounded-lg border border-white/20">
+                    ${userMatches.length} partite in programma
+                  </span>
+                ` : ''}
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 ${userMatches.length > 1 ? 'md:grid-cols-2' : ''} gap-3.5">
+              ${userMatches.map(item => {
+                const m = item.match;
+                const p1 = this.tournamentManager.getPlayer(m.player1Id);
+                const p2 = this.tournamentManager.getPlayer(m.player2Id);
+                const isMeP1 = this.isMatchForUser({ player1Id: m.player1Id }, this.user);
+                const myName = isMeP1 ? (p1 ? p1.name : (m.player1Id || 'Tu')) : (p2 ? p2.name : (m.player2Id || 'Tu'));
+                const oppName = isMeP1 ? (p2 ? p2.name : (m.player2Id || 'In attesa')) : (p1 ? p1.name : (m.player1Id || 'In attesa'));
+                const oppRank = isMeP1 ? (p2?.ranking || '') : (p1?.ranking || '');
+                const myRank = isMeP1 ? (p1?.ranking || '') : (p2?.ranking || '');
+
+                const hasDateTime = !!m.dateTime;
+                const matchCourt = m.court || "Campo da definire";
+
+                let matchDay = null;
+                if (hasDateTime) {
+                  const d = new Date(m.dateTime);
+                  if (d.getDay() === 6) matchDay = "sabato";
+                  if (d.getDay() === 0) matchDay = "domenica";
+                }
+
+                return `
+                  <div class="bg-blue-900/40 rounded-xl p-4 border border-yellow-400/50 shadow-inner space-y-3">
+                    
+                    <div class="flex items-center justify-between text-xs flex-wrap gap-2">
+                      <span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-blue-900 text-yellow-300 border border-yellow-400/40">
+                        ${item.phase}
+                      </span>
+                      ${m.status === 'in_corso' ? `
+                        <span class="inline-flex items-center gap-1 bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs">
+                          <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> Live in Corso
+                        </span>
+                      ` : m.status === 'completato' ? `
+                        <span class="bg-emerald-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs">
+                          Terminato (${m.scores || 'Risultato registrato'})
+                        </span>
+                      ` : `
+                        <span class="bg-blue-800 text-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-600">
+                          In Programma
+                        </span>
+                      `}
+                    </div>
+
+                    <!-- Griglia Data & Campo in evidenza -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      
+                      <!-- Data e Orario -->
+                      <div class="bg-slate-900/80 p-3 rounded-xl border border-blue-700/60 flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-lg bg-yellow-400 text-blue-950 flex items-center justify-center flex-shrink-0 font-bold shadow-xs">
+                          <svg class="w-4 h-4 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        </div>
+                        <div class="min-w-0">
+                          <span class="text-[10px] text-yellow-300 font-extrabold uppercase tracking-wider block">Data & Orario</span>
+                          <span class="text-xs sm:text-sm font-black text-white truncate block">
+                            ${hasDateTime ? this.formatScheduleDateTime(m.dateTime) : 'In attesa di orario'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <!-- Campo di Gioco -->
+                      <div class="bg-slate-900/80 p-3 rounded-xl border border-blue-700/60 flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-400 text-blue-950 flex items-center justify-center flex-shrink-0 font-bold shadow-xs">
+                          <svg class="w-4 h-4 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                        </div>
+                        <div class="min-w-0">
+                          <span class="text-[10px] text-emerald-300 font-extrabold uppercase tracking-wider block">Campo di Gioco</span>
+                          <span class="text-xs sm:text-sm font-black text-white truncate block">
+                            ${matchCourt}
+                          </span>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    <!-- Confronto Tu vs Avversario -->
+                    <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
+                      <div class="flex items-center gap-2 truncate max-w-[45%]">
+                        <span class="text-xs sm:text-sm font-black text-yellow-300 truncate">${myName}</span>
+                        ${myRank ? `<span class="text-[9px] bg-yellow-400/20 text-yellow-300 px-1 rounded font-mono">${myRank}</span>` : ''}
+                        <span class="text-[9px] bg-yellow-400 text-blue-950 font-black px-1.5 py-0.2 rounded uppercase">TU</span>
+                      </div>
+
+                      <span class="text-xs font-black text-slate-400 px-2 flex-shrink-0">VS</span>
+
+                      <div class="flex items-center gap-2 truncate max-w-[45%] justify-end">
+                        ${oppRank ? `<span class="text-[9px] bg-slate-800 text-slate-300 px-1 rounded font-mono">${oppRank}</span>` : ''}
+                        <span class="text-xs sm:text-sm font-bold text-white truncate">${oppName}</span>
+                      </div>
+                    </div>
+
+                    ${matchCourt && matchCourt !== "Campo da definire" ? `
+                      <div class="pt-1 text-right">
+                        <button onclick="app.scrollToCourt('${matchCourt}', '${matchDay || this.scheduleSelectedDay}')" class="text-xs font-bold text-yellow-300 hover:text-yellow-200 transition underline cursor-pointer inline-flex items-center gap-1">
+                          <span>Visualizza sul tabellone del campo</span>
+                          <span>&darr;</span>
+                        </button>
+                      </div>
+                    ` : ''}
+
+                  </div>
+                `;
+              }).join('')}
+            </div>
+
+          </div>
+        `;
+      } else {
+        html += `
+          <div class="bg-gradient-to-r from-blue-900 to-indigo-900 rounded-2xl p-4 sm:p-5 text-white shadow-md border border-blue-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-xl bg-yellow-400 text-blue-950 flex items-center justify-center font-black flex-shrink-0 shadow-sm">
+                <svg class="w-5 h-5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-black text-yellow-300">Profilo Collegato:</span>
+                  <span class="text-xs font-bold text-white">${this.user.name || this.user.firstName || 'Atleta'}</span>
+                </div>
+                <p class="text-xs text-blue-200 mt-0.5">Non hai ancora un incontro assegnato in questo turno. Puoi consultare il programma completo dei 7 campi per Sabato e Domenica qui sotto.</p>
+              </div>
+            </div>
+            ${this.user.email ? `
+              <span class="text-[10px] text-blue-300 font-mono bg-blue-950/70 px-2.5 py-1 rounded-lg border border-blue-800 self-start sm:self-auto">${this.user.email}</span>
+            ` : ''}
+          </div>
+        `;
+      }
+    } else {
+      html += `
+        <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black flex-shrink-0 shadow-xs">
+              <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+            </div>
+            <div>
+              <h4 class="text-xs sm:text-sm font-bold text-blue-950">Sei un atleta iscritto al torneo?</h4>
+              <p class="text-xs text-blue-800/80">Accedi con il tuo account per visualizzare subito in evidenza in alto la data, l'orario e il campo del tuo incontro.</p>
+            </div>
+          </div>
+          <button onclick="app.openLoginModal('login')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs transition cursor-pointer whitespace-nowrap">
+            Accedi al Profilo
+          </button>
+        </div>
+      `;
+    }
+
+    // ========================================================
+    // SEZIONE ADMIN: PANNELLO DI GESTIONE & PROGRAMMAZIONE
     // ========================================================
     if (this.isAdmin && !this.viewAsUser) {
-      const availableDates = this.getAvailableScheduleDates(allMatches);
-      const todayIso = new Date().toISOString().split('T')[0];
-      if (!this.adminScheduleDate) {
-        this.adminScheduleDate = availableDates.length > 0 ? availableDates[0] : todayIso;
-      }
-
-      // Incontri per la vista rapida
-      const quickMatches = (this.adminScheduleFilter === "unscheduled" ? unscheduledMatches : allMatches).filter(item => {
-        if (this.selectedCategory !== "all" && item.category !== this.selectedCategory) return false;
-        return true;
-      });
-
       html += `
-        <div class="bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 rounded-2xl p-5 sm:p-6 text-white shadow-xl border-2 border-yellow-400/80 space-y-5">
-          
-          <!-- Intestazione Sezione Admin -->
-          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-blue-800/80">
+        <div class="bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 rounded-2xl p-4 sm:p-5 text-white shadow-xl border-2 border-yellow-400 space-y-4">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-blue-800">
             <div>
-              <div class="flex items-center gap-2 mb-1.5 flex-wrap">
-                <span class="inline-flex items-center gap-1.5 bg-yellow-400 text-blue-950 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
-                  <svg class="w-3.5 h-3.5 text-blue-950" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM11 14a1 1 0 11-2 0 1 1 0 012 0zm0-7a1 1 0 10-2 0v3a1 1 0 102 0V7z" clip-rule="evenodd"/></svg>
+              <div class="flex items-center gap-2 mb-1 flex-wrap">
+                <span class="inline-flex items-center gap-1.5 bg-yellow-400 text-blue-950 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
                   Area Direzione Torneo
                 </span>
                 <span class="text-xs text-yellow-300 font-bold">Barcello Luca & Alessia Di Tullio</span>
               </div>
-              <h3 class="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-                <span>Pannello Assegnazione Orari & Campi</span>
-              </h3>
-              <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
-                Inserisci direttamente data, ora e campo (Campi 0-7) per ogni partita. Gli orari sono ufficiali e visibili subito nel calendario senza bisogno di approvazione degli atleti.
-              </p>
+              <h3 class="text-lg sm:text-xl font-black text-white tracking-tight">Pannello Gestione Orari & Campi</h3>
+              <p class="text-xs text-blue-200 mt-0.5">Assegna direttamente giorno (Sabato / Domenica), orario e campo (Campi 1-7) per ogni partita del torneo.</p>
             </div>
 
-            <!-- Bottoni Switcher & Azioni Rapide Admin -->
-            <div class="flex flex-wrap items-center gap-2 self-start md:self-auto">
+            <div class="flex flex-wrap items-center gap-2">
               <button onclick="app.openCreateMatchModal()" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2 rounded-xl shadow transition cursor-pointer flex items-center gap-1.5">
                 <svg class="w-4 h-4 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 <span>+ Crea Nuovo Incontro</span>
@@ -3533,551 +3804,379 @@ class App {
                 <svg class="w-3.5 h-3.5 text-rose-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 <span>Pulisci Non Assegnati</span>
               </button>
-              <div class="flex items-center gap-1 bg-blue-900/80 p-1 rounded-xl border border-blue-700/80">
-                <button onclick="app.setAdminScheduleTab('quick')" class="text-xs font-bold px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${this.adminScheduleTab === 'quick' ? 'bg-yellow-400 text-blue-950 shadow-md font-black' : 'text-blue-200 hover:text-white hover:bg-white/10'}">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                  <span>Assegnazione Rapida (${unscheduledMatches.length})</span>
-                </button>
-                <button onclick="app.setAdminScheduleTab('courts')" class="text-xs font-bold px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${this.adminScheduleTab === 'courts' ? 'bg-yellow-400 text-blue-950 shadow-md font-black' : 'text-blue-200 hover:text-white hover:bg-white/10'}">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
-                  <span>Tabellone Campi 0-7</span>
-                </button>
-              </div>
             </div>
           </div>
 
-          ${this.adminScheduleTab === 'quick' ? `
-            <!-- VISTA 1: ASSEGNAZIONE RAPIDA INCONTRI -->
-            <div class="space-y-4">
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <div class="flex items-center gap-2">
-                  <span class="text-xs font-bold text-slate-300">Mostra:</span>
-                  <button onclick="app.setAdminScheduleFilter('unscheduled')" class="text-xs px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${this.adminScheduleFilter === 'unscheduled' ? 'bg-yellow-400 text-blue-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}">
-                    Solo Da Assegnare (${unscheduledMatches.length})
-                  </button>
-                  <button onclick="app.setAdminScheduleFilter('all')" class="text-xs px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${this.adminScheduleFilter === 'all' ? 'bg-yellow-400 text-blue-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}">
-                    Tutti gli Incontri (${allMatches.length})
-                  </button>
-                </div>
-                <div class="text-xs text-blue-200">
-                  Categoria attiva: <strong>${this.selectedCategory === 'all' ? 'Tutte' : this.selectedCategory}</strong>
-                </div>
+          <!-- Date del Fine Settimana (Sabato & Domenica) -->
+          <div class="bg-slate-900/80 p-3.5 rounded-xl border border-slate-700 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex items-center gap-3 flex-wrap">
+              <span class="font-extrabold text-slate-300">Imposta Date Weekend:</span>
+              <div class="flex items-center gap-1.5">
+                <span class="text-yellow-400 font-bold">Sabato:</span>
+                <input type="date" value="${satDate}" onchange="app.setWeekendDates(this.value, null)" class="text-xs px-2.5 py-1 bg-slate-950 border border-slate-600 rounded-lg text-white font-bold focus:ring-1 focus:ring-yellow-400">
               </div>
-
-              ${quickMatches.length === 0 ? `
-                <div class="p-6 text-center bg-slate-800/60 rounded-xl border border-slate-700">
-                  <div class="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-2"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg></div>
-                  <h4 class="font-extrabold text-sm text-white">Nessun incontro da assegnare!</h4>
-                  <p class="text-xs text-slate-300 mt-1">Tutte le partite hanno già una data, un orario e un campo assegnati. Puoi visualizzarle nel Tabellone Campi o cliccare "+ Crea Nuovo Incontro" per inserire una nuova partita.</p>
-                </div>
-              ` : `
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-3.5 max-h-[580px] overflow-y-auto pr-1">
-                  ${quickMatches.map(item => {
-                    const m = item.match;
-                    const p1 = this.tournamentManager.getPlayer(m.player1Id);
-                    const p2 = this.tournamentManager.getPlayer(m.player2Id);
-                    const defaultCourt = m.court || "Campo 0 (Terra)";
-
-                    return `
-                      <div class="bg-slate-800/90 rounded-xl p-3.5 border ${m.dateTime ? 'border-slate-700' : 'border-amber-400/50 ring-1 ring-amber-400/20'} space-y-2.5 shadow-sm">
-                        
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                          <div class="flex items-center gap-1.5 flex-wrap">
-                            <span class="text-[10px] font-black px-2 py-0.5 rounded bg-blue-900/90 text-blue-200 border border-blue-700/60 uppercase tracking-wider">
-                              ${item.phase}
-                            </span>
-                            ${this.getCategoryBadgeMarkup(item.category)}
-                          </div>
-                          <div>
-                            ${m.dateTime ? `
-                              <span class="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
-                                <span class="w-2 h-2 rounded-full bg-emerald-400"></span> <span>${this.formatShortDate(m.dateTime)}</span>
-                              </span>
-                            ` : `
-                              <span class="text-[11px] font-bold text-amber-300 flex items-center gap-1">
-                                <span class="w-2 h-2 rounded-full bg-amber-400"></span> <span>Da assegnare</span>
-                              </span>
-                            `}
-                          </div>
-                        </div>
-
-                        <div class="flex items-center justify-between font-bold text-xs sm:text-sm text-white bg-slate-900/70 p-2.5 rounded-lg border border-slate-700/80">
-                          <div class="flex items-center gap-1.5 truncate max-w-[45%]">
-                            <span class="truncate">${p1 ? p1.name : (m.player1Id || 'In attesa')}</span>
-                            ${p1 && p1.ranking ? `<span class="text-[9px] bg-slate-800 text-slate-300 px-1 rounded">${p1.ranking}</span>` : ''}
-                          </div>
-                          <span class="text-yellow-400 font-black text-xs px-2 flex-shrink-0">VS</span>
-                          <div class="flex items-center gap-1.5 truncate max-w-[45%] justify-end">
-                            ${p2 && p2.ranking ? `<span class="text-[9px] bg-slate-800 text-slate-300 px-1 rounded">${p2.ranking}</span>` : ''}
-                            <span class="truncate">${p2 ? p2.name : (m.player2Id || 'In attesa')}</span>
-                          </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 pt-1.5 items-end">
-                          <div class="sm:col-span-5">
-                            <label class="block text-[10px] font-bold text-slate-300 mb-1">Data & Ora *</label>
-                            <input type="datetime-local" id="admin-dt-${item.type}-${m.id}" value="${m.dateTime || ''}" class="w-full text-xs px-2.5 py-1.5 bg-slate-900 border border-slate-600 rounded-lg text-white font-medium focus:ring-2 focus:ring-yellow-400 focus:outline-none">
-                          </div>
-                          <div class="sm:col-span-4">
-                            <label class="block text-[10px] font-bold text-slate-300 mb-1">Campo *</label>
-                            <select id="admin-court-${item.type}-${m.id}" class="w-full text-xs px-2.5 py-1.5 bg-slate-900 border border-slate-600 rounded-lg text-white font-medium focus:ring-2 focus:ring-yellow-400 focus:outline-none">
-                              ${courtsList.map(c => `
-                                <option value="${c.name}" ${defaultCourt === c.name || (defaultCourt && defaultCourt.includes(c.label)) ? 'selected' : ''}>${c.name}</option>
-                              `).join('')}
-                            </select>
-                          </div>
-                          <div class="sm:col-span-3 flex items-center gap-1.5 pt-1 sm:pt-0">
-                            <button onclick="app.quickAssignMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}', 'admin-dt-${item.type}-${m.id}', 'admin-court-${item.type}-${m.id}')" class="flex-1 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs py-2 px-2.5 rounded-lg shadow transition cursor-pointer text-center">
-                              Salva
-                            </button>
-                            ${m.dateTime ? `
-                              <button title="Libera orario e campo" onclick="app.removeMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="bg-rose-500/25 hover:bg-rose-500 text-rose-200 hover:text-white p-2 rounded-lg border border-rose-400/40 transition cursor-pointer">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                              </button>
-                            ` : ''}
-                            <button title="Modifica dettagli" onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg border border-white/20 transition cursor-pointer">
-                              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                            </button>
-                            <button title="Elimina definitivamente incontro" onclick="app.deleteMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white p-2 rounded-lg border border-rose-500/50 transition cursor-pointer">
-                              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                            </button>
-                          </div>
-                        </div>
-
-                      </div>
-                    `;
-                  }).join('')}
-                </div>
-              `}
+              <div class="flex items-center gap-1.5">
+                <span class="text-yellow-400 font-bold">Domenica:</span>
+                <input type="date" value="${sunDate}" onchange="app.setWeekendDates(null, this.value)" class="text-xs px-2.5 py-1 bg-slate-950 border border-slate-600 rounded-lg text-white font-bold focus:ring-1 focus:ring-yellow-400">
+              </div>
             </div>
-          ` : `
-            <!-- VISTA 2: TABELLONE CAMPI 0-7 (PLANNING GIORNALIERO) -->
-            <div class="space-y-4">
-              
-              <!-- Barra Selezione Giorno -->
-              <div class="bg-slate-800/90 p-3.5 rounded-xl border border-slate-700 flex flex-wrap items-center justify-between gap-3">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span class="text-xs font-bold text-slate-300">Data Tabellone:</span>
-                  <input type="date" value="${this.adminScheduleDate}" onchange="app.setAdminScheduleDate(this.value)" class="text-xs px-3 py-1.5 bg-slate-900 border border-yellow-400 rounded-lg text-white font-bold focus:ring-2 focus:ring-yellow-400">
-                  <button onclick="app.setAdminScheduleDate('${todayIso}')" class="text-xs px-2.5 py-1.5 rounded-lg font-bold bg-slate-700 hover:bg-slate-600 text-white transition cursor-pointer">
-                    Oggi
-                  </button>
-                  ${availableDates.map(dStr => `
-                    <button onclick="app.setAdminScheduleDate('${dStr}')" class="text-xs px-2.5 py-1.5 rounded-lg font-bold transition cursor-pointer ${this.adminScheduleDate === dStr ? 'bg-yellow-400 text-blue-950 font-black' : 'bg-slate-900/80 text-blue-200 hover:bg-slate-700'}">
-                      ${dStr.split('-').reverse().slice(0, 2).join('/')}
-                    </button>
-                  `).join('')}
-                </div>
-
-                <div class="text-xs text-yellow-300 font-bold">
-                  8 Campi Disponibili (0, 1, 2, 5, 6, 7 Terra • 3, 4 Greenset)
-                </div>
-              </div>
-
-              <!-- Griglia 8 Campi -->
-              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                ${courtsList.map(court => {
-                  const courtMatches = allMatches.filter(item => {
-                    const m = item.match;
-                    if (!m.dateTime || !m.dateTime.startsWith(this.adminScheduleDate)) return false;
-                    return m.court === court.name || (m.court && m.court.includes(court.label));
-                  }).sort((a, b) => new Date(a.match.dateTime) - new Date(b.match.dateTime));
-
-                  return `
-                    <div class="bg-slate-800/80 rounded-xl border border-slate-700 overflow-hidden flex flex-col justify-between shadow-sm">
-                      
-                      <!-- Header Campo -->
-                      <div class="p-3 border-b border-slate-700 bg-slate-900/80 flex items-center justify-between">
-                        <div>
-                          <h4 class="font-black text-sm text-white">${court.label}</h4>
-                          <span class="text-[10px] font-bold px-1.5 py-0.2 rounded border ${court.badgeColor}">
-                            ${court.surface}
-                          </span>
-                        </div>
-                        <span class="text-[11px] font-black px-2 py-0.5 rounded-full ${courtMatches.length > 0 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-slate-700 text-slate-400'}">
-                          ${courtMatches.length} ${courtMatches.length === 1 ? 'partita' : 'partite'}
-                        </span>
-                      </div>
-
-                      <!-- Lista Partite del Campo per la data selezionata -->
-                      <div class="p-3 flex-grow space-y-2.5 min-h-[160px]">
-                        ${courtMatches.length === 0 ? `
-                          <div class="h-full flex flex-col items-center justify-center text-center p-3 text-slate-400">
-                            <svg class="w-6 h-6 text-slate-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                            <span class="text-xs font-medium">Nessuna partita</span>
-                            <span class="text-[10px] text-slate-500">Campo libero per questa data</span>
-                            <button onclick="app.openAssignCourtModal('${court.name}', '${this.adminScheduleDate}')" class="mt-2.5 text-[11px] font-bold text-yellow-300 hover:text-yellow-200 bg-yellow-400/10 hover:bg-yellow-400/20 px-2.5 py-1 rounded-lg border border-yellow-400/30 transition cursor-pointer flex items-center gap-1">
-                              <span>+</span> <span>Assegna Incontro</span>
-                            </button>
-                          </div>
-                        ` : `
-                          <div class="space-y-2">
-                            ${courtMatches.map(item => {
-                              const m = item.match;
-                              const p1 = this.tournamentManager.getPlayer(m.player1Id);
-                              const p2 = this.tournamentManager.getPlayer(m.player2Id);
-                              const timeStr = m.dateTime ? new Date(m.dateTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '';
-
-                              return `
-                                <div class="bg-slate-900/90 rounded-lg p-2.5 border border-slate-700 space-y-1.5">
-                                  <div class="flex items-center justify-between text-[11px]">
-                                    <span class="font-black text-yellow-400 bg-yellow-400/10 px-1.5 py-0.2 rounded border border-yellow-400/20">
-                                      ore ${timeStr}
-                                    </span>
-                                    <span class="text-[9px] font-bold text-slate-400 uppercase truncate max-w-[100px]">
-                                      ${item.category}
-                                    </span>
-                                  </div>
-
-                                  <div class="text-xs font-bold text-white truncate">
-                                    ${p1 ? p1.name : (m.player1Id || 'In attesa')} <span class="text-yellow-400 text-[10px]">vs</span> ${p2 ? p2.name : (m.player2Id || 'In attesa')}
-                                  </div>
-
-                                  <div class="flex items-center justify-between pt-1 border-t border-slate-800 text-[10px]">
-                                    <span class="text-slate-400">${item.phase}</span>
-                                    <div class="flex items-center gap-1">
-                                      <button onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-blue-300 hover:text-white font-bold cursor-pointer">
-                                        Modifica
-                                      </button>
-                                      <span class="text-slate-600">•</span>
-                                      <button onclick="app.removeMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-rose-400 hover:text-rose-300 font-bold cursor-pointer">
-                                        Libera
-                                      </button>
-                                      <span class="text-slate-600">•</span>
-                                      <button onclick="app.deleteMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-rose-400 hover:text-rose-300 font-bold cursor-pointer">
-                                        Elimina
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              `;
-                            }).join('')}
-
-                            <button onclick="app.openAssignCourtModal('${court.name}', '${this.adminScheduleDate}')" class="w-full text-center text-[10.5px] font-bold text-yellow-300 hover:text-yellow-200 bg-yellow-400/10 hover:bg-yellow-400/20 py-1.5 rounded-lg border border-yellow-400/30 transition cursor-pointer">
-                              + Aggiungi altra partita a questo campo
-                            </button>
-                          </div>
-                        `}
-                      </div>
-
-                    </div>
-                  `;
-                }).join('')}
-              </div>
-
+            <div class="text-[11px] text-blue-200">
+              Le date impostate regolano l'assegnazione rapida delle partite sui 7 campi.
             </div>
-          `}
-
+          </div>
         </div>
       `;
     }
 
+    // ========================================================
+    // SEZIONE 2: PULSANTI GIORNO (SABATO E DOMENICA)
+    // ========================================================
     html += `
-        <!-- Box Statistiche Incontri -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div class="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm text-center">
-            <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Incontri Totali</div>
-            <div class="text-xl sm:text-2xl font-black text-gray-900 mt-0.5">${allMatches.length}</div>
-          </div>
-          <div class="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm text-center">
-            <div class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Programmati (Data & Campo)</div>
-            <div class="text-xl sm:text-2xl font-black text-emerald-700 mt-0.5">${scheduledMatches.length}</div>
-          </div>
-          <div class="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm text-center">
-            <div class="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Da Assegnare</div>
-            <div class="text-xl sm:text-2xl font-black text-amber-900 mt-0.5">${unscheduledMatches.length}</div>
-          </div>
-          <div class="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm text-center">
-            <div class="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Completati</div>
-            <div class="text-xl sm:text-2xl font-black text-blue-900 mt-0.5">${completedMatches.length}</div>
-          </div>
-        </div>
-
-        <!-- Filtri e Ricerca -->
-        <div class="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
-          <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="bg-white p-3 sm:p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+        
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          
+          <!-- Pulsanti Principali: Sabato & Domenica -->
+          <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
             
-            <!-- Filtro Fase -->
-            <div class="flex flex-wrap items-center gap-1.5">
-              <span class="text-xs font-bold text-gray-600 mr-1">Fase:</span>
-              <button onclick="app.setScheduleFilter('phase', 'all')" class="text-xs px-3 py-1.5 rounded-xl font-semibold transition ${this.schedulePhaseFilter === 'all' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
-                Tutte
-              </button>
-              <button onclick="app.setScheduleFilter('phase', 'group')" class="text-xs px-3 py-1.5 rounded-xl font-semibold transition ${this.schedulePhaseFilter === 'group' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
-                Girone Unico
-              </button>
-              <button onclick="app.setScheduleFilter('phase', 'bracket')" class="text-xs px-3 py-1.5 rounded-xl font-semibold transition ${this.schedulePhaseFilter === 'bracket' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
-                Tabellone Finale
-              </button>
-            </div>
+            <!-- Tasto SABATO -->
+            <button onclick="app.setScheduleDay('sabato')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2.5 py-3 px-5 sm:px-7 rounded-xl font-black text-sm transition cursor-pointer ${this.scheduleSelectedDay === 'sabato' ? 'bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-yellow-300 shadow-md ring-2 ring-yellow-400' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'}">
+              <svg class="w-4 h-4 ${this.scheduleSelectedDay === 'sabato' ? 'text-yellow-300' : 'text-gray-500'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              <span>SABATO</span>
+              ${satDate ? `<span class="text-xs font-semibold ${this.scheduleSelectedDay === 'sabato' ? 'text-yellow-200/90' : 'text-gray-500'}">(${this.formatDayDate(satDate)})</span>` : ''}
+              <span class="text-[11px] font-black px-2 py-0.5 rounded-full ${this.scheduleSelectedDay === 'sabato' ? 'bg-yellow-400 text-blue-950' : 'bg-gray-200 text-gray-700'}">${satMatches.length}</span>
+            </button>
 
-            <!-- Ricerca Atleta -->
-            <div class="relative w-full sm:w-56">
-              <input type="text" id="schedule-search-input" value="${this.scheduleSearchQuery}" placeholder="Cerca atleta..." class="w-full text-xs sm:text-sm pl-8 pr-3 py-1.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
-              <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-              </svg>
-            </div>
+            <!-- Tasto DOMENICA -->
+            <button onclick="app.setScheduleDay('domenica')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2.5 py-3 px-5 sm:px-7 rounded-xl font-black text-sm transition cursor-pointer ${this.scheduleSelectedDay === 'domenica' ? 'bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-yellow-300 shadow-md ring-2 ring-yellow-400' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'}">
+              <svg class="w-4 h-4 ${this.scheduleSelectedDay === 'domenica' ? 'text-yellow-300' : 'text-gray-500'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              <span>DOMENICA</span>
+              ${sunDate ? `<span class="text-xs font-semibold ${this.scheduleSelectedDay === 'domenica' ? 'text-yellow-200/90' : 'text-gray-500'}">(${this.formatDayDate(sunDate)})</span>` : ''}
+              <span class="text-[11px] font-black px-2 py-0.5 rounded-full ${this.scheduleSelectedDay === 'domenica' ? 'bg-yellow-400 text-blue-950' : 'bg-gray-200 text-gray-700'}">${sunMatches.length}</span>
+            </button>
+
+            ${unscheduledMatches.length > 0 ? `
+              <!-- Tasto Da Programmare -->
+              <button onclick="app.setScheduleDay('unscheduled')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 py-2.5 px-3.5 rounded-xl font-bold text-xs transition cursor-pointer ${this.scheduleSelectedDay === 'unscheduled' ? 'bg-amber-500 text-white shadow-md' : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'}">
+                <span>Da Programmare</span>
+                <span class="text-[10px] font-black px-1.5 py-0.2 rounded-full ${this.scheduleSelectedDay === 'unscheduled' ? 'bg-white text-amber-900' : 'bg-amber-200 text-amber-900'}">${unscheduledMatches.length}</span>
+              </button>
+            ` : ''}
 
           </div>
 
-          <!-- Filtri Campo e Stato -->
-          <div class="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100 text-xs">
-            <div class="flex items-center gap-2">
-              <label class="font-bold text-gray-600">Campo:</label>
-              <select onchange="app.setScheduleFilter('court', this.value)" class="text-xs border rounded-lg px-2.5 py-1 bg-white font-medium">
-                <option value="all" ${this.scheduleCourtFilter === 'all' ? 'selected' : ''}>Tutti i campi</option>
-                <option value="Campo 0" ${this.scheduleCourtFilter === 'Campo 0' ? 'selected' : ''}>Campo 0 (Terra)</option>
-                <option value="Campo 1" ${this.scheduleCourtFilter === 'Campo 1' ? 'selected' : ''}>Campo 1 (Terra)</option>
-                <option value="Campo 2" ${this.scheduleCourtFilter === 'Campo 2' ? 'selected' : ''}>Campo 2 (Terra)</option>
-                <option value="Campo 3" ${this.scheduleCourtFilter === 'Campo 3' ? 'selected' : ''}>Campo 3 (Greenset)</option>
-                <option value="Campo 4" ${this.scheduleCourtFilter === 'Campo 4' ? 'selected' : ''}>Campo 4 (Greenset)</option>
-                <option value="Campo 5" ${this.scheduleCourtFilter === 'Campo 5' ? 'selected' : ''}>Campo 5 (Terra)</option>
-                <option value="Campo 6" ${this.scheduleCourtFilter === 'Campo 6' ? 'selected' : ''}>Campo 6 (Terra)</option>
-                <option value="Campo 7" ${this.scheduleCourtFilter === 'Campo 7' ? 'selected' : ''}>Campo 7 (Terra)</option>
-              </select>
-            </div>
-
-            <div class="flex items-center gap-2">
-              <label class="font-bold text-gray-600">Stato:</label>
-              <select onchange="app.setScheduleFilter('status', this.value)" class="text-xs border rounded-lg px-2.5 py-1 bg-white font-medium">
-                <option value="all" ${this.scheduleStatusFilter === 'all' ? 'selected' : ''}>Tutti gli incontri</option>
-                <option value="scheduled" ${this.scheduleStatusFilter === 'scheduled' ? 'selected' : ''}>Programmati (con data e campo)</option>
-                <option value="unscheduled" ${this.scheduleStatusFilter === 'unscheduled' ? 'selected' : ''}>Da programmare</option>
-                <option value="live" ${this.scheduleStatusFilter === 'live' ? 'selected' : ''}>In corso (Live)</option>
-                <option value="completed" ${this.scheduleStatusFilter === 'completed' ? 'selected' : ''}>Completati</option>
-              </select>
-            </div>
+          <!-- Indicatore 7 Campi -->
+          <div class="text-xs font-semibold text-gray-600 flex items-center gap-2 self-start sm:self-auto bg-slate-50 px-3 py-1.5 rounded-xl border border-gray-200">
+            <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+            <span>I 7 Campi del Torneo Momy (1-7)</span>
           </div>
+
         </div>
-    `;
 
-    if (allMatches.length === 0) {
-      html += `
-        <div class="text-center py-16 bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
-          <div class="w-14 h-14 bg-blue-50 border border-blue-200 text-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-sm">
-            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        <!-- Filtri Rapidi Categoria & Ricerca Atleta -->
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100 text-xs">
+          
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="font-bold text-gray-600 mr-1">Categoria:</span>
+            <button onclick="app.selectedCategory='all'; app.render();" class="text-xs px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${this.selectedCategory === 'all' ? 'bg-blue-600 text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
+              Tutte
+            </button>
+            ${TournamentManager.CATEGORIES.map(c => `
+              <button onclick="app.selectedCategory='${c}'; app.render();" class="text-xs px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${this.selectedCategory === c ? 'bg-blue-600 text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
+                ${c}
+              </button>
+            `).join('')}
+          </div>
+
+          <!-- Ricerca Atleta nel Calendario -->
+          <div class="relative w-full sm:w-56">
+            <input type="text" id="schedule-search-input" value="${this.scheduleSearchQuery}" placeholder="Cerca atleta nei campi..." class="w-full text-xs pl-8 pr-3 py-1.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+            <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
             </svg>
           </div>
-          <h3 class="text-lg font-bold text-gray-800 mb-1">Nessuna partita in calendario</h3>
-          <p class="text-xs sm:text-sm text-gray-500 max-w-md mx-auto mb-6">
-            Componi la fase a gironi o il tabellone finale per generare automaticamente gli incontri del Torneo Momy.
-          </p>
-          ${this.isAdmin ? `
-            <button onclick="app.switchTab('groups')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition">
-              Vai alla Fase a Gironi
-            </button>
-          ` : `
-            <button onclick="app.switchTab('players')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition">
-              Visualizza Iscritti
-            </button>
-          `}
+
         </div>
-      </div>
-      `;
-      container.innerHTML = html;
-      return;
-    }
 
-    if (filtered.length === 0) {
-      html += `
-        <div class="text-center py-12 bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-          <p class="text-sm font-semibold text-gray-700">Nessuna partita corrisponde ai filtri selezionati.</p>
-          <button onclick="app.schedulePhaseFilter='all'; app.scheduleCourtFilter='all'; app.scheduleStatusFilter='all'; app.scheduleSearchQuery=''; app.renderScheduleView();" class="mt-3 text-xs text-blue-600 hover:underline font-bold">
-            Resetta tutti i filtri
-          </button>
-        </div>
-      </div>
-      `;
-      container.innerHTML = html;
-      return;
-    }
-
-    // Lista Schede Incontri
-    html += `
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        ${filtered.map(item => {
-          const m = item.match;
-          const p1 = this.tournamentManager.getPlayer(m.player1Id);
-          const p2 = this.tournamentManager.getPlayer(m.player2Id);
-          const isCompleted = m.status === "completato";
-          const isLive = m.status === "in_corso";
-          const hasDateTime = !!m.dateTime;
-
-          const p1Acc = m.p1Acceptance || (hasDateTime ? "pending" : null);
-          const p2Acc = m.p2Acceptance || (hasDateTime ? "pending" : null);
-          const isBothAccepted = hasDateTime && p1Acc === "accepted" && p2Acc === "accepted";
-          const isAnyRejected = hasDateTime && (p1Acc === "rejected" || p2Acc === "rejected");
-          const acceptedCount = (p1Acc === "accepted" ? 1 : 0) + (p2Acc === "accepted" ? 1 : 0);
-
-          const currentPlayer = this.getCurrentPlayer();
-          const isMeP1 = currentPlayer && p1 && (currentPlayer.id === p1.id || (currentPlayer.email && p1.email && currentPlayer.email.toLowerCase() === p1.email.toLowerCase()));
-          const isMeP2 = currentPlayer && p2 && (currentPlayer.id === p2.id || (currentPlayer.email && p2.email && currentPlayer.email.toLowerCase() === p2.email.toLowerCase()));
-
-          const isGroup = item.type === "group";
-          const phaseColor = isGroup
-            ? "bg-blue-100 text-blue-900 border-blue-200"
-            : "bg-yellow-100 text-blue-950 border-yellow-300";
-
-          const courtBadge = m.court || "Campo da definire";
-
-          // Badge di stato principale
-          let scheduleStatusBadge = "";
-          if (isLive) {
-            scheduleStatusBadge = `
-              <span class="inline-flex items-center gap-1 bg-amber-100 text-amber-900 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-amber-300">
-                <span class="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse"></span>
-                <span>Live in corso</span>
-              </span>`;
-          } else if (isCompleted) {
-            scheduleStatusBadge = `
-              <span class="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
-                Completato
-              </span>`;
-          } else if (hasDateTime) {
-            scheduleStatusBadge = `
-              <span class="bg-blue-100 text-blue-950 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-blue-300 shadow-2xs flex items-center gap-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-blue-700"></span>
-                <span>In Programma</span>
-              </span>`;
-          } else {
-            scheduleStatusBadge = `
-              <span class="bg-gray-100 text-gray-600 text-[10px] font-medium px-2 py-0.5 rounded-full border border-gray-200">
-                Da programmare
-              </span>`;
-          }
-
-          return `
-            <div class="bg-white rounded-2xl border ${hasDateTime ? 'border-gray-200 hover:border-blue-300' : 'border-dashed border-gray-300'} shadow-sm hover:shadow-md transition overflow-hidden flex flex-col justify-between">
-              
-              <!-- Barra Superiore Incontro -->
-              <div class="p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/70">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${phaseColor}">
-                    ${item.phase}
-                  </span>
-                  ${this.getCategoryBadgeMarkup(item.category)}
-                  <span class="text-[11px] font-semibold text-gray-700 flex items-center gap-1">
-                    <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                    </svg>
-                    <span>${courtBadge}</span>
-                  </span>
-                </div>
-
-                <div>
-                  ${scheduleStatusBadge}
-                </div>
-              </div>
-
-              <!-- Dettagli Atleti e Data/Ora -->
-              <div class="p-4 sm:p-5 flex-grow space-y-3">
-                
-                <!-- Box Data & Orario -->
-                <div class="flex items-center gap-2.5 p-3 rounded-xl ${hasDateTime ? 'bg-blue-50/70 border border-blue-200' : 'bg-amber-50/50 border border-amber-200/60'}">
-                  <div class="w-8 h-8 rounded-lg ${hasDateTime ? 'bg-blue-600 text-white' : 'bg-amber-100 text-amber-800'} flex items-center justify-center flex-shrink-0 font-bold text-sm shadow-xs">
-                    ${hasDateTime ? `
-                      <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    ` : `
-                      <svg class="w-4 h-4 text-amber-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    `}
-                  </div>
-                  <div class="text-xs">
-                    ${hasDateTime ? `
-                      <span class="font-black text-gray-900 text-xs sm:text-sm block">${this.formatScheduleDateTime(m.dateTime)}</span>
-                      <div class="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span class="text-blue-900 font-bold text-[11px] bg-blue-100/70 px-2 py-0.5 rounded">${courtBadge}</span>
-                        <span class="text-gray-500 text-[11px]">Durata: ${this.getCategoryFormatInfo(item.category).durationText} • ${this.getCategoryFormatInfo(item.category).formula}</span>
-                      </div>
-                    ` : `
-                      <span class="font-semibold text-amber-900 italic">Data e ora non ancora assegnate</span>
-                      <span class="text-amber-700 text-[11px] block">In attesa di assegnazione campo e orario da parte dell'amministrazione</span>
-                    `}
-                  </div>
-                </div>
-
-                <!-- Atleti a Confronto -->
-                <div class="space-y-2 pt-1">
-                  <!-- Giocatore 1 -->
-                  <div class="flex items-center justify-between p-2.5 rounded-xl ${m.winnerId && m.winnerId === m.player1Id ? 'bg-blue-50/90 font-bold border border-blue-200' : 'bg-gray-50'} border border-gray-100">
-                    <div class="flex items-center gap-2 truncate">
-                      <span class="text-xs font-bold ${m.winnerId && m.winnerId === m.player1Id ? 'text-blue-950' : 'text-gray-900'} truncate">
-                        ${p1 ? p1.name : (m.player1Id ? m.player1Id : 'In attesa')}
-                      </span>
-                      ${p1 && p1.ranking ? `
-                        <span class="text-[9px] font-mono bg-white text-gray-700 px-1.5 py-0.2 rounded border font-semibold">
-                          ${p1.ranking}
-                        </span>
-                      ` : ''}
-                      ${isMeP1 ? `<span class="text-[10px] bg-blue-600 text-white font-black px-1.5 py-0.2 rounded">TU</span>` : ''}
-                    </div>
-
-                    <div class="flex items-center gap-2 flex-shrink-0">
-                      ${m.games1 !== null && m.games1 !== undefined ? `
-                        <span class="font-mono text-xs font-black text-blue-900 bg-white px-2 py-0.5 rounded border">
-                          ${m.games1}
-                        </span>
-                      ` : (isCompleted && m.scores ? `
-                        <span class="font-mono text-xs font-bold text-blue-900">${m.scores}</span>
-                      ` : '')}
-                    </div>
-                  </div>
-
-                  <!-- Giocatore 2 -->
-                  <div class="flex items-center justify-between p-2.5 rounded-xl ${m.winnerId && m.winnerId === m.player2Id ? 'bg-blue-50/90 font-bold border border-blue-200' : 'bg-gray-50'} border border-gray-100">
-                    <div class="flex items-center gap-2 truncate">
-                      <span class="text-xs font-bold ${m.winnerId && m.winnerId === m.player2Id ? 'text-blue-950' : 'text-gray-900'} truncate">
-                        ${p2 ? p2.name : (m.player2Id ? m.player2Id : 'In attesa')}
-                      </span>
-                      ${p2 && p2.ranking ? `
-                        <span class="text-[9px] font-mono bg-white text-gray-700 px-1.5 py-0.2 rounded border font-semibold">
-                          ${p2.ranking}
-                        </span>
-                      ` : ''}
-                      ${isMeP2 ? `<span class="text-[10px] bg-blue-600 text-white font-black px-1.5 py-0.2 rounded">TU</span>` : ''}
-                    </div>
-
-                    <div class="flex items-center gap-2 flex-shrink-0">
-                      ${m.games2 !== null && m.games2 !== undefined ? `
-                        <span class="font-mono text-xs font-black text-blue-900 bg-white px-2 py-0.5 rounded border">
-                          ${m.games2}
-                        </span>
-                      ` : ''}
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              <!-- Footer con Azioni Admin -->
-              ${this.isAdmin && !this.viewAsUser ? `
-                <div class="p-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                  <span class="text-[11px] text-gray-400">ID: ${m.id}</span>
-                  <div class="flex items-center gap-2">
-                    ${hasDateTime ? `
-                      <button onclick="app.removeMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-rose-600 hover:text-rose-800 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer">
-                        Rimuovi
-                      </button>
-                    ` : ''}
-                    <button onclick="app.deleteMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-rose-600 hover:text-rose-800 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer">
-                      Elimina
-                    </button>
-                    <button onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                      </svg>
-                      <span>${hasDateTime ? 'Modifica Orario & Campo' : 'Assegna Orario & Campo'}</span>
-                    </button>
-                  </div>
-                </div>
-              ` : ''}
-
-            </div>
-          `;
-        }).join('')}
       </div>
     `;
+
+    // ========================================================
+    // SEZIONE 3: I 7 CAMPI DEL GIORNO SELEZIONATO
+    // ========================================================
+    if (this.scheduleSelectedDay === "sabato" || this.scheduleSelectedDay === "domenica") {
+      const activeDayDate = this.scheduleSelectedDay === "sabato" ? satDate : sunDate;
+      const dayLabel = this.scheduleSelectedDay === "sabato" ? "Sabato" : "Domenica";
+
+      // Filtro partite per la giornata selezionata
+      const dayMatches = allMatches.filter(item => {
+        if (!this.isMatchOnDay(item.match, this.scheduleSelectedDay, satDate, sunDate)) return false;
+        if (this.selectedCategory !== "all" && item.category !== this.selectedCategory) return false;
+        
+        if (this.scheduleSearchQuery) {
+          const q = this.scheduleSearchQuery;
+          const p1 = this.tournamentManager.getPlayer(item.match.player1Id);
+          const p2 = this.tournamentManager.getPlayer(item.match.player2Id);
+          const p1Name = (p1 ? p1.name : (item.match.player1Id || '')).toLowerCase();
+          const p2Name = (p2 ? p2.name : (item.match.player2Id || '')).toLowerCase();
+          if (!p1Name.includes(q) && !p2Name.includes(q)) return false;
+        }
+
+        return true;
+      });
+
+      html += `
+        <!-- Intestazione Giornata Selezionata -->
+        <div class="flex items-center justify-between pb-1 flex-wrap gap-2">
+          <div class="flex items-center gap-2">
+            <h3 class="text-lg sm:text-xl font-black text-gray-900 tracking-tight">
+              Programma Campi • <span class="text-blue-900 uppercase">${dayLabel}</span> ${activeDayDate ? `<span class="text-gray-500 font-semibold text-sm">(${this.formatDayDate(activeDayDate)})</span>` : ''}
+            </h3>
+            <span class="text-xs font-black px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-200">
+              ${dayMatches.length} ${dayMatches.length === 1 ? 'partita' : 'partite'} totali
+            </span>
+          </div>
+
+          ${this.isAdmin && !this.viewAsUser ? `
+            <button onclick="app.openCreateMatchModal(null, 'Campo 1 (Terra)', '${activeDayDate}T10:00')" class="text-xs bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black px-3 py-1.5 rounded-xl shadow-xs transition cursor-pointer flex items-center gap-1.5">
+              <span>+ Inserisci Partita in ${dayLabel}</span>
+            </button>
+          ` : ''}
+        </div>
+
+        <!-- GRIGLIA DEI 7 CAMPI -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          ${courtsList.map(court => {
+            const courtId = (court.name || "").toLowerCase().replace(/[^a-z0-9]/g, '-');
+            const courtMatches = dayMatches.filter(item => this.isMatchOnCourt(item.match, court))
+              .sort((a, b) => new Date(a.match.dateTime) - new Date(b.match.dateTime));
+
+            return `
+              <div id="court-card-${courtId}" class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col justify-between transition-all hover:shadow-md">
+                
+                <!-- Intestazione Campo -->
+                <div class="p-3.5 bg-gradient-to-r from-slate-900 to-blue-950 text-white flex items-center justify-between border-b border-slate-800">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full ${court.surface.includes('Greenset') ? 'bg-emerald-400' : 'bg-amber-400'}"></span>
+                    <div>
+                      <h4 class="font-black text-sm text-white tracking-tight">${court.label}</h4>
+                      <span class="text-[9.5px] font-bold px-1.5 py-0.2 rounded ${court.badgeColor}">
+                        ${court.surface}
+                      </span>
+                    </div>
+                  </div>
+                  <span class="text-[11px] font-black px-2 py-0.5 rounded-full ${courtMatches.length > 0 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'}">
+                    ${courtMatches.length} ${courtMatches.length === 1 ? 'partita' : 'partite'}
+                  </span>
+                </div>
+
+                <!-- Lista Partite del Campo -->
+                <div class="p-3 sm:p-3.5 flex-grow space-y-2.5 min-h-[170px]">
+                  ${courtMatches.length === 0 ? `
+                    <div class="h-full flex flex-col items-center justify-center text-center p-4 text-gray-400 space-y-1.5">
+                      <svg class="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                      <span class="text-xs font-semibold text-gray-600">Nessuna partita</span>
+                      <span class="text-[10px] text-gray-400">Campo libero per ${dayLabel}</span>
+                      ${this.isAdmin && !this.viewAsUser ? `
+                        <button onclick="app.openAssignCourtModal('${court.name}', '${activeDayDate}')" class="mt-2 text-xs font-bold text-blue-950 bg-yellow-400 hover:bg-yellow-300 px-3 py-1.5 rounded-xl shadow-xs transition cursor-pointer flex items-center gap-1">
+                          <span>+ Assegna Incontro</span>
+                        </button>
+                      ` : ''}
+                    </div>
+                  ` : `
+                    <div class="space-y-2.5">
+                      ${courtMatches.map(item => {
+                        const m = item.match;
+                        const p1 = this.tournamentManager.getPlayer(m.player1Id);
+                        const p2 = this.tournamentManager.getPlayer(m.player2Id);
+                        const timeStr = m.dateTime ? new Date(m.dateTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '';
+                        const isUserMatch = this.user && this.isMatchForUser(m, this.user);
+
+                        const isLive = m.status === 'in_corso';
+                        const isCompleted = m.status === 'completato';
+
+                        return `
+                          <div class="rounded-xl p-3 border transition-all ${isUserMatch ? 'bg-gradient-to-br from-amber-50 to-blue-50/60 border-2 border-yellow-400 shadow-md ring-1 ring-yellow-400/40' : 'bg-slate-50 border-gray-200 hover:border-blue-300'} space-y-2">
+                            
+                            <div class="flex items-center justify-between text-[11px] flex-wrap gap-1">
+                              <div class="flex items-center gap-1.5">
+                                <span class="font-black text-blue-950 bg-blue-100 px-2 py-0.5 rounded-md border border-blue-200 text-xs">
+                                  ore ${timeStr}
+                                </span>
+                                ${isUserMatch ? `
+                                  <span class="bg-yellow-400 text-blue-950 font-black text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider shadow-xs animate-pulse">
+                                    Tuo Match
+                                  </span>
+                                ` : ''}
+                              </div>
+                              <div>
+                                ${isLive ? `
+                                  <span class="inline-flex items-center gap-1 bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> Live
+                                  </span>
+                                ` : isCompleted ? `
+                                  <span class="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs">
+                                    Terminato
+                                  </span>
+                                ` : `
+                                  <span class="bg-blue-100 text-blue-900 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
+                                    In Programma
+                                  </span>
+                                `}
+                              </div>
+                            </div>
+
+                            <!-- Giocatori Partecipanti -->
+                            <div class="bg-white p-2.5 rounded-lg border border-gray-200 space-y-1.5 text-xs">
+                              <!-- Giocatore 1 -->
+                              <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-1.5 truncate max-w-[80%]">
+                                  <span class="font-bold text-gray-900 truncate">${p1 ? p1.name : (m.player1Id || 'In attesa')}</span>
+                                  ${p1 && p1.ranking ? `<span class="text-[9px] font-mono bg-gray-100 text-gray-600 px-1 rounded">${p1.ranking}</span>` : ''}
+                                  ${this.user && this.isMatchForUser({ player1Id: m.player1Id }, this.user) ? `<span class="text-[9px] bg-yellow-400 text-blue-950 font-black px-1.5 py-0.2 rounded">TU</span>` : ''}
+                                </div>
+                                ${m.games1 !== null && m.games1 !== undefined ? `
+                                  <span class="font-black text-xs text-blue-950 font-mono bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">${m.games1}</span>
+                                ` : ''}
+                              </div>
+
+                              <div class="text-[10px] font-extrabold text-gray-400 text-center tracking-wider">VS</div>
+
+                              <!-- Giocatore 2 -->
+                              <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-1.5 truncate max-w-[80%]">
+                                  <span class="font-bold text-gray-900 truncate">${p2 ? p2.name : (m.player2Id || 'In attesa')}</span>
+                                  ${p2 && p2.ranking ? `<span class="text-[9px] font-mono bg-gray-100 text-gray-600 px-1 rounded">${p2.ranking}</span>` : ''}
+                                  ${this.user && this.isMatchForUser({ player2Id: m.player2Id }, this.user) ? `<span class="text-[9px] bg-yellow-400 text-blue-950 font-black px-1.5 py-0.2 rounded">TU</span>` : ''}
+                                </div>
+                                ${m.games2 !== null && m.games2 !== undefined ? `
+                                  <span class="font-black text-xs text-blue-950 font-mono bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">${m.games2}</span>
+                                ` : ''}
+                              </div>
+                            </div>
+
+                            <!-- Punteggio Se Completato -->
+                            ${isCompleted && m.scores ? `
+                              <div class="text-[11px] font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded text-center border border-emerald-200">
+                                Risultato Finale: ${m.scores}
+                              </div>
+                            ` : ''}
+
+                            <!-- Fase e Categoria -->
+                            <div class="flex items-center justify-between text-[10px] text-gray-500 pt-1 border-t border-gray-100">
+                              <span class="font-semibold text-blue-900 truncate max-w-[130px]">${item.phase}</span>
+                              <span class="text-gray-400 uppercase truncate">${item.category}</span>
+                            </div>
+
+                            <!-- Azioni Admin -->
+                            ${this.isAdmin && !this.viewAsUser ? `
+                              <div class="flex items-center justify-end gap-1.5 pt-1.5 border-t border-gray-100 text-[10.5px]">
+                                <button onclick="app.openScoreModalForMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-emerald-700 hover:text-emerald-900 font-bold bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200 transition cursor-pointer">
+                                  Risultato
+                                </button>
+                                <button onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-blue-700 hover:text-blue-900 font-bold bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition cursor-pointer">
+                                  Modifica
+                                </button>
+                                <button onclick="app.removeMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-amber-700 hover:text-amber-900 font-bold bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-200 transition cursor-pointer" title="Libera orario e campo">
+                                  Libera
+                                </button>
+                                <button onclick="app.deleteMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-rose-600 hover:text-rose-800 font-bold p-1 rounded hover:bg-rose-50 transition cursor-pointer" title="Elimina incontro">
+                                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                              </div>
+                            ` : ''}
+
+                          </div>
+                        `;
+                      }).join('')}
+
+                      ${this.isAdmin && !this.viewAsUser ? `
+                        <button onclick="app.openAssignCourtModal('${court.name}', '${activeDayDate}')" class="w-full text-center text-xs font-bold text-blue-950 bg-yellow-400 hover:bg-yellow-300 py-1.5 px-2 rounded-xl transition cursor-pointer shadow-xs flex items-center justify-center gap-1">
+                          <span>+ Aggiungi altra partita a questo campo</span>
+                        </button>
+                      ` : ''}
+                    </div>
+                  `}
+                </div>
+
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    } else {
+      // Vista Partite Da Assegnare
+      html += `
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-base sm:text-lg font-black text-gray-900">Incontri in Attesa di Programmazione (${unscheduledMatches.length})</h3>
+            ${this.isAdmin && !this.viewAsUser ? `
+              <button onclick="app.openCreateMatchModal()" class="text-xs bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black px-3 py-1.5 rounded-xl shadow-xs transition cursor-pointer">
+                + Crea Incontro
+              </button>
+            ` : ''}
+          </div>
+
+          ${unscheduledMatches.length === 0 ? `
+            <div class="p-8 text-center bg-white rounded-2xl border border-gray-200">
+              <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-2 font-black text-lg">✓</div>
+              <h4 class="font-bold text-sm text-gray-800">Tutti gli incontri sono programmati!</h4>
+              <p class="text-xs text-gray-500 mt-1">Puoi visualizzare gli incontri selezionando Sabato o Domenica in alto.</p>
+            </div>
+          ` : `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              ${unscheduledMatches.map(item => {
+                const m = item.match;
+                const p1 = this.tournamentManager.getPlayer(m.player1Id);
+                const p2 = this.tournamentManager.getPlayer(m.player2Id);
+                const defaultCourt = m.court || "Campo 1 (Terra)";
+
+                return `
+                  <div class="bg-white rounded-xl p-4 border border-amber-300 shadow-sm space-y-3">
+                    <div class="flex items-center justify-between text-xs">
+                      <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-200">${item.phase}</span>
+                      <span class="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">Da Programmare</span>
+                    </div>
+
+                    <div class="flex items-center justify-between font-bold text-xs sm:text-sm text-gray-900 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                      <span class="truncate max-w-[45%]">${p1 ? p1.name : (m.player1Id || 'In attesa')}</span>
+                      <span class="text-yellow-500 font-black text-xs px-2 flex-shrink-0">VS</span>
+                      <span class="truncate max-w-[45%] text-right">${p2 ? p2.name : (m.player2Id || 'In attesa')}</span>
+                    </div>
+
+                    ${this.isAdmin && !this.viewAsUser ? `
+                      <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 pt-1 items-end">
+                        <div class="sm:col-span-5">
+                          <label class="block text-[10px] font-bold text-gray-600 mb-1">Data & Ora *</label>
+                          <input type="datetime-local" id="admin-dt-${item.type}-${m.id}" value="${satDate ? satDate + 'T10:00' : ''}" class="w-full text-xs px-2 py-1.5 border rounded-lg bg-white font-medium">
+                        </div>
+                        <div class="sm:col-span-4">
+                          <label class="block text-[10px] font-bold text-gray-600 mb-1">Campo *</label>
+                          <select id="admin-court-${item.type}-${m.id}" class="w-full text-xs px-2 py-1.5 border rounded-lg bg-white font-medium">
+                            ${courtsList.map(c => `
+                              <option value="${c.name}" ${defaultCourt === c.name ? 'selected' : ''}>${c.name}</option>
+                            `).join('')}
+                          </select>
+                        </div>
+                        <div class="sm:col-span-3 flex items-center gap-1">
+                          <button onclick="app.quickAssignMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}', 'admin-dt-${item.type}-${m.id}', 'admin-court-${item.type}-${m.id}')" class="flex-1 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs py-2 px-2 rounded-lg shadow-xs transition cursor-pointer text-center">
+                            Salva
+                          </button>
+                          <button title="Elimina" onclick="app.deleteMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-rose-600 hover:text-rose-800 p-2 rounded-lg hover:bg-rose-50 transition cursor-pointer">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                          </button>
+                        </div>
+                      </div>
+                    ` : ''}
+
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
+        </div>
+      `;
+    }
 
     html += `</div>`;
     container.innerHTML = html;
@@ -4158,7 +4257,7 @@ class App {
     document.getElementById("schedule-match-p2-name").textContent = p2 ? p2.name : "In attesa";
 
     document.getElementById("schedule-match-datetime").value = targetMatch.dateTime || "";
-    document.getElementById("schedule-match-court").value = targetMatch.court || "Campo 0 (Terra)";
+    document.getElementById("schedule-match-court").value = targetMatch.court || "Campo 1 (Terra)";
     document.getElementById("schedule-match-status").value = targetMatch.status || "in_programma";
 
     const clearBtn = document.getElementById("schedule-match-clear-btn");
@@ -4219,7 +4318,7 @@ class App {
     const dtEl = document.getElementById(dtInputId);
     const courtEl = document.getElementById(courtInputId);
     const dateTime = dtEl ? dtEl.value : "";
-    const court = courtEl ? courtEl.value : "Campo 0 (Terra)";
+    const court = courtEl ? courtEl.value : "Campo 1 (Terra)";
 
     if (!dateTime) {
       this.showToast("Seleziona una data e ora valida prima di assegnare la partita.", "warning");
@@ -4280,7 +4379,7 @@ class App {
 
     const courtSelect = document.getElementById("create-match-court");
     if (courtSelect) {
-      courtSelect.value = court || "Campo 0 (Terra)";
+      courtSelect.value = court || "Campo 1 (Terra)";
     }
 
     const dtInput = document.getElementById("create-match-datetime");
@@ -4288,11 +4387,9 @@ class App {
       if (dateTime) {
         dtInput.value = dateTime;
       } else {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, "0");
-        const day = String(now.getDate()).padStart(2, "0");
-        dtInput.value = `${year}-${month}-${day}T15:00`;
+        const { satDate, sunDate } = this.getTournamentWeekendDates(this.getAllMatches());
+        const defaultDate = this.scheduleSelectedDay === "domenica" ? sunDate : satDate;
+        dtInput.value = `${defaultDate}T10:00`;
       }
     }
 
@@ -4344,7 +4441,7 @@ class App {
     const p1Id = p1Select?.value;
     const p2Id = p2Select?.value;
     const dateTime = dtInput?.value;
-    const court = courtSelect?.value || "Campo 0 (Terra)";
+    const court = courtSelect?.value || "Campo 1 (Terra)";
 
     if (!p1Id || !p2Id) {
       this.showToast("Seleziona entrambi i giocatori.", "warning");
@@ -4842,7 +4939,7 @@ class App {
     `;
 
     document.getElementById("score-input").value = targetMatch.scores || "";
-    document.getElementById("score-court-select").value = targetMatch.court || "Campo 0 (Terra)";
+    document.getElementById("score-court-select").value = targetMatch.court || "Campo 1 (Terra)";
     document.getElementById("score-datetime-input").value = targetMatch.dateTime || "";
     document.getElementById("score-status-select").value = targetMatch.status || "in_programma";
 

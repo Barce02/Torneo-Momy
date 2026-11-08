@@ -270,7 +270,7 @@ class TournamentManager {
         player2Id: p2 === "BYE" ? null : p2,
         scores: scores,
         winnerId: winnerId,
-        court: (i / 2) % 2 === 0 ? "Campo 0 (Terra)" : "Campo 1 (Terra)",
+        court: (i / 2) % 2 === 0 ? "Campo 1 (Terra)" : "Campo 2 (Terra)",
         dateTime: "",
         p1Acceptance: null,
         p2Acceptance: null,
@@ -303,7 +303,7 @@ class TournamentManager {
           player2Id: p2,
           scores: "",
           winnerId: null,
-          court: "Campo 0 (Terra)",
+          court: "Campo 1 (Terra)",
           dateTime: "",
           p1Acceptance: null,
           p2Acceptance: null,
@@ -451,7 +451,7 @@ class TournamentManager {
     return group.matches;
   }
 
-  createManualMatch(category, player1Id, player2Id, dateTime = "", court = "Campo 0 (Terra)", phase = "Girone Unico") {
+  createManualMatch(category, player1Id, player2Id, dateTime = "", court = "Campo 1 (Terra)", phase = "Girone Unico") {
     this.ensureCategories();
     const cat = category || "Pre Agonistica U12";
     const catGroup = this.state.categoryGroups[cat];
@@ -472,7 +472,7 @@ class TournamentManager {
       player1Id: player1Id,
       player2Id: player2Id,
       dateTime: dateTime || "",
-      court: court || "Campo 0 (Terra)",
+      court: court || "Campo 1 (Terra)",
       games1: null,
       games2: null,
       scores: "",
@@ -775,7 +775,7 @@ class TournamentManager {
         player2Id: p2 === "BYE" ? null : p2,
         scores: scores,
         winnerId: winnerId,
-        court: (i / 2) % 2 === 0 ? "Campo 0 (Terra)" : "Campo 1 (Terra)",
+        court: (i / 2) % 2 === 0 ? "Campo 1 (Terra)" : "Campo 2 (Terra)",
         dateTime: "",
         status: status
       });
@@ -805,7 +805,7 @@ class TournamentManager {
           player2Id: p2,
           scores: "",
           winnerId: null,
-          court: "Campo 0 (Terra)",
+          court: "Campo 1 (Terra)",
           dateTime: "",
           status: "in_programma"
         });
