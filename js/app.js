@@ -34,7 +34,7 @@ class App {
     this.user = this.loadUser();
     this.state = this.loadState();
     this.tournamentManager = new TournamentManager(this.state);
-    this.currentTab = "players";
+    this.currentTab = "schedule";
     this.playersSubTab = "players";
     this.authMode = "login";
     this.searchQuery = "";
@@ -180,9 +180,9 @@ class App {
       sessionStorage.setItem("torneo_view_as_user", this.viewAsUser ? "true" : "false");
     } catch (e) {}
 
-    // Se eravamo nella tab "admin-accounts" e passiamo a vista utente, spostiamo su "players"
-    if (this.viewAsUser && this.currentTab === "admin-accounts") {
-      this.currentTab = "players";
+    // Se eravamo nella tab "admin-accounts" o "players" e passiamo a vista utente, spostiamo su "schedule"
+    if (this.viewAsUser && (this.currentTab === "admin-accounts" || this.currentTab === "players")) {
+      this.currentTab = "schedule";
     }
 
     this.render();
@@ -1131,15 +1131,15 @@ class App {
 
     const adminNavTab = document.getElementById("nav-tab-admin-accounts");
     if (adminNavTab) {
-      if (this.isAdmin) {
+      if (this.isAdmin && !this.viewAsUser) {
         adminNavTab.classList.remove("hidden");
         const accountsCount = Object.keys(this.loadAccounts()).length;
         const badge = document.getElementById("nav-admin-accounts-badge");
         if (badge) badge.textContent = accountsCount;
       } else {
         adminNavTab.classList.add("hidden");
-        if (this.currentTab === "admin-accounts") {
-          this.switchTab("players");
+        if (this.currentTab === "admin-accounts" || this.currentTab === "players") {
+          this.switchTab("schedule");
         }
       }
     }
@@ -1423,9 +1423,19 @@ class App {
   }
 
   // ==========================================
-  // NAVIGAZIONE TAB (ISCRITTI, GIRONI, TABELLONE, REGOLAMENTO)
+  // NAVIGAZIONE TAB (GIRONI, CALENDARIO, TABELLONE, REGOLAMENTO)
   // ==========================================
   switchTab(tab) {
+    // Se viene invocata la tab "players" (rimossa), reindirizza:
+    if (tab === "players") {
+      tab = (this.isAdmin && !this.viewAsUser) ? "admin-accounts" : "schedule";
+    }
+
+    // Sicurezza: gli utenti standard e l'admin in preview utente non possono vedere tutti gli account
+    if (tab === "admin-accounts" && (!this.isAdmin || this.viewAsUser)) {
+      tab = "schedule";
+    }
+
     this.currentTab = tab;
 
     // Se si naviga in Gironi e la categoria attiva è "all", imposta Pre Agonistica U12 di default
@@ -1459,7 +1469,7 @@ class App {
 
   renderCategorySelector() {
     const wrapper = document.getElementById("category-bar-wrapper");
-    const allowedTabs = ["players", "groups", "bracket"];
+    const allowedTabs = ["groups", "bracket"];
     const showBar = allowedTabs.includes(this.currentTab);
     if (wrapper) {
       wrapper.classList.toggle("hidden", !showBar);
@@ -1715,9 +1725,13 @@ class App {
             <button onclick="app.handleAutoAssignGroups('${cat}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
               Genera Girone Unico (${totalPlayersInCat} Partecipanti ${cat})
             </button>
+          ` : this.isAdmin ? `
+            <button onclick="app.switchTab('admin-accounts')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
+              Vai a Tutti gli Account
+            </button>
           ` : `
-            <button onclick="app.switchTab('players')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
-              Vai alla sezione Iscritti
+            <button onclick="app.switchTab('schedule')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
+              Vai al Calendario
             </button>
           `}
         </div>
@@ -2128,7 +2142,7 @@ class App {
         ${this.isAdmin ? `
           <div class="bg-blue-50 border border-blue-200 rounded-xl p-3.5 mb-5 flex flex-wrap items-center justify-between gap-3">
             <div class="text-xs text-blue-950">
-              <strong>Accesso Amministrazione (Barcello Luca & Alessia Di Tullio):</strong> puoi inserire, modificare o eliminare atleti, consultare e gestire tutti gli account registrati, organizzare i gironi e comporre il tabellone finale.
+              <strong>Accesso Amministrazione:</strong> puoi inserire, modificare o eliminare atleti, consultare e gestire tutti gli account registrati, organizzare i gironi e comporre il tabellone finale.
             </div>
             <div class="flex items-center gap-2">
               <button onclick="app.openNewPlayerModal(false)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer">
@@ -2156,7 +2170,7 @@ class App {
               </svg>
             </div>
             <div class="text-xs text-blue-950 leading-relaxed">
-              <strong>Roster Ufficiale Torneo Momy:</strong> La gestione dei partecipanti (inserimento, modifica ed eliminazione atleti) e dei tabelloni è curata esclusivamente dall'Amministrazione Ufficiale (<strong>Barcello Luca & Alessia Di Tullio</strong>).
+              <strong>Roster Ufficiale Torneo Momy:</strong> La gestione dei partecipanti e dei tabelloni è curata esclusivamente dalla Direzione del Torneo.
             </div>
           </div>
         `}
@@ -2296,6 +2310,17 @@ class App {
     container = container || document.getElementById("admin-accounts-container") || document.getElementById("players-container");
     if (!container) return;
 
+    if (!this.isAdmin || this.viewAsUser) {
+      container.innerHTML = `
+        <div class="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-500 shadow-sm">
+          <div class="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-3 font-black text-xl">🔒</div>
+          <h3 class="font-bold text-gray-900 text-base mb-1">Accesso Riservato</h3>
+          <p class="text-xs text-gray-500">Questa sezione è riservata esclusivamente alla Direzione del Torneo.</p>
+        </div>
+      `;
+      return;
+    }
+
     const accounts = this.loadAccounts();
     const accountsList = Object.values(accounts);
 
@@ -2387,17 +2412,7 @@ class App {
           </div>
         </div>
 
-        <!-- Sub-Tabs Switcher per Admin -->
-        <div class="flex border-b border-gray-200 mb-5 text-xs sm:text-sm font-semibold">
-          <button type="button" onclick="app.switchTab('players')" class="py-2.5 px-4 text-center border-b-2 border-transparent text-gray-500 hover:text-gray-800 transition flex items-center gap-2">
-            <span>Atleti nel Torneo</span>
-            <span class="bg-blue-100 text-blue-900 text-xs px-2 py-0.5 rounded-full font-bold">${this.state.players.length}</span>
-          </button>
-          <button type="button" onclick="app.switchTab('admin-accounts')" class="py-2.5 px-4 text-center border-b-2 border-blue-600 text-blue-700 font-bold transition flex items-center gap-2">
-            <span>Tutti gli Account Registrati</span>
-            <span class="bg-yellow-400 text-blue-950 text-xs px-2 py-0.5 rounded-full font-black shadow-sm">${accountsList.length}</span>
-          </button>
-        </div>
+
 
         <!-- Barra Filtri Competizioni & Ricerca Live -->
         <div class="space-y-3 pb-5 border-b border-gray-100">
@@ -3373,11 +3388,73 @@ class App {
 
   setWeekendDates(satDate, sunDate) {
     if (!this.state.tournament) this.state.tournament = {};
-    if (satDate) this.state.tournament.saturdayDate = satDate;
-    if (sunDate) this.state.tournament.sundayDate = sunDate;
+    if (satDate) {
+      this.state.tournament.saturdayDate = satDate;
+      if (!sunDate && (!this.state.tournament.sundayDate || this.state.tournament.sundayDate <= satDate)) {
+        try {
+          const d = new Date(satDate + "T12:00:00");
+          d.setDate(d.getDate() + 1);
+          this.state.tournament.sundayDate = d.toISOString().substring(0, 10);
+        } catch (e) {}
+      }
+    }
+    if (sunDate) {
+      this.state.tournament.sundayDate = sunDate;
+    }
     this.saveState();
     this.renderScheduleView();
     this.showToast("Date del fine settimana aggiornate!", "success");
+  }
+
+  setWeekendToNext() {
+    const today = new Date();
+    const currentDay = today.getDay(); // 0 Dom, 6 Sab
+    const daysUntilSat = (6 - currentDay + 7) % 7 || 7;
+    const nextSat = new Date(today);
+    nextSat.setDate(today.getDate() + daysUntilSat);
+    const nextSun = new Date(nextSat);
+    nextSun.setDate(nextSat.getDate() + 1);
+
+    const satStr = nextSat.toISOString().substring(0, 10);
+    const sunStr = nextSun.toISOString().substring(0, 10);
+    this.setWeekendDates(satStr, sunStr);
+  }
+
+  handleClearAllWeekendMatches() {
+    if (!this.isAdmin) return;
+    const allMatches = this.getAllMatches();
+    if (allMatches.length === 0) {
+      this.showToast("Nessuna partita presente da eliminare nel calendario.", "info");
+      return;
+    }
+
+    const confirmed = confirm(
+      `Attenzione! Sei sicuro di voler eliminare TUTTI gli incontri del weekend (${allMatches.length} partite in calendario)?\n\n` +
+      `Questa azione azzera il calendario per consentire la preparazione del nuovo fine settimana.\n` +
+      `Gli atleti registrati e i loro account rimarranno preservati.`
+    );
+    if (!confirmed) return;
+
+    TournamentManager.CATEGORIES.forEach(cat => {
+      if (this.state.categoryGroups && this.state.categoryGroups[cat]) {
+        Object.keys(this.state.categoryGroups[cat]).forEach(gk => {
+          if (this.state.categoryGroups[cat][gk]) {
+            this.state.categoryGroups[cat][gk].matches = [];
+            if (this.tournamentManager) {
+              this.tournamentManager.recalculateStandings(gk, cat);
+            }
+          }
+        });
+      }
+      if (this.state.categoryBrackets && this.state.categoryBrackets[cat]) {
+        this.state.categoryBrackets[cat].rounds = [];
+        this.state.categoryBrackets[cat].isGenerated = false;
+      }
+    });
+
+    this.saveState();
+    this.render();
+    this.showToast("Tutte le partite del weekend sono state eliminate con successo!", "success");
   }
 
   getTournamentWeekendDates(allMatches) {
@@ -3575,8 +3652,9 @@ class App {
       this.scheduleSelectedDay = "sabato";
     }
 
-    // Elenco 7 campi ufficiali del Momy Sport Village
+    // Elenco 8 campi ufficiali del Momy Sport Village (Campo 0 Terra Battuta, Campi 1-7)
     const courtsList = [
+      { name: "Campo 0 (Terra)", label: "Campo 0", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" },
       { name: "Campo 1 (Terra)", label: "Campo 1", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" },
       { name: "Campo 2 (Terra)", label: "Campo 2", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" },
       { name: "Campo 3 (Greenset)", label: "Campo 3", surface: "Greenset", badgeColor: "bg-emerald-100 text-emerald-900 border-emerald-300" },
@@ -3585,17 +3663,6 @@ class App {
       { name: "Campo 6 (Terra)", label: "Campo 6", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" },
       { name: "Campo 7 (Terra)", label: "Campo 7", surface: "Terra Battuta", badgeColor: "bg-amber-100 text-amber-900 border-amber-300" }
     ];
-
-    // Se esistono partite storiche registrate su Campo 0, mostriamolo per non perdere dati
-    const hasCampo0 = allMatches.some(x => x.match && x.match.court && x.match.court.includes("Campo 0"));
-    if (hasCampo0) {
-      courtsList.unshift({
-        name: "Campo 0 (Terra)",
-        label: "Campo 0",
-        surface: "Terra Battuta",
-        badgeColor: "bg-amber-100 text-amber-900 border-amber-300"
-      });
-    }
 
     // Partite dell'utente attualmente collegato (Utente in Evidenza)
     const userMatches = this.user ? this.getUserMatches(this.user) : [];
@@ -3789,39 +3856,49 @@ class App {
                 <span class="inline-flex items-center gap-1.5 bg-yellow-400 text-blue-950 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
                   Area Direzione Torneo
                 </span>
-                <span class="text-xs text-yellow-300 font-bold">Barcello Luca & Alessia Di Tullio</span>
+                <span class="text-xs text-blue-200 font-medium">Gestione Ufficiale Programmazione</span>
               </div>
               <h3 class="text-lg sm:text-xl font-black text-white tracking-tight">Pannello Gestione Orari & Campi</h3>
-              <p class="text-xs text-blue-200 mt-0.5">Assegna direttamente giorno (Sabato / Domenica), orario e campo (Campi 1-7) per ogni partita del torneo.</p>
+              <p class="text-xs text-blue-200 mt-0.5">Assegna direttamente giorno (Sabato / Domenica), orario e campo (Campo 0 Terra Battuta, Campi 1-7) per ogni partita del torneo.</p>
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
-              <button onclick="app.openCreateMatchModal()" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2 rounded-xl shadow transition cursor-pointer flex items-center gap-1.5">
+              <button onclick="app.openCreateMatchModal()" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition cursor-pointer flex items-center gap-1.5">
                 <svg class="w-4 h-4 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 <span>+ Crea Nuovo Incontro</span>
               </button>
-              <button onclick="app.handleClearUnscheduledMatches()" title="Elimina tutte le partite senza data e ora" class="bg-white/10 hover:bg-rose-500/30 text-rose-200 font-bold text-xs px-3 py-2 rounded-xl border border-rose-400/30 transition cursor-pointer flex items-center gap-1.5">
-                <svg class="w-3.5 h-3.5 text-rose-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              <button onclick="app.handleClearAllWeekendMatches()" title="Elimina tutte le partite del weekend una volta finito per iniziarne uno nuovo" class="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl shadow transition cursor-pointer flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                <span>Elimina Incontri Weekend</span>
+              </button>
+              <button onclick="app.handleClearUnscheduledMatches()" title="Elimina tutte le partite senza data e ora" class="bg-white/10 hover:bg-white/20 text-blue-200 font-medium text-xs px-3 py-2 rounded-xl border border-white/20 transition cursor-pointer flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 <span>Pulisci Non Assegnati</span>
               </button>
             </div>
           </div>
 
           <!-- Date del Fine Settimana (Sabato & Domenica) -->
-          <div class="bg-slate-900/80 p-3.5 rounded-xl border border-slate-700 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
             <div class="flex items-center gap-3 flex-wrap">
-              <span class="font-extrabold text-slate-300">Imposta Date Weekend:</span>
-              <div class="flex items-center gap-1.5">
+              <span class="font-extrabold text-yellow-300 flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                Cambia Date Weekend:
+              </span>
+              <div class="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-700">
                 <span class="text-yellow-400 font-bold">Sabato:</span>
-                <input type="date" value="${satDate}" onchange="app.setWeekendDates(this.value, null)" class="text-xs px-2.5 py-1 bg-slate-950 border border-slate-600 rounded-lg text-white font-bold focus:ring-1 focus:ring-yellow-400">
+                <input type="date" id="admin-weekend-sat" value="${satDate || ''}" onchange="app.setWeekendDates(this.value, null)" class="text-xs px-2 py-0.5 bg-slate-900 border border-slate-600 rounded text-white font-bold focus:ring-1 focus:ring-yellow-400">
               </div>
-              <div class="flex items-center gap-1.5">
+              <div class="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-700">
                 <span class="text-yellow-400 font-bold">Domenica:</span>
-                <input type="date" value="${sunDate}" onchange="app.setWeekendDates(null, this.value)" class="text-xs px-2.5 py-1 bg-slate-950 border border-slate-600 rounded-lg text-white font-bold focus:ring-1 focus:ring-yellow-400">
+                <input type="date" id="admin-weekend-sun" value="${sunDate || ''}" onchange="app.setWeekendDates(null, this.value)" class="text-xs px-2 py-0.5 bg-slate-900 border border-slate-600 rounded text-white font-bold focus:ring-1 focus:ring-yellow-400">
               </div>
+              <button onclick="app.setWeekendToNext()" title="Imposta automaticamente al prossimo fine settimana" class="bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1 shadow-sm">
+                <span>+ Prossimo Weekend</span>
+              </button>
             </div>
             <div class="text-[11px] text-blue-200">
-              Le date impostate regolano l'assegnazione rapida delle partite sui 7 campi.
+              Le date impostate regolano i pulsanti Sabato/Domenica e la programmazione partite.
             </div>
           </div>
         </div>
@@ -3865,10 +3942,10 @@ class App {
 
           </div>
 
-          <!-- Indicatore 7 Campi -->
+          <!-- Indicatore Campi -->
           <div class="text-xs font-semibold text-gray-600 flex items-center gap-2 self-start sm:self-auto bg-slate-50 px-3 py-1.5 rounded-xl border border-gray-200">
             <span class="w-2 h-2 rounded-full bg-blue-600"></span>
-            <span>I 7 Campi del Torneo Momy (1-7)</span>
+            <span>I Campi da Gioco del Torneo (Campo 0 Terra Battuta • Campi 1-7)</span>
           </div>
 
         </div>
@@ -4697,8 +4774,8 @@ class App {
                     + Genera Tabellone Finale (${cat})
                   </button>
                 ` : `
-                  <button onclick="app.switchTab('players')" class="bg-white/20 hover:bg-white/30 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-white/30 transition cursor-pointer">
-                    Vai a Iscritti per Aggiungere Giocatori
+                  <button onclick="app.switchTab('admin-accounts')" class="bg-white/20 hover:bg-white/30 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-white/30 transition cursor-pointer">
+                    Vai a Tutti gli Account per Gestire Giocatori
                   </button>
                 `}
               `}
@@ -5094,7 +5171,7 @@ class App {
               <span>Amministrazione Ufficiale & Gestione Esclusiva</span>
             </h4>
             <p class="text-xs text-blue-900 leading-relaxed">
-              La gestione degli atleti (inserimento, modifica dati anagrafici ed eliminazione), la composizione e modifica dei gironi, la programmazione del calendario gare (data, orario e campo) e la compilazione del tabellone finale sono riservate in via esclusiva all'Amministrazione Ufficiale (<strong>Barcello Luca & Alessia Di Tullio</strong>).
+              La gestione degli atleti (inserimento, modifica dati anagrafici ed eliminazione), la composizione e modifica dei gironi, la programmazione del calendario gare (data, orario e campo) e la compilazione del tabellone finale sono riservate in via esclusiva alla Direzione del Torneo.
             </p>
           </div>
         </div>
@@ -5104,33 +5181,33 @@ class App {
             <h3 class="text-base font-bold text-gray-900 mb-3">Informazioni Torneo</h3>
             <div class="text-xs text-gray-600 space-y-2.5">
               <div><strong>Manifestazione:</strong> Torneo Momy 26/27</div>
-              <div><strong>Amministrazione Ufficiale:</strong> Barcello Luca • Alessia Di Tullio</div>
+              <div><strong>Direzione Torneo:</strong> Amministrazione Ufficiale Momy Sport Village</div>
               <div><strong>Categorie:</strong> Pre Agonistica U12, Pre Agonistica, SAT</div>
               <div><strong>Gironi:</strong> Girone Unico per ogni Categoria</div>
               <div><strong>Regola Game:</strong> Killer point sul 40 pari</div>
               <div><strong>Fase Finale:</strong> Tutti qualificati al Tabellone Finale (a fine anno)</div>
               <div><strong>Formula Pre Agonistica:</strong> 1h 30m (dopo 1h 30m finisce) • Long-Set ai 9</div>
               <div><strong>Formula SAT:</strong> 1 ora (dopo 1 ora finisce) • Suono campana</div>
-              <div><strong>Campi da Gioco:</strong> Campi 0-2 (Terra), 3-4 (Greenset), 5-7 (Terra)</div>
+              <div><strong>Campi da Gioco:</strong> Campo 0-2 (Terra), 3-4 (Greenset), 5-7 (Terra)</div>
             </div>
           </div>
 
           <div class="bg-gradient-to-br from-slate-950 via-blue-900 to-indigo-950 rounded-2xl p-6 text-white shadow">
             <h3 class="font-bold text-base mb-2 text-yellow-300">
-              ${this.isAdmin ? "Gestione Torneo Admin" : "Roster Torneo Momy"}
+              ${this.isAdmin ? "Gestione Torneo Admin" : "Calendario Torneo Momy"}
             </h3>
             <p class="text-xs text-blue-100 mb-4 leading-relaxed">
               ${this.isAdmin
                 ? "Puoi inserire o modificare i partecipanti, aggiornare gli orari delle partite e validare i risultati."
-                : "La gestione dei partecipanti, dei gironi e del calendario è curata dall'Amministrazione (Barcello Luca & Alessia Di Tullio)."}
+                : "La gestione dei partecipanti, dei gironi e del calendario è curata dalla Direzione del Torneo."}
             </p>
             ${this.isAdmin ? `
-              <button onclick="app.switchTab('players'); app.openNewPlayerModal(false);" class="w-full bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs py-2.5 px-4 rounded-xl shadow transition">
-                + Inserisci Atleta (Admin)
+              <button onclick="app.switchTab('admin-accounts'); app.openAdminAccountModal(null, false);" class="w-full bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs py-2.5 px-4 rounded-xl shadow transition">
+                + Gestione Account (Admin)
               </button>
             ` : `
-              <button onclick="app.switchTab('players');" class="w-full bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs py-2.5 px-4 rounded-xl shadow transition">
-                Visualizza Elenco Iscritti
+              <button onclick="app.switchTab('schedule');" class="w-full bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs py-2.5 px-4 rounded-xl shadow transition">
+                Visualizza Calendario Partite
               </button>
             `}
           </div>
