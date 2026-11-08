@@ -3881,26 +3881,33 @@ class App {
           </div>
 
           <!-- Date del Fine Settimana (Sabato & Domenica) -->
-          <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+          <div class="bg-blue-900/50 p-4 rounded-xl border border-yellow-400/60 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
             <div class="flex items-center gap-3 flex-wrap">
-              <span class="font-extrabold text-yellow-300 flex items-center gap-1.5">
+              <span class="font-black text-yellow-300 flex items-center gap-1.5 text-xs sm:text-sm">
                 <svg class="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                Cambia Date Weekend:
+                Scegli Date Weekend:
               </span>
-              <div class="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-700">
-                <span class="text-yellow-400 font-bold">Sabato:</span>
-                <input type="date" id="admin-weekend-sat" value="${satDate || ''}" onchange="app.setWeekendDates(this.value, null)" class="text-xs px-2 py-0.5 bg-slate-900 border border-slate-600 rounded text-white font-bold focus:ring-1 focus:ring-yellow-400">
+
+              <!-- Tastino Sabato Giallo -->
+              <div class="flex items-center gap-2 bg-yellow-400 text-blue-950 px-3 py-1.5 rounded-xl border-2 border-yellow-300 shadow-sm font-black">
+                <span class="text-xs uppercase tracking-wide font-black">Sabato:</span>
+                <input type="date" id="admin-weekend-sat" value="${satDate || ''}" onchange="app.setWeekendDates(this.value, null)" class="text-xs px-2.5 py-1 bg-yellow-300 hover:bg-yellow-200 border border-yellow-600 rounded-lg text-blue-950 font-black focus:ring-2 focus:ring-blue-900 shadow-xs cursor-pointer">
               </div>
-              <div class="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-700">
-                <span class="text-yellow-400 font-bold">Domenica:</span>
-                <input type="date" id="admin-weekend-sun" value="${sunDate || ''}" onchange="app.setWeekendDates(null, this.value)" class="text-xs px-2 py-0.5 bg-slate-900 border border-slate-600 rounded text-white font-bold focus:ring-1 focus:ring-yellow-400">
+
+              <!-- Tastino Domenica Giallo -->
+              <div class="flex items-center gap-2 bg-yellow-400 text-blue-950 px-3 py-1.5 rounded-xl border-2 border-yellow-300 shadow-sm font-black">
+                <span class="text-xs uppercase tracking-wide font-black">Domenica:</span>
+                <input type="date" id="admin-weekend-sun" value="${sunDate || ''}" onchange="app.setWeekendDates(null, this.value)" class="text-xs px-2.5 py-1 bg-yellow-300 hover:bg-yellow-200 border border-yellow-600 rounded-lg text-blue-950 font-black focus:ring-2 focus:ring-blue-900 shadow-xs cursor-pointer">
               </div>
-              <button onclick="app.setWeekendToNext()" title="Imposta automaticamente al prossimo fine settimana" class="bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1 shadow-sm">
+
+              <!-- Tasto Prossimo Weekend Giallo -->
+              <button onclick="app.setWeekendToNext()" title="Imposta automaticamente al prossimo fine settimana" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2 rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow border-2 border-yellow-300">
+                <svg class="w-3.5 h-3.5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
                 <span>+ Prossimo Weekend</span>
               </button>
             </div>
-            <div class="text-[11px] text-blue-200">
-              Le date impostate regolano i pulsanti Sabato/Domenica e la programmazione partite.
+            <div class="text-[11px] text-yellow-200/90 font-medium">
+              Le date scelte aggiornano i tasti del calendario e le partite sui campi.
             </div>
           </div>
         </div>
