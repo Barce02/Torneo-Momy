@@ -3404,6 +3404,16 @@ class App {
       this.state.tournament.sundayDate = sunDate;
     }
     this.saveState();
+    if (typeof window !== 'undefined' && window.getSelection) {
+      try {
+        window.getSelection().removeAllRanges();
+      } catch (e) {}
+    }
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      try {
+        document.activeElement.blur();
+      } catch (e) {}
+    }
     this.renderScheduleView();
     this.showToast("Date del fine settimana aggiornate!", "success");
   }
@@ -3434,7 +3444,9 @@ class App {
         return;
       }
     } catch (e) {}
-    input.focus();
+    try {
+      input.click();
+    } catch (e) {}
   }
 
   handleClearAllWeekendMatches() {
@@ -3907,14 +3919,14 @@ class App {
               <div onclick="app.openDatePicker('admin-weekend-sat', event)" title="Clicca per aprire il calendario e cambiare la data di Sabato" class="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-blue-950 px-3 py-1.5 rounded-xl border-2 border-yellow-300 shadow-sm font-black cursor-pointer transition select-none">
                 <svg class="w-4 h-4 text-blue-950 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                 <span class="text-xs uppercase tracking-wide font-black">Sabato:</span>
-                <input type="date" id="admin-weekend-sat" value="${satDate || ''}" onchange="app.setWeekendDates(this.value, null)" onclick="try{if(this.showPicker)this.showPicker();}catch(e){}" class="text-xs px-2.5 py-1 bg-yellow-300 hover:bg-yellow-200 border border-yellow-600 rounded-lg text-blue-950 font-black focus:ring-2 focus:ring-blue-900 shadow-xs cursor-pointer">
+                <input type="date" id="admin-weekend-sat" value="${satDate || ''}" onchange="app.setWeekendDates(this.value, null); this.blur();" onclick="try{if(this.showPicker)this.showPicker();}catch(e){}" class="text-xs px-2.5 py-1 bg-yellow-300 hover:bg-yellow-200 border border-yellow-600 rounded-lg text-blue-950 font-black focus:outline-none focus:ring-0 select-none shadow-xs cursor-pointer">
               </div>
 
               <!-- Tastino Domenica Giallo -->
               <div onclick="app.openDatePicker('admin-weekend-sun', event)" title="Clicca per aprire il calendario e cambiare la data di Domenica" class="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-blue-950 px-3 py-1.5 rounded-xl border-2 border-yellow-300 shadow-sm font-black cursor-pointer transition select-none">
                 <svg class="w-4 h-4 text-blue-950 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                 <span class="text-xs uppercase tracking-wide font-black">Domenica:</span>
-                <input type="date" id="admin-weekend-sun" value="${sunDate || ''}" onchange="app.setWeekendDates(null, this.value)" onclick="try{if(this.showPicker)this.showPicker();}catch(e){}" class="text-xs px-2.5 py-1 bg-yellow-300 hover:bg-yellow-200 border border-yellow-600 rounded-lg text-blue-950 font-black focus:ring-2 focus:ring-blue-900 shadow-xs cursor-pointer">
+                <input type="date" id="admin-weekend-sun" value="${sunDate || ''}" onchange="app.setWeekendDates(null, this.value); this.blur();" onclick="try{if(this.showPicker)this.showPicker();}catch(e){}" class="text-xs px-2.5 py-1 bg-yellow-300 hover:bg-yellow-200 border border-yellow-600 rounded-lg text-blue-950 font-black focus:outline-none focus:ring-0 select-none shadow-xs cursor-pointer">
               </div>
 
               <!-- Tasto Prossimo Weekend Giallo -->

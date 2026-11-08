@@ -108,11 +108,48 @@ html.modal-open {
   }
 }
 
-/* Stili per apertura interattiva selettori data */
+/* Stili per apertura interattiva selettori data e blocco evidenziazione numeri */
 input[type="date"] {
   cursor: pointer;
+  caret-color: transparent !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
+
 input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   padding: 2px;
+}
+
+input[type="date"]::selection,
+input[type="date"]::-moz-selection {
+  background: transparent !important;
+  color: inherit !important;
+}
+
+input[type="date"]::-webkit-datetime-edit,
+input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+input[type="date"]::-webkit-datetime-edit-text,
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-year-field {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+input[type="date"]::-webkit-datetime-edit-month-field:focus,
+input[type="date"]::-webkit-datetime-edit-day-field:focus,
+input[type="date"]::-webkit-datetime-edit-year-field:focus {
+  background-color: transparent !important;
+  background: transparent !important;
+  color: inherit !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+input[type="date"]::-webkit-datetime-edit-month-field::selection,
+input[type="date"]::-webkit-datetime-edit-day-field::selection,
+input[type="date"]::-webkit-datetime-edit-year-field::selection {
+  background: transparent !important;
+  color: inherit !important;
 }
