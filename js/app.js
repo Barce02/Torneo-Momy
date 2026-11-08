@@ -3422,6 +3422,21 @@ class App {
     this.setWeekendDates(satStr, sunStr);
   }
 
+  openDatePicker(inputId, evt) {
+    const input = typeof inputId === 'string' ? document.getElementById(inputId) : inputId;
+    if (!input) return;
+    if (evt && evt.target === input) {
+      return;
+    }
+    try {
+      if (typeof input.showPicker === 'function') {
+        input.showPicker();
+        return;
+      }
+    } catch (e) {}
+    input.focus();
+  }
+
   handleClearAllWeekendMatches() {
     if (!this.isAdmin) return;
     const allMatches = this.getAllMatches();
@@ -3867,14 +3882,14 @@ class App {
             <div class="flex flex-wrap items-center gap-2">
               <button onclick="app.openCreateMatchModal()" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition cursor-pointer flex items-center gap-1.5">
                 <svg class="w-4 h-4 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                <span>+ Crea Nuovo Incontro</span>
+                <span>Crea Nuovo Incontro</span>
               </button>
               <button onclick="app.handleClearAllWeekendMatches()" title="Elimina tutte le partite del weekend una volta finito per iniziarne uno nuovo" class="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl shadow transition cursor-pointer flex items-center gap-1.5">
                 <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 <span>Elimina Incontri Weekend</span>
               </button>
               <button onclick="app.handleClearUnscheduledMatches()" title="Elimina tutte le partite senza data e ora" class="bg-white/10 hover:bg-white/20 text-blue-200 font-medium text-xs px-3 py-2 rounded-xl border border-white/20 transition cursor-pointer flex items-center gap-1.5">
-                <svg class="w-3.5 h-3.5 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                <svg class="w-3.5 h-3.5 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 <span>Pulisci Non Assegnati</span>
               </button>
             </div>
@@ -3889,21 +3904,23 @@ class App {
               </span>
 
               <!-- Tastino Sabato Giallo -->
-              <div class="flex items-center gap-2 bg-yellow-400 text-blue-950 px-3 py-1.5 rounded-xl border-2 border-yellow-300 shadow-sm font-black">
+              <div onclick="app.openDatePicker('admin-weekend-sat', event)" title="Clicca per aprire il calendario e cambiare la data di Sabato" class="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-blue-950 px-3 py-1.5 rounded-xl border-2 border-yellow-300 shadow-sm font-black cursor-pointer transition select-none">
+                <svg class="w-4 h-4 text-blue-950 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                 <span class="text-xs uppercase tracking-wide font-black">Sabato:</span>
-                <input type="date" id="admin-weekend-sat" value="${satDate || ''}" onchange="app.setWeekendDates(this.value, null)" class="text-xs px-2.5 py-1 bg-yellow-300 hover:bg-yellow-200 border border-yellow-600 rounded-lg text-blue-950 font-black focus:ring-2 focus:ring-blue-900 shadow-xs cursor-pointer">
+                <input type="date" id="admin-weekend-sat" value="${satDate || ''}" onchange="app.setWeekendDates(this.value, null)" onclick="try{if(this.showPicker)this.showPicker();}catch(e){}" class="text-xs px-2.5 py-1 bg-yellow-300 hover:bg-yellow-200 border border-yellow-600 rounded-lg text-blue-950 font-black focus:ring-2 focus:ring-blue-900 shadow-xs cursor-pointer">
               </div>
 
               <!-- Tastino Domenica Giallo -->
-              <div class="flex items-center gap-2 bg-yellow-400 text-blue-950 px-3 py-1.5 rounded-xl border-2 border-yellow-300 shadow-sm font-black">
+              <div onclick="app.openDatePicker('admin-weekend-sun', event)" title="Clicca per aprire il calendario e cambiare la data di Domenica" class="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-blue-950 px-3 py-1.5 rounded-xl border-2 border-yellow-300 shadow-sm font-black cursor-pointer transition select-none">
+                <svg class="w-4 h-4 text-blue-950 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                 <span class="text-xs uppercase tracking-wide font-black">Domenica:</span>
-                <input type="date" id="admin-weekend-sun" value="${sunDate || ''}" onchange="app.setWeekendDates(null, this.value)" class="text-xs px-2.5 py-1 bg-yellow-300 hover:bg-yellow-200 border border-yellow-600 rounded-lg text-blue-950 font-black focus:ring-2 focus:ring-blue-900 shadow-xs cursor-pointer">
+                <input type="date" id="admin-weekend-sun" value="${sunDate || ''}" onchange="app.setWeekendDates(null, this.value)" onclick="try{if(this.showPicker)this.showPicker();}catch(e){}" class="text-xs px-2.5 py-1 bg-yellow-300 hover:bg-yellow-200 border border-yellow-600 rounded-lg text-blue-950 font-black focus:ring-2 focus:ring-blue-900 shadow-xs cursor-pointer">
               </div>
 
               <!-- Tasto Prossimo Weekend Giallo -->
               <button onclick="app.setWeekendToNext()" title="Imposta automaticamente al prossimo fine settimana" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2 rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow border-2 border-yellow-300">
                 <svg class="w-3.5 h-3.5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-                <span>+ Prossimo Weekend</span>
+                <span>Prossimo Weekend</span>
               </button>
             </div>
             <div class="text-[11px] text-yellow-200/90 font-medium">

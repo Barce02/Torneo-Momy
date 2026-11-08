@@ -107,3 +107,12 @@ html.modal-open {
     padding-bottom: 10px;
   }
 }
+
+/* Stili per apertura interattiva selettori data */
+input[type="date"] {
+  cursor: pointer;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  padding: 2px;
+}
