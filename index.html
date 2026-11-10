@@ -233,7 +233,7 @@
   <!-- MODALE: LOGIN INIZIALE (SI APRE LA PRIMA VOLTA) -->
   <!-- ======================================================== -->
   <!-- ======================================================== -->
-  <!-- MODALE: ACCESSO / REGISTRAZIONE CON BIOMETRICO & PASSWORD -->
+  <!-- MODALE: ACCESSO / REGISTRAZIONE -->
   <!-- ======================================================== -->
   <div id="modal-login" class="fixed inset-0 bg-slate-950/75 modal-backdrop z-50 hidden items-center justify-center p-4 overflow-y-auto">
     <div class="bg-white rounded-2xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-gray-200 transform transition-all max-h-[92vh] overflow-y-auto">
@@ -255,27 +255,12 @@
         </button>
       </div>
 
-      <!-- SEZIONE 1: ACCEDI (CON BIOMETRICI & PASSWORD) -->
+      <!-- SEZIONE 1: ACCEDI -->
       <div id="auth-section-login">
-        <!-- Bottone Rapido Face ID / Touch ID -->
-        <div id="biometrics-login-wrapper" class="mb-4">
-          <button type="button" onclick="app.loginWithBiometrics()" class="w-full py-2.5 px-4 bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 hover:from-blue-950 hover:to-indigo-950 text-white rounded-xl font-bold text-xs sm:text-sm shadow flex items-center justify-center gap-2.5 border border-yellow-400/40 transition">
-            <svg class="w-5 h-5 text-yellow-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 004 11m5.808 9.562l.054.09"/>
-            </svg>
-            <span>Accedi con Face ID / Touch ID</span>
-          </button>
-          <div class="flex items-center my-3">
-            <div class="flex-grow border-t border-gray-200"></div>
-            <span class="px-2 text-[10px] text-gray-400 uppercase font-semibold">oppure con password</span>
-            <div class="flex-grow border-t border-gray-200"></div>
-          </div>
-        </div>
-
-        <form id="login-form" class="space-y-3">
+        <form id="login-form" class="space-y-3" method="POST" action="javascript:void(0);" autocomplete="on">
           <div>
             <label class="block text-xs font-semibold text-gray-700 mb-1">Indirizzo Email</label>
-            <input type="email" id="login-email-input" name="email" autocomplete="username" placeholder="es. atleta@email.com" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+            <input type="email" id="login-email-input" name="username" autocomplete="username" placeholder="es. atleta@email.com" class="w-full text-xs sm:text-sm px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
           </div>
 
           <div>
@@ -299,7 +284,7 @@
             </div>
           </div>
 
-          <button type="submit" class="w-full py-2.5 text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow transition mt-1">
+          <button type="submit" class="w-full py-2.5 text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow transition mt-1 cursor-pointer">
             Accedi
           </button>
         </form>
@@ -313,28 +298,28 @@
 
       <!-- SEZIONE 2: NUOVA REGISTRAZIONE -->
       <div id="auth-section-register" class="hidden">
-        <form id="register-form" class="space-y-3">
+        <form id="register-form" class="space-y-3" method="POST" action="javascript:void(0);" autocomplete="on">
           <!-- Nome e Cognome separati -->
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-semibold text-gray-700 mb-1">Nome *</label>
-              <input type="text" id="register-firstname-input" placeholder="es. Mario" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+              <input type="text" id="register-firstname-input" name="given-name" autocomplete="given-name" placeholder="es. Mario" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
             </div>
             <div>
               <label class="block text-xs font-semibold text-gray-700 mb-1">Cognome *</label>
-              <input type="text" id="register-lastname-input" placeholder="es. Rossi" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+              <input type="text" id="register-lastname-input" name="family-name" autocomplete="family-name" placeholder="es. Rossi" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
             </div>
           </div>
 
           <div>
             <label class="block text-xs font-semibold text-gray-700 mb-1">Indirizzo Email *</label>
-            <input type="email" id="register-email-input" name="email" autocomplete="username" placeholder="es. mario.rossi@email.com" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+            <input type="email" id="register-email-input" name="username" autocomplete="username" placeholder="es. mario.rossi@email.com" class="w-full text-xs sm:text-sm px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
           </div>
 
           <div>
             <label class="block text-xs font-semibold text-gray-700 mb-1">Crea Password *</label>
             <div class="relative">
-              <input type="password" id="register-password-input" name="new-password" autocomplete="new-password" placeholder="Minimo 4 caratteri" class="w-full text-xs sm:text-sm pl-3 pr-10 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required minlength="4">
+              <input type="password" id="register-password-input" name="password" autocomplete="new-password" placeholder="Minimo 4 caratteri" class="w-full text-xs sm:text-sm pl-3 pr-10 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" required minlength="4">
               <button type="button" onclick="app.togglePasswordVisibility('register-password-input', this)" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition" title="Mostra/Nascondi password" aria-label="Mostra/Nascondi password">
                 <svg class="w-4 h-4 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -388,20 +373,12 @@
               <span class="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 font-extrabold px-2 py-0.5 rounded-full">Assegnata dall'Admin</span>
             </div>
             <p class="text-[11px] text-gray-600 leading-relaxed">
-              L'inserimento nel torneo specifico (<strong>Pre Agonistica</strong> o <strong>SAT</strong>) verrà effettuato direttamente dai maestri e amministratori del torneo dopo la registrazione.
+               L'inserimento nel torneo specifico (<strong>Pre Agonistica</strong> o <strong>SAT</strong>) verrà effettuato direttamente dai maestri e amministratori del torneo dopo la registrazione.
             </p>
             <input type="hidden" id="register-category-select" value="Da Assegnare">
           </div>
 
-          <!-- Opzione Face ID / Touch ID -->
-          <div class="bg-blue-50/70 border border-blue-200 rounded-xl p-2.5 flex items-center gap-2 mt-1">
-            <input type="checkbox" id="register-biometrics-checkbox" checked class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
-            <label for="register-biometrics-checkbox" class="text-[11px] text-blue-900 font-medium cursor-pointer">
-              Abilita accesso rapido con Face ID / Touch ID
-            </label>
-          </div>
-
-          <button type="submit" class="w-full py-2.5 text-xs sm:text-sm font-bold text-blue-950 bg-yellow-400 hover:bg-yellow-500 rounded-xl shadow transition mt-2">
+          <button type="submit" class="w-full py-2.5 text-xs sm:text-sm font-bold text-blue-950 bg-yellow-400 hover:bg-yellow-500 rounded-xl shadow transition mt-2 cursor-pointer">
             Crea Account e Accedi
           </button>
         </form>
@@ -461,7 +438,8 @@
             Abbiamo inviato un'email con il codice di verifica a <strong id="forgot-sent-email-label" class="text-blue-900 font-mono underline">...</strong>. Controlla la tua casella di posta (inclusa la cartella Spam / Posta indesiderata).
           </div>
 
-          <form id="forgot-step2-form" class="space-y-3">
+          <form id="forgot-step2-form" class="space-y-3" method="POST" action="javascript:void(0);" autocomplete="on">
+            <input type="hidden" id="forgot-hidden-username" name="username" autocomplete="username">
             <div>
               <label class="block text-xs font-semibold text-gray-700 mb-1">Codice di Verifica a 6 Cifre *</label>
               <input type="text" id="forgot-code-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" placeholder="123456" class="w-full text-center text-lg font-mono font-bold tracking-widest px-3.5 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white" required>
@@ -470,7 +448,7 @@
             <div>
               <label class="block text-xs font-semibold text-gray-700 mb-1">Nuova Password *</label>
               <div class="relative">
-                <input type="password" id="forgot-new-password-input" name="new-password" autocomplete="new-password" placeholder="Minimo 4 caratteri" class="w-full text-xs sm:text-sm pl-3.5 pr-10 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" minlength="4" required>
+                <input type="password" id="forgot-new-password-input" name="password" autocomplete="new-password" placeholder="Minimo 4 caratteri" class="w-full text-xs sm:text-sm pl-3.5 pr-10 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none" minlength="4" required>
                 <button type="button" onclick="app.togglePasswordVisibility('forgot-new-password-input', this)" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition" title="Mostra/Nascondi password" aria-label="Mostra/Nascondi password">
                   <svg class="w-4 h-4 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -946,18 +924,6 @@
           </div>
         </div>
 
-        <!-- OPZIONE BIOMETRICA -->
-        <div class="bg-blue-50/70 border border-blue-200 rounded-xl p-3 flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <svg class="w-4 h-4 text-blue-700 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 004 11m5.808 9.562l.054.09"/>
-            </svg>
-            <label for="account-biometrics-toggle" class="text-xs text-blue-950 font-semibold cursor-pointer">
-              Accesso Face ID / Touch ID abilitato su questo dispositivo
-            </label>
-          </div>
-          <input type="checkbox" id="account-biometrics-toggle" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
-        </div>
 
         <!-- PULSANTI AZIONE -->
         <div class="flex flex-col sm:flex-row gap-2 pt-3 border-t">

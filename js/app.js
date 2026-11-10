@@ -158,7 +158,7 @@ class App {
     this.render();
     this.showToast("Logout effettuato.", "info");
 
-    // Riapri la modale di accesso con il tasto Face ID / Touch ID subito pronto
+    // Riapri la modale di accesso
     setTimeout(() => {
       this.openLoginModal("login");
     }, 250);
@@ -779,6 +779,9 @@ class App {
     const sentEmailLabel = document.getElementById("forgot-sent-email-label");
     if (sentEmailLabel) sentEmailLabel.textContent = email;
 
+    const hiddenUsername = document.getElementById("forgot-hidden-username");
+    if (hiddenUsername) hiddenUsername.value = email;
+
     const codeInput = document.getElementById("forgot-code-input");
     if (codeInput) {
       codeInput.value = "";
@@ -846,7 +849,22 @@ class App {
 
     // Login automatico
     this.saveUser(account);
-    this.closeModal("modal-login");
+
+    // Supporto al gestore password del browser (iCloud Keychain, Chrome, Edge)
+    if (window.PasswordCredential && navigator.credentials && navigator.credentials.store) {
+      try {
+        const cred = new PasswordCredential({
+          id: email,
+          password: newPassword,
+          name: account.name || email
+        });
+        navigator.credentials.store(cred).catch(() => {});
+      } catch (e) {}
+    }
+
+    setTimeout(() => {
+      this.closeModal("modal-login");
+    }, 150);
     this.showToast(`Password reimpostata con successo! Benvenuto, ${account.firstName || 'Atleta'}!`, "success");
   }
 
@@ -857,7 +875,6 @@ class App {
     const password = document.getElementById("register-password-input").value;
     const birthDate = document.getElementById("register-birthdate-input").value.trim();
     const ranking = document.getElementById("register-ranking-input").value.trim() || "NC";
-    const biometricsChecked = document.getElementById("register-biometrics-checkbox")?.checked ?? true;
 
     if (!firstName || !lastName) {
       alert("Inserisci sia il Nome che il Cognome.");
@@ -928,7 +945,22 @@ class App {
     }
 
     this.saveUser(accountObj);
-    this.closeModal("modal-login");
+
+    // Supporto al gestore password del browser (iCloud Keychain, Chrome, Edge)
+    if (window.PasswordCredential && navigator.credentials && navigator.credentials.store) {
+      try {
+        const cred = new PasswordCredential({
+          id: email,
+          password: password,
+          name: accountObj.name || email
+        });
+        navigator.credentials.store(cred).catch(() => {});
+      } catch (e) {}
+    }
+
+    setTimeout(() => {
+      this.closeModal("modal-login");
+    }, 150);
 
     if (isAdmin) {
       this.showToast("Benvenuto Amministratore!", "success");
@@ -966,7 +998,7 @@ class App {
         birthDate: isAlessia ? "1996-01-01" : "2002-01-01",
         ranking: isAlessia ? "NC" : "4.1",
         role: "admin",
-        biometricsEnabled: true
+        biometricsEnabled: false
       };
       accounts[email] = account;
       this.saveAccounts(accounts);
@@ -990,7 +1022,22 @@ class App {
 
     localStorage.setItem(LAST_EMAIL_KEY, email);
     this.saveUser(account);
-    this.closeModal("modal-login");
+
+    // Supporto al gestore password del browser (iCloud Keychain, Chrome, Edge)
+    if (window.PasswordCredential && navigator.credentials && navigator.credentials.store) {
+      try {
+        const cred = new PasswordCredential({
+          id: email,
+          password: password,
+          name: account.name || email
+        });
+        navigator.credentials.store(cred).catch(() => {});
+      } catch (e) {}
+    }
+
+    setTimeout(() => {
+      this.closeModal("modal-login");
+    }, 150);
 
     if (account.role === "admin") {
       this.showToast("Accesso Amministratore confermato!", "success");
@@ -1000,46 +1047,7 @@ class App {
   }
 
   async loginWithBiometrics() {
-    const accounts = this.loadAccounts();
-    const lastEmail = localStorage.getItem(LAST_EMAIL_KEY);
-    const account = (lastEmail && accounts[lastEmail]) ? accounts[lastEmail] : (Object.values(accounts)[0] || null);
-
-    if (!account) {
-      this.showToast("Nessun account memorizzato. Effettua prima la registrazione.", "info");
-      this.switchAuthMode("register");
-      return;
-    }
-
-    // Verifica biometrica reale (Touch ID / Face ID via WebAuthn Platform Authenticator)
-    if (window.PublicKeyCredential && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
-      try {
-        const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-        if (available) {
-          const challenge = new Uint8Array(32);
-          window.crypto.getRandomValues(challenge);
-          await navigator.credentials.get({
-            publicKey: {
-              challenge: challenge,
-              timeout: 60000,
-              userVerification: "preferred"
-            }
-          }).catch(err => {
-            console.warn("WebAuthn biometric callback:", err);
-            if (err.name === "NotAllowedError") throw err;
-          });
-        }
-      } catch (err) {
-        if (err.name === "NotAllowedError") {
-          this.showToast("Verifica Face ID / Touch ID annullata.", "info");
-          return;
-        }
-      }
-    }
-
-    localStorage.setItem(LAST_EMAIL_KEY, account.email);
-    this.saveUser(account);
-    this.closeModal("modal-login");
-    this.showToast(`Accesso rapido Face ID / Touch ID completato! Ciao ${account.name}`, "success");
+    // Face ID / Biometrico non attivo: si utilizza l'autofill / password salvata nativa
   }
 
   loginAsGuest() {
@@ -1061,16 +1069,6 @@ class App {
     const accounts = this.loadAccounts();
     const hasAccounts = Object.keys(accounts).length > 0;
     const lastEmail = localStorage.getItem(LAST_EMAIL_KEY);
-
-    // Controlla se mostrare il blocco Face ID / Touch ID
-    const biometricsBox = document.getElementById("biometrics-login-wrapper");
-    if (biometricsBox) {
-      if (hasAccounts) {
-        biometricsBox.classList.remove("hidden");
-      } else {
-        biometricsBox.classList.add("hidden");
-      }
-    }
 
     // Pre-popola l'email dell'ultimo utente
     const emailInput = document.getElementById("login-email-input");
@@ -1312,7 +1310,7 @@ class App {
     const category = (this.isAdmin && catEl) ? catEl.value : (this.user.category || this.tournamentManager.getPlayerCategory(this.user));
     const newPassword = npEl ? npEl.value : "";
     const confirmPassword = cpEl ? cpEl.value : "";
-    const biometricsEnabled = bioEl ? bioEl.checked : true;
+    const biometricsEnabled = bioEl ? bioEl.checked : (this.user.biometricsEnabled ?? false);
 
     if (!firstName || !lastName) {
       alert("Inserisci sia il Nome che il Cognome.");
@@ -1684,14 +1682,8 @@ class App {
             </p>
           </div>
 
-          <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            <button onclick="window.print()" title="Stampa Girone e Classifica per Bacheca Circolo" class="w-full sm:w-auto bg-white/15 hover:bg-white/25 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-white/30 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm">
-              <svg class="w-4 h-4 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-              </svg>
-              <span>Stampa Classifica (${cat})</span>
-            </button>
-            ${this.isAdmin ? `
+          ${this.isAdmin ? `
+            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
               <button onclick="app.openCreateMatchModal('${cat}')" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-1.5 cursor-pointer">
                 <svg class="w-4 h-4 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 <span>+ Inserisci Partita (${cat})</span>
@@ -1704,8 +1696,8 @@ class App {
                   Genera Tabellone Finale (${cat})
                 </button>
               ` : ''}
-            ` : ''}
-          </div>
+            </div>
+          ` : ''}
         </div>
     `;
 
@@ -5477,17 +5469,6 @@ class App {
                   </div>
                 </div>
               </div>
-            </div>
-
-            <!-- Opzione Biometrica -->
-            <div class="bg-blue-50/70 border border-blue-200 rounded-xl p-3.5 flex items-center justify-between">
-              <div class="flex items-center gap-2.5">
-                <svg class="w-5 h-5 text-blue-700 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 004 11m5.808 9.562l.054.09"/></svg>
-                <label for="account-page-biometrics-toggle" class="text-xs sm:text-sm text-blue-950 font-semibold cursor-pointer">
-                  Accesso rapido con Face ID / Touch ID abilitato su questo dispositivo
-                </label>
-              </div>
-              <input type="checkbox" id="account-page-biometrics-toggle" ${u.biometricsEnabled ? 'checked' : ''} class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
             </div>
 
             <!-- Pulsanti Azione Form -->
