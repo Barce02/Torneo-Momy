@@ -1298,7 +1298,7 @@ class App {
   // ==========================================
   openAccountPage() {
     this.switchTab("account");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    this.scrollToTop();
   }
 
   openAccountModal() {
@@ -1488,6 +1488,30 @@ class App {
   }
 
   // ==========================================
+  // RESET SCROLL A INIZIO PAGINA
+  // ==========================================
+  scrollToTop() {
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    } catch (e) {
+      window.scrollTo(0, 0);
+    }
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+
+    // Esegui anche nel frame successivo per garantire il posizionamento dopo il reflow del DOM
+    requestAnimationFrame(() => {
+      try {
+        window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      } catch (e) {
+        window.scrollTo(0, 0);
+      }
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+    });
+  }
+
+  // ==========================================
   // NAVIGAZIONE TAB (CLASSIFICA, CALENDARIO, TABELLONE, REGOLAMENTO)
   // ==========================================
   switchTab(tab) {
@@ -1530,6 +1554,9 @@ class App {
 
     this.renderCategorySelector();
     this.renderTabContent();
+
+    // Reset dello scroll sempre all'inizio della pagina
+    this.scrollToTop();
   }
 
   // ==========================================
@@ -1540,6 +1567,7 @@ class App {
     this.selectedCategory = cat;
     this.renderCategorySelector();
     this.renderTabContent();
+    this.scrollToTop();
   }
 
   renderCategorySelector() {
@@ -3441,6 +3469,7 @@ class App {
   setScheduleDay(day) {
     this.scheduleSelectedDay = day; // "sabato", "domenica", "unscheduled"
     this.renderScheduleView();
+    this.scrollToTop();
   }
 
   setWeekendDates(satDate, sunDate) {
@@ -3694,6 +3723,7 @@ class App {
   setAdminScheduleTab(tab) {
     this.adminScheduleTab = tab;
     this.renderScheduleView();
+    this.scrollToTop();
   }
 
   setAdminScheduleFilter(filter) {
