@@ -443,6 +443,24 @@ class App {
     });
   }
 
+  hideSplashScreen() {
+    const splash = document.getElementById("app-splash-screen");
+    if (!splash) return;
+    const minDisplayTime = 700; // ms per una presentazione fluida del logo all'apertura
+    const start = window._splashStartTime || Date.now();
+    const remaining = Math.max(0, minDisplayTime - (Date.now() - start));
+
+    setTimeout(() => {
+      splash.style.opacity = "0";
+      splash.style.pointerEvents = "none";
+      setTimeout(() => {
+        if (splash.parentNode) {
+          splash.remove();
+        }
+      }, 500);
+    }, remaining);
+  }
+
   init() {
     this.initFirebase();
     this.syncAccountsToPlayers();
@@ -450,13 +468,16 @@ class App {
     this.renderUserBadge();
     this.render();
 
-    // Se l'utente non ha ancora effettuato il login la prima volta, apri il modale
+    // Nascondi splash screen iniziale con logo Momy
+    this.hideSplashScreen();
+
+    // Se l'utente non ha ancora effettuato il login la prima volta, apri il modale dopo la splash
     if (!this.user) {
       setTimeout(() => {
         const accounts = this.loadAccounts();
         const hasAccounts = Object.keys(accounts).length > 0;
         this.openLoginModal(hasAccounts ? "login" : "register");
-      }, 200);
+      }, 850);
     }
   }
 
@@ -1721,20 +1742,14 @@ class App {
     let html = `
       <div class="space-y-6">
         
-        <!-- Banner Intestazione & Regolamento Girone Unico -->
-        <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 rounded-2xl p-5 sm:p-6 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <!-- Banner Intestazione Girone Unico -->
+        <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 rounded-2xl p-4 sm:p-5 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
           <div>
             <div class="flex items-center gap-2 mb-1 flex-wrap">
               <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
               <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Classifica Ufficiale • Categoria ${cat}</span>
-              <span class="text-[10px] px-2 py-0.5 rounded-md font-bold bg-white/20 text-yellow-300">${formatInfo.shortDuration} • ${formatInfo.formula}</span>
             </div>
             <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Classifica Ufficiale (${cat})</h2>
-            <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
-              Formula: <strong>${formatInfo.durationText}</strong> (${formatInfo.formula}). Killer point sul 40 pari nel game. Se in parità allo scadere del tempo, <strong>rimane il pareggio (1 punto ciascuno)</strong>.
-              Vittoria: 3 pt • Pareggio: 1 pt • Sconfitta: 0 pt. Il punteggio e la classifica si aggiornano da soli al termine di ogni partita.
-              <strong>A fine anno, tutti gli atleti disputeranno la fase a Tabellone Finale</strong>.
-            </p>
           </div>
 
           ${this.isAdmin ? `
@@ -1864,13 +1879,6 @@ class App {
                     }).join('')}
                   </tbody>
                 </table>
-              </div>
-
-              <div class="text-[11px] text-gray-600 bg-slate-50 rounded-xl p-3 border border-slate-200 leading-relaxed space-y-1">
-                <div><span class="font-bold text-gray-800">Regola Game:</span> Killer point sul 40 pari (punto secco che aggiudica il game).</div>
-                <div><span class="font-bold text-gray-800">Punteggi Girone:</span> Vittoria 3 pt • Pareggio 1 pt • Sconfitta 0 pt.</div>
-                <div><span class="font-bold text-gray-800">Criteri classifica:</span> 1° Punti • 2° Scontro diretto • 3° Differenza game • 4° Game vinti • 5° Classifica FITP.</div>
-                <div class="text-emerald-800 font-semibold pt-0.5">A fine anno tutti gli atleti iscritti disputeranno il Tabellone Finale a eliminazione diretta (accoppiamenti determinati dalla classifica del girone).</div>
               </div>
             </div>
           </div>
@@ -4816,17 +4824,13 @@ class App {
     let html = `
       <div class="space-y-4 bg-gray-50/60 p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs">
         <!-- Banner Intestazione Categoria -->
-        <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 rounded-2xl p-5 sm:p-6 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 rounded-2xl p-4 sm:p-5 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
           <div>
             <div class="flex items-center gap-2 mb-1 flex-wrap">
               <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
-              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Tabellone Finale • Qualificazione di Tutti gli Atleti</span>
-              <span class="text-[10px] px-2 py-0.5 rounded-md font-bold bg-white/20 text-yellow-200">${formatInfo.shortDuration} • ${formatInfo.formula}</span>
+              <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Tabellone Finale • Categoria ${cat}</span>
             </div>
             <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Tabellone Finale (${cat})</h2>
-            <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
-              Formula: <strong>${formatInfo.durationText}</strong> (${formatInfo.formula}). Tabellone a eliminazione diretta aperto a <strong>tutti i partecipanti</strong> del Girone Unico di <strong>${cat}</strong> (${categoryPlayers.length} iscritti), generato al termine dell'anno in base alla classifica finale.
-            </p>
           </div>
 
           <div class="flex items-center gap-2 flex-wrap w-full md:w-auto">

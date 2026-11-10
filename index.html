@@ -46,8 +46,35 @@
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
   <link rel="stylesheet" href="css/styles.css">
+  <link rel="apple-touch-startup-image" href="assets/logo.jpg">
+  <script>
+    window._splashStartTime = Date.now();
+    // Failsafe per nascondere la splash screen se gli script esterni subiscono ritardi
+    window.addEventListener("DOMContentLoaded", function() {
+      setTimeout(function() {
+        var splash = document.getElementById("app-splash-screen");
+        if (splash && splash.style.opacity !== "0") {
+          splash.style.opacity = "0";
+          splash.style.pointerEvents = "none";
+          setTimeout(function() { if (splash && splash.parentNode) splash.remove(); }, 500);
+        }
+      }, 3500);
+    });
+  </script>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col">
+
+  <!-- SPLASH SCREEN ALL'AVVIO CON LOGO MOMY -->
+  <div id="app-splash-screen" class="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 transition-opacity duration-500 ease-out select-none" style="will-change: opacity;">
+    <div class="flex flex-col items-center justify-center p-6 text-center max-w-xs mx-auto">
+      <div class="w-32 h-24 sm:w-36 sm:h-28 bg-white rounded-2xl p-2.5 shadow-2xl border-2 border-yellow-400 flex items-center justify-center mb-5 animate-pulse">
+        <img src="assets/logo.jpg" alt="Momy Sport Village" class="max-h-full max-w-full object-contain rounded-xl">
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight">Torneo Momy</h1>
+      <p class="text-xs sm:text-sm font-bold text-yellow-300 mt-1 uppercase tracking-widest">Stagione 26/27</p>
+      <div class="w-7 h-7 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin mt-6"></div>
+    </div>
+  </div>
 
   <!-- CONTENITORE SUPERIORE STICKY (HEADER, NAV, CATEGORIE UNIFICATI) -->
   <div class="sticky top-0 z-30 shadow-md">
