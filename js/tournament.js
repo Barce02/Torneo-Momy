@@ -534,9 +534,12 @@ class TournamentManager {
 
   updateGroupMatch(groupKey = "single", matchId, matchData, category = null) {
     this.ensureCategories();
-    const cats = category ? [category] : TournamentManager.CATEGORIES;
+    // Cerca prioritariamente nella categoria indicata, poi a cascata in tutte le altre categorie
+    const searchCats = (category && this.state.categoryGroups && this.state.categoryGroups[category])
+      ? [category, ...TournamentManager.CATEGORIES.filter(c => c !== category)]
+      : TournamentManager.CATEGORIES;
 
-    for (let cat of cats) {
+    for (let cat of searchCats) {
       const catGroup = this.state.categoryGroups[cat];
       if (!catGroup) continue;
       const group = catGroup[groupKey] || catGroup.single || (catGroup.sinner && catGroup.sinner.matches && catGroup.sinner.matches.some(m => m.id === matchId) ? catGroup.sinner : catGroup.alcaraz);
@@ -544,6 +547,11 @@ class TournamentManager {
 
       const match = group.matches.find(m => m.id === matchId);
       if (!match) continue;
+
+      // Assicura che i giocatori siano registrati in playerIds del girone
+      if (!group.playerIds) group.playerIds = [];
+      if (match.player1Id && !group.playerIds.includes(match.player1Id)) group.playerIds.push(match.player1Id);
+      if (match.player2Id && !group.playerIds.includes(match.player2Id)) group.playerIds.push(match.player2Id);
 
       if (matchData.court !== undefined) match.court = matchData.court;
       if (matchData.dateTime !== undefined) match.dateTime = matchData.dateTime;
@@ -581,6 +589,31 @@ class TournamentManager {
       return true;
     }
 
+    // Fallback storico a state.groups
+    if (this.state.groups) {
+      for (const [gk, grp] of Object.entries(this.state.groups)) {
+        if (grp && grp.matches) {
+          const match = grp.matches.find(m => m.id === matchId);
+          if (match) {
+            if (matchData.court !== undefined) match.court = matchData.court;
+            if (matchData.dateTime !== undefined) match.dateTime = matchData.dateTime;
+            const g1 = matchData.games1 !== undefined && matchData.games1 !== null && matchData.games1 !== "" ? parseInt(matchData.games1, 10) : null;
+            const g2 = matchData.games2 !== undefined && matchData.games2 !== null && matchData.games2 !== "" ? parseInt(matchData.games2, 10) : null;
+            match.games1 = isNaN(g1) ? null : g1;
+            match.games2 = isNaN(g2) ? null : g2;
+            if (match.games1 !== null && match.games2 !== null) {
+              match.scores = `${match.games1} - ${match.games2}`;
+              match.status = "completato";
+              if (match.games1 > match.games2) { match.winnerId = match.player1Id; match.isDraw = false; }
+              else if (match.games2 > match.games1) { match.winnerId = match.player2Id; match.isDraw = false; }
+              else { match.winnerId = null; match.isDraw = true; }
+            }
+            return true;
+          }
+        }
+      }
+    }
+
     return false;
   }
 
@@ -606,7 +639,17 @@ class TournamentManager {
 
     const statsMap = {};
 
-    (group.playerIds || []).forEach(id => {
+    // 1. Assicura che tutti i giocatori appartenenti alla categoria siano inclusi nel girone unico
+    const catPlayers = this.getPlayersByCategory(cat);
+    if (!group.playerIds) group.playerIds = [];
+    catPlayers.forEach(p => {
+      if (!group.playerIds.includes(p.id)) {
+        group.playerIds.push(p.id);
+      }
+    });
+
+    // 2. Inizializza le statistiche per ogni atleta iscritto al girone
+    group.playerIds.forEach(id => {
       const p = this.getPlayer(id);
       if (p) {
         statsMap[id] = {
@@ -623,8 +666,23 @@ class TournamentManager {
       }
     });
 
+    // 3. Calcola le partite completate nel girone
     (group.matches || []).forEach(m => {
       if (m.status === "completato" && m.games1 !== null && m.games2 !== null) {
+        // Fallback protettivo se un giocatore non era ancora nella mappa
+        if (!statsMap[m.player1Id]) {
+          const p1 = this.getPlayer(m.player1Id);
+          if (p1) {
+            statsMap[m.player1Id] = { player: p1, played: 0, won: 0, drawn: 0, lost: 0, gamesFor: 0, gamesAgainst: 0, diff: 0, points: 0 };
+          }
+        }
+        if (!statsMap[m.player2Id]) {
+          const p2 = this.getPlayer(m.player2Id);
+          if (p2) {
+            statsMap[m.player2Id] = { player: p2, played: 0, won: 0, drawn: 0, lost: 0, gamesFor: 0, gamesAgainst: 0, diff: 0, points: 0 };
+          }
+        }
+
         const s1 = statsMap[m.player1Id];
         const s2 = statsMap[m.player2Id];
 

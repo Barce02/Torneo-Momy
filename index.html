@@ -983,6 +983,7 @@
       <form id="group-match-form" class="space-y-4" onsubmit="event.preventDefault(); app.handleSaveGroupMatchScore();">
         <input type="hidden" id="group-match-group-key">
         <input type="hidden" id="group-match-id">
+        <input type="hidden" id="group-match-category">
 
         <div class="bg-blue-50/80 p-3.5 rounded-xl border border-blue-200 text-center">
           <div id="group-match-header-label" class="text-xs text-blue-900 font-bold uppercase tracking-wider">Girone Unico</div>
@@ -1009,8 +1010,8 @@
         <!-- Scorciatoie e Pareggio al suono della campana -->
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-2.5">
           <div class="flex items-center justify-between text-xs text-amber-900 font-semibold mb-1.5">
-            <span>Regola Campana:</span>
-            <span class="text-[10px] text-amber-700">In parità rimane pareggio (1 pt cad.)</span>
+            <span>Punteggi Rapidi:</span>
+            <span class="text-[10px] text-amber-700">In parità 1 pt cad.</span>
           </div>
           <div class="flex flex-wrap gap-1.5">
             <button type="button" onclick="app.setQuickGroupScore(4, 4)" class="text-[11px] bg-white text-amber-900 font-medium px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-100">4 - 4 (Pari)</button>
@@ -1018,6 +1019,9 @@
             <button type="button" onclick="app.setQuickGroupScore(6, 4)" class="text-[11px] bg-white text-blue-900 font-medium px-2 py-0.5 rounded border border-blue-200 hover:bg-blue-50">6 - 4</button>
             <button type="button" onclick="app.setQuickGroupScore(7, 5)" class="text-[11px] bg-white text-blue-900 font-medium px-2 py-0.5 rounded border border-blue-200 hover:bg-blue-50">7 - 5</button>
             <button type="button" onclick="app.setQuickGroupScore(8, 3)" class="text-[11px] bg-white text-blue-900 font-medium px-2 py-0.5 rounded border border-blue-200 hover:bg-blue-50">8 - 3</button>
+            <button type="button" onclick="app.setQuickGroupScore(9, 4)" class="text-[11px] bg-white text-purple-900 font-medium px-2 py-0.5 rounded border border-purple-200 hover:bg-purple-50">9 - 4</button>
+            <button type="button" onclick="app.setQuickGroupScore(9, 6)" class="text-[11px] bg-white text-purple-900 font-medium px-2 py-0.5 rounded border border-purple-200 hover:bg-purple-50">9 - 6</button>
+            <button type="button" onclick="app.setQuickGroupScore(6, 6)" class="text-[11px] bg-white text-amber-900 font-medium px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-100">6 - 6 (Pari)</button>
           </div>
         </div>
 

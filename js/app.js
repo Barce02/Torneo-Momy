@@ -2048,7 +2048,14 @@ class App {
     let foundMatch = null;
     let foundCat = cat;
 
-    for (const [cName, cGrp] of Object.entries(this.state.categoryGroups || {})) {
+    // Ordine di ricerca: prova prima la categoria passata o attiva, poi tutte le altre
+    const searchOrder = (category && this.state.categoryGroups && this.state.categoryGroups[category])
+      ? [category, ...TournamentManager.CATEGORIES.filter(c => c !== category)]
+      : TournamentManager.CATEGORIES;
+
+    for (const cName of searchOrder) {
+      const cGrp = this.state.categoryGroups?.[cName];
+      if (!cGrp) continue;
       for (const grp of [cGrp.single, cGrp.sinner, cGrp.alcaraz]) {
         if (grp && grp.matches) {
           const m = grp.matches.find(x => x.id === matchId);
@@ -2063,19 +2070,34 @@ class App {
       if (foundMatch) break;
     }
 
-    if (!foundMatch && this.state.groups && this.state.groups[groupKey]) {
-      foundGroup = this.state.groups[groupKey];
-      foundMatch = foundGroup.matches?.find(m => m.id === matchId);
+    if (!foundMatch && this.state.groups) {
+      for (const [gk, grp] of Object.entries(this.state.groups)) {
+        if (grp && grp.matches) {
+          const m = grp.matches.find(x => x.id === matchId);
+          if (m) {
+            foundMatch = m;
+            foundGroup = grp;
+            foundCat = cat;
+            break;
+          }
+        }
+      }
     }
 
-    if (!foundMatch) return;
+    if (!foundMatch) {
+      this.showToast("Incontro non trovato nel sistema.", "error");
+      return;
+    }
 
     const p1 = this.tournamentManager.getPlayer(foundMatch.player1Id);
     const p2 = this.tournamentManager.getPlayer(foundMatch.player2Id);
 
     document.getElementById("group-match-group-key").value = groupKey || "single";
     document.getElementById("group-match-id").value = matchId;
-    document.getElementById("group-match-header-label").textContent = `Girone Unico (${foundCat})`;
+    const catHidden = document.getElementById("group-match-category");
+    if (catHidden) catHidden.value = foundCat;
+
+    document.getElementById("group-match-header-label").textContent = `Girone Unico • Categoria ${foundCat}`;
 
     const formatInfo = this.getCategoryFormatInfo(foundCat);
     const subtitleEl = document.getElementById("group-match-formula-subtitle");
@@ -2085,11 +2107,11 @@ class App {
 
     document.getElementById("group-match-p1-name").textContent = p1 ? p1.name : "Atleta 1";
     document.getElementById("group-match-p2-name").textContent = p2 ? p2.name : "Atleta 2";
-    document.getElementById("group-match-p1-label").textContent = `Game ${p1 ? p1.firstName : 'Atleta 1'}`;
-    document.getElementById("group-match-p2-label").textContent = `Game ${p2 ? p2.firstName : 'Atleta 2'}`;
+    document.getElementById("group-match-p1-label").textContent = `Game ${p1 ? p1.firstName || p1.name : 'Atleta 1'}`;
+    document.getElementById("group-match-p2-label").textContent = `Game ${p2 ? p2.firstName || p2.name : 'Atleta 2'}`;
 
-    document.getElementById("group-match-score1").value = foundMatch.games1 !== null ? foundMatch.games1 : "";
-    document.getElementById("group-match-score2").value = foundMatch.games2 !== null ? foundMatch.games2 : "";
+    document.getElementById("group-match-score1").value = foundMatch.games1 !== null && foundMatch.games1 !== undefined ? foundMatch.games1 : "";
+    document.getElementById("group-match-score2").value = foundMatch.games2 !== null && foundMatch.games2 !== undefined ? foundMatch.games2 : "";
     document.getElementById("group-match-court").value = foundMatch.court || "Campo 1 (Terra)";
     document.getElementById("group-match-datetime").value = foundMatch.dateTime || "";
     document.getElementById("group-match-status").value = foundMatch.status || "in_programma";
@@ -2111,6 +2133,9 @@ class App {
 
     const groupKey = document.getElementById("group-match-group-key").value || "single";
     const matchId = document.getElementById("group-match-id").value;
+    const catInput = document.getElementById("group-match-category");
+    const category = (catInput && catInput.value) ? catInput.value : (this.selectedCategory !== "all" ? this.selectedCategory : null);
+
     const games1 = document.getElementById("group-match-score1").value;
     const games2 = document.getElementById("group-match-score2").value;
     const court = document.getElementById("group-match-court").value;
@@ -2122,16 +2147,24 @@ class App {
       status = "completato";
     }
 
-    const cat = this.selectedCategory !== "all" ? this.selectedCategory : null;
-
-    this.tournamentManager.updateGroupMatch(groupKey, matchId, {
+    const updated = this.tournamentManager.updateGroupMatch(groupKey, matchId, {
       games1, games2, court, dateTime, status
-    }, cat);
+    }, category);
+
+    if (!updated) {
+      this.showToast("Errore durante il salvataggio del risultato.", "error");
+      return;
+    }
+
+    // Se l'admin si trova nella visualizzazione Classifica, imposta la categoria della partita aggiornata
+    if (category && category !== "all" && this.currentTab === "groups") {
+      this.selectedCategory = category;
+    }
 
     this.saveState();
     this.closeModal("modal-group-match");
     this.render();
-    this.showToast("Risultato salvato e classifica aggiornata in tempo reale!", "success");
+    this.showToast(`Risultato salvato e Classifica (${category || ''}) aggiornata in tempo reale!`, "success");
   }
 
   // ==========================================
@@ -4221,7 +4254,7 @@ class App {
                             </div>
 
                             <!-- Giocatori Partecipanti -->
-                            <div class="bg-white p-2.5 rounded-lg border border-gray-200 space-y-1.5 text-xs">
+                            <div class="bg-white p-2.5 rounded-lg border border-gray-200 space-y-1.5 text-xs ${this.isAdmin && !this.viewAsUser ? 'cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/30 transition' : ''}" ${this.isAdmin && !this.viewAsUser ? `onclick="app.openScoreModalForMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" title="Clicca per inserire o modificare il risultato"` : ''}>
                               <!-- Giocatore 1 -->
                               <div class="flex items-center justify-between">
                                 <div class="flex items-center gap-1.5 truncate max-w-[80%]">
@@ -4251,32 +4284,35 @@ class App {
 
                             <!-- Punteggio Se Completato -->
                             ${isCompleted && m.scores ? `
-                              <div class="text-[11px] font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded text-center border border-emerald-200">
-                                Risultato Finale: ${m.scores}
+                              <div class="text-[11px] font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded text-center border border-emerald-200">
+                                Risultato Finale: <strong>${m.scores}</strong>
                               </div>
                             ` : ''}
 
                             <!-- Fase e Categoria -->
                             <div class="flex items-center justify-between text-[10px] text-gray-500 pt-1 border-t border-gray-100">
                               <span class="font-semibold text-blue-900 truncate max-w-[130px]">${item.phase}</span>
-                              <span class="text-gray-400 uppercase truncate">${item.category}</span>
+                              <span class="text-gray-400 uppercase truncate font-bold">${item.category}</span>
                             </div>
 
                             <!-- Azioni Admin -->
                             ${this.isAdmin && !this.viewAsUser ? `
-                              <div class="flex items-center justify-end gap-1.5 pt-1.5 border-t border-gray-100 text-[10.5px]">
-                                <button onclick="app.openScoreModalForMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-emerald-700 hover:text-emerald-900 font-bold bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200 transition cursor-pointer">
-                                  Risultato
+                              <div class="flex items-center justify-between gap-1.5 pt-2 border-t border-gray-200 text-xs">
+                                <button onclick="app.openScoreModalForMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="flex-1 ${isCompleted ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 font-bold' : 'bg-emerald-600 hover:bg-emerald-700 text-white font-black shadow-xs'} text-xs py-1.5 px-2.5 rounded-xl border transition cursor-pointer flex items-center justify-center gap-1.5">
+                                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                  <span>${isCompleted ? `Modifica (${m.scores})` : 'Inserisci Risultato'}</span>
                                 </button>
-                                <button onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-blue-700 hover:text-blue-900 font-bold bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition cursor-pointer">
-                                  Modifica
-                                </button>
-                                <button onclick="app.removeMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-amber-700 hover:text-amber-900 font-bold bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-200 transition cursor-pointer" title="Libera orario e campo">
-                                  Libera
-                                </button>
-                                <button onclick="app.deleteMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-rose-600 hover:text-rose-800 font-bold p-1 rounded hover:bg-rose-50 transition cursor-pointer" title="Elimina incontro">
-                                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                </button>
+                                <div class="flex items-center gap-1 flex-shrink-0">
+                                  <button onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-blue-700 hover:text-blue-900 font-bold bg-blue-50 hover:bg-blue-100 px-2 py-1.5 rounded-lg border border-blue-200 transition cursor-pointer" title="Modifica orario e campo">
+                                    Orario
+                                  </button>
+                                  <button onclick="app.removeMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-amber-700 hover:text-amber-900 font-bold bg-amber-50 hover:bg-amber-100 px-2 py-1.5 rounded-lg border border-amber-200 transition cursor-pointer" title="Libera orario e campo">
+                                    Libera
+                                  </button>
+                                  <button onclick="app.deleteMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-rose-600 hover:text-rose-800 font-bold p-1.5 rounded-lg hover:bg-rose-50 transition cursor-pointer" title="Elimina incontro">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                  </button>
+                                </div>
                               </div>
                             ` : ''}
 
@@ -4355,6 +4391,9 @@ class App {
                         <div class="sm:col-span-3 flex items-center gap-1">
                           <button onclick="app.quickAssignMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}', 'admin-dt-${item.type}-${m.id}', 'admin-court-${item.type}-${m.id}')" class="flex-1 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs py-2 px-2 rounded-lg shadow-xs transition cursor-pointer text-center">
                             Salva
+                          </button>
+                          <button title="Inserisci Risultato" onclick="app.openScoreModalForMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 px-2.5 rounded-lg shadow-xs transition cursor-pointer flex items-center gap-1">
+                            <span>Risultato</span>
                           </button>
                           <button title="Elimina" onclick="app.deleteMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-rose-600 hover:text-rose-800 p-2 rounded-lg hover:bg-rose-50 transition cursor-pointer">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
@@ -4702,9 +4741,11 @@ class App {
     if (!this.isAdmin) return;
     const allMatches = this.getAllMatches();
     const unscheduled = allMatches.filter(x => !x.match.dateTime);
+    const dStr = dateStr || new Date().toISOString().split('T')[0];
 
     if (unscheduled.length === 0) {
-      this.showToast("Tutti gli incontri del torneo sono già stati assegnati!", "info");
+      // Se non ci sono partite esistenti da assegnare, apri direttamente il modale di creazione per questo campo e data
+      this.openCreateMatchModal(null, courtName, `${dStr}T10:00`);
       return;
     }
 
@@ -4721,8 +4762,6 @@ class App {
 
     document.getElementById("quick-court-assign-court-name").value = courtName;
     document.getElementById("quick-court-assign-court-display").textContent = courtName;
-
-    const dStr = dateStr || new Date().toISOString().split('T')[0];
     document.getElementById("quick-court-assign-datetime").value = `${dStr}T15:00`;
 
     this.openModal("modal-quick-court-assign");
@@ -5095,16 +5134,29 @@ class App {
   // Modale per aggiornare incontro da parte dell'Admin
   openMatchModal(matchId, category = null) {
     if (!this.isAdmin) return;
-    const cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
-    this.tournamentManager.ensureBrackets(cat);
-    const bracket = this.state.categoryBrackets?.[cat] || this.state.bracket;
-    if (!bracket || !bracket.rounds) return;
+    this.tournamentManager.ensureCategories();
+    let cat = category || (this.selectedCategory !== "all" ? this.selectedCategory : "Pre Agonistica U12");
 
     let targetMatch = null;
-    bracket.rounds.forEach(r => {
-      const found = r.matches.find(m => m.id === matchId);
-      if (found) targetMatch = found;
-    });
+    const searchOrder = (category && this.state.categoryBrackets?.[category])
+      ? [category, ...TournamentManager.CATEGORIES.filter(c => c !== category)]
+      : TournamentManager.CATEGORIES;
+
+    for (const cName of searchOrder) {
+      this.tournamentManager.ensureBrackets(cName);
+      const br = this.state.categoryBrackets?.[cName];
+      if (br && br.rounds) {
+        for (const r of br.rounds) {
+          const found = r.matches?.find(m => m.id === matchId);
+          if (found) {
+            targetMatch = found;
+            cat = cName;
+            break;
+          }
+        }
+      }
+      if (targetMatch) break;
+    }
 
     if (!targetMatch) return;
     this.currentEditingMatchId = matchId;
