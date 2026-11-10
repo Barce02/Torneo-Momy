@@ -345,75 +345,102 @@ class App {
       if (!firebase.apps.length) {
         firebase.initializeApp(FIREBASE_CONFIG);
       }
+      this.auth = firebase.auth ? firebase.auth() : null;
       this.db = firebase.database();
       this.updateSyncStatus("connecting", "Connessione...");
 
-      let initialAccountsLoaded = false;
-      let initialStateLoaded = false;
+      let syncStarted = false;
+      const startSync = () => {
+        if (syncStarted) return;
+        syncStarted = true;
+        this.setupRealtimeSync();
+      };
 
-      // 1. Sincronizzazione Realtime ACCOUNTS
-      const accountsRef = this.db.ref("torneo_momy/accounts");
-      accountsRef.on("value", (snapshot) => {
-        const val = snapshot.val();
-        if (val) {
-          const cloudAccounts = {};
-          Object.values(val).forEach(acc => {
-            if (acc && acc.email) {
-              cloudAccounts[acc.email.toLowerCase().trim()] = acc;
-            }
-          });
-          // Unisci con i dati locali per sicurezza
-          this.accounts = { ...this.loadAccounts(), ...cloudAccounts };
-          localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(this.accounts));
-          this.syncAccountsToPlayers();
-          this.renderTabContent();
-          this.renderUserBadge();
-        } else if (!initialAccountsLoaded) {
-          // Se Firebase è ancora vuoto, effettua il primo seeding con gli account locali
-          const localAccounts = this.loadAccounts();
-          if (Object.keys(localAccounts).length > 0) {
-            console.log("Seeding account locali nel cloud Firebase...");
-            this.pushAccountsToFirebase(localAccounts);
+      // Autenticazione anonima trasparente in background
+      if (this.auth) {
+        this.auth.onAuthStateChanged((user) => {
+          if (!user) {
+            this.auth.signInAnonymously().catch(err => {
+              console.warn("Autenticazione anonima non riuscita o non ancora abilitata:", err);
+              // Fallback: prova comunque la sincronizzazione nel caso le regole siano aperte
+              startSync();
+            });
+          } else {
+            startSync();
           }
-        }
-        initialAccountsLoaded = true;
-        this.updateSyncStatus("online", "Sincronizzato");
-      }, (error) => {
-        console.error("Errore sincronizzazione Firebase accounts:", error);
-        this.updateSyncStatus("error", error.code === "PERMISSION_DENIED" ? "Permesso negato" : "Disconnesso");
-      });
-
-      // 2. Sincronizzazione Realtime STATO TORNEO (partite, gironi, conferme orari, atleti)
-      const stateRef = this.db.ref("torneo_momy/state");
-      stateRef.on("value", (snapshot) => {
-        const cloudState = snapshot.val();
-        if (cloudState) {
-          this.isRemoteUpdate = true;
-          this.state = cloudState;
-          if (!this.state.players) this.state.players = [];
-          this.tournamentManager.state = this.state;
-          localStorage.setItem(DATA_KEY, JSON.stringify(this.state));
-          this.syncAccountsToPlayers();
-          this.render();
-          this.isRemoteUpdate = false;
-        } else if (!initialStateLoaded) {
-          // Se Firebase è ancora vuoto, effettua il primo seeding con lo stato locale
-          if (this.state && this.state.players && this.state.players.length > 0) {
-            console.log("Seeding stato torneo nel cloud Firebase...");
-            this.pushStateToFirebase(this.state);
-          }
-        }
-        initialStateLoaded = true;
-        this.updateSyncStatus("online", "Sincronizzato");
-      }, (error) => {
-        console.error("Errore sincronizzazione Firebase state:", error);
-        this.updateSyncStatus("error", error.code === "PERMISSION_DENIED" ? "Permesso negato" : "Disconnesso");
-      });
+        });
+      } else {
+        startSync();
+      }
 
     } catch (err) {
       console.error("Errore inizializzazione Firebase:", err);
       this.updateSyncStatus("error", "Errore Firebase");
     }
+  }
+
+  setupRealtimeSync() {
+    let initialAccountsLoaded = false;
+    let initialStateLoaded = false;
+
+    // 1. Sincronizzazione Realtime ACCOUNTS
+    const accountsRef = this.db.ref("torneo_momy/accounts");
+    accountsRef.on("value", (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        const cloudAccounts = {};
+        Object.values(val).forEach(acc => {
+          if (acc && acc.email) {
+            cloudAccounts[acc.email.toLowerCase().trim()] = acc;
+          }
+        });
+        // Unisci con i dati locali per sicurezza
+        this.accounts = { ...this.loadAccounts(), ...cloudAccounts };
+        localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(this.accounts));
+        this.syncAccountsToPlayers();
+        this.renderTabContent();
+        this.renderUserBadge();
+      } else if (!initialAccountsLoaded) {
+        // Se Firebase è ancora vuoto, effettua il primo seeding con gli account locali
+        const localAccounts = this.loadAccounts();
+        if (Object.keys(localAccounts).length > 0) {
+          console.log("Seeding account locali nel cloud Firebase...");
+          this.pushAccountsToFirebase(localAccounts);
+        }
+      }
+      initialAccountsLoaded = true;
+      this.updateSyncStatus("online", "Sincronizzato");
+    }, (error) => {
+      console.error("Errore sincronizzazione Firebase accounts:", error);
+      this.updateSyncStatus("error", error.code === "PERMISSION_DENIED" ? "Permesso negato" : "Disconnesso");
+    });
+
+    // 2. Sincronizzazione Realtime STATO TORNEO (partite, gironi, conferme orari, atleti)
+    const stateRef = this.db.ref("torneo_momy/state");
+    stateRef.on("value", (snapshot) => {
+      const cloudState = snapshot.val();
+      if (cloudState) {
+        this.isRemoteUpdate = true;
+        this.state = cloudState;
+        if (!this.state.players) this.state.players = [];
+        this.tournamentManager.state = this.state;
+        localStorage.setItem(DATA_KEY, JSON.stringify(this.state));
+        this.syncAccountsToPlayers();
+        this.render();
+        this.isRemoteUpdate = false;
+      } else if (!initialStateLoaded) {
+        // Se Firebase è ancora vuoto, effettua il primo seeding con lo stato locale
+        if (this.state && this.state.players && this.state.players.length > 0) {
+          console.log("Seeding stato torneo nel cloud Firebase...");
+          this.pushStateToFirebase(this.state);
+        }
+      }
+      initialStateLoaded = true;
+      this.updateSyncStatus("online", "Sincronizzato");
+    }, (error) => {
+      console.error("Errore sincronizzazione Firebase state:", error);
+      this.updateSyncStatus("error", error.code === "PERMISSION_DENIED" ? "Permesso negato" : "Disconnesso");
+    });
   }
 
   init() {
@@ -1129,8 +1156,10 @@ class App {
     }
 
     const adminNavTab = document.getElementById("nav-tab-admin-accounts");
+    const mobileAdminNavTab = document.getElementById("mobile-tab-admin-accounts");
+    const isShowingAdminTab = this.isAdmin && !this.viewAsUser;
     if (adminNavTab) {
-      if (this.isAdmin && !this.viewAsUser) {
+      if (isShowingAdminTab) {
         adminNavTab.classList.remove("hidden");
         const accountsCount = Object.keys(this.loadAccounts()).length;
         const badge = document.getElementById("nav-admin-accounts-badge");
@@ -1140,6 +1169,15 @@ class App {
         if (this.currentTab === "admin-accounts" || this.currentTab === "players") {
           this.switchTab("groups");
         }
+      }
+    }
+    if (mobileAdminNavTab) {
+      if (isShowingAdminTab) {
+        mobileAdminNavTab.classList.remove("hidden");
+        mobileAdminNavTab.classList.add("flex");
+      } else {
+        mobileAdminNavTab.classList.add("hidden");
+        mobileAdminNavTab.classList.remove("flex");
       }
     }
 
@@ -1203,19 +1241,26 @@ class App {
 
   updateScheduleBadge() {
     const badge = document.getElementById("schedule-nav-badge");
-    if (!badge) return;
+    const mobileBadge = document.getElementById("mobile-schedule-nav-badge");
     // Per gli admin evidenziamo il numero di partite ancora da assegnare
     if (this.isAdmin && !this.viewAsUser) {
       const allMatches = this.getAllMatches();
       const unscheduled = allMatches.filter(x => !x.match.dateTime);
       if (unscheduled.length > 0) {
-        badge.textContent = `${unscheduled.length}`;
-        badge.title = `${unscheduled.length} incontri da programmare`;
-        badge.classList.remove("hidden");
+        if (badge) {
+          badge.textContent = `${unscheduled.length}`;
+          badge.title = `${unscheduled.length} incontri da programmare`;
+          badge.classList.remove("hidden");
+        }
+        if (mobileBadge) {
+          mobileBadge.textContent = `${unscheduled.length}`;
+          mobileBadge.classList.remove("hidden");
+        }
         return;
       }
     }
-    badge.classList.add("hidden");
+    if (badge) badge.classList.add("hidden");
+    if (mobileBadge) mobileBadge.classList.add("hidden");
   }
 
   getAvatarMarkup(user, sizeClass = "w-6 h-6", textClass = "text-xs") {
@@ -1449,6 +1494,16 @@ class App {
       } else {
         btn.classList.remove("border-blue-600", "text-blue-700", "bg-blue-50/70", "font-semibold");
         btn.classList.add("border-transparent", "text-gray-600", "hover:text-gray-900");
+      }
+    });
+
+    document.querySelectorAll(".mobile-nav-btn").forEach(btn => {
+      if (btn.dataset.tab === tab) {
+        btn.classList.add("text-yellow-400", "font-black");
+        btn.classList.remove("text-gray-400");
+      } else {
+        btn.classList.remove("text-yellow-400", "font-black");
+        btn.classList.add("text-gray-400");
       }
     });
 
@@ -1769,8 +1824,8 @@ class App {
                       <th class="py-2.5 px-2 text-center text-emerald-700" title="Vinte">V</th>
                       <th class="py-2.5 px-2 text-center text-amber-700" title="Pari">P</th>
                       <th class="py-2.5 px-2 text-center text-rose-700" title="Perse">S</th>
-                      <th class="py-2.5 px-2 text-center text-gray-700" title="Game Vinti">GV</th>
-                      <th class="py-2.5 px-2 text-center text-gray-700" title="Diff Game">Diff</th>
+                      <th class="hidden sm:table-cell py-2.5 px-2 text-center text-gray-700" title="Game Vinti">GV</th>
+                      <th class="hidden sm:table-cell py-2.5 px-2 text-center text-gray-700" title="Diff Game">Diff</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-100">
@@ -1785,10 +1840,10 @@ class App {
                             </span>
                           </td>
                           <td class="py-2.5 px-2.5 font-bold text-gray-900">
-                            <div class="flex items-center gap-1.5 truncate">
+                            <div class="flex items-center gap-1.5 min-w-0">
                               <span class="truncate">${s.player.name}</span>
-                              ${s.player.ranking ? `<span class="text-[9px] font-mono bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-semibold">${s.player.ranking}</span>` : ''}
-                              <span class="text-[8px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 rounded font-bold">Qualificato</span>
+                              ${s.player.ranking ? `<span class="text-[9px] font-mono bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-semibold flex-shrink-0">${s.player.ranking}</span>` : ''}
+                              <span class="hidden sm:inline-block text-[8px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 rounded font-bold flex-shrink-0">Qualificato</span>
                             </div>
                           </td>
                           <td class="py-2.5 px-2 text-center bg-blue-50/30">
@@ -1800,8 +1855,8 @@ class App {
                           <td class="py-2.5 px-2 text-center font-mono font-bold text-emerald-700">${s.won}</td>
                           <td class="py-2.5 px-2 text-center font-mono text-amber-700">${s.drawn}</td>
                           <td class="py-2.5 px-2 text-center font-mono text-rose-700">${s.lost}</td>
-                          <td class="py-2.5 px-2 text-center font-mono text-gray-800">${s.gamesFor}</td>
-                          <td class="py-2.5 px-2 text-center font-mono font-semibold ${s.diff > 0 ? 'text-emerald-700' : (s.diff < 0 ? 'text-rose-700' : 'text-gray-500')}">
+                          <td class="hidden sm:table-cell py-2.5 px-2 text-center font-mono text-gray-800">${s.gamesFor}</td>
+                          <td class="hidden sm:table-cell py-2.5 px-2 text-center font-mono font-semibold ${s.diff > 0 ? 'text-emerald-700' : (s.diff < 0 ? 'text-rose-700' : 'text-gray-500')}">
                             ${s.diff > 0 ? `+${s.diff}` : s.diff}
                           </td>
                         </tr>

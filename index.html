@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Torneo Momy 26/27</title>
   <link rel="icon" type="image/png" href="assets/apple-touch-icon.png">
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" sizes="512x512" href="assets/icon-512.png">
   <link rel="manifest" href="manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Torneo Momy">
   <meta name="application-name" content="Torneo Momy">
   <meta name="theme-color" content="#0f172a">
@@ -49,144 +49,145 @@
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col">
 
-  <!-- HEADER PRINCIPALE (TEMA BLU E GIALLO) -->
-  <header class="bg-gradient-to-r from-slate-950 via-blue-900 to-indigo-950 text-white shadow-lg sticky top-0 z-40 border-b border-yellow-400/20">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <!-- Logo e Titolo -->
-        <div class="flex items-center gap-3.5">
-          <div class="h-12 bg-white rounded-xl p-1.5 flex items-center justify-center shadow-md border border-yellow-400/40 flex-shrink-0">
-            <img src="assets/logo.jpg" alt="Momy Sport Village" class="h-full w-auto max-h-9 object-contain rounded-lg">
-          </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <h1 class="text-xl font-extrabold tracking-tight">Torneo Momy</h1>
+  <!-- CONTENITORE SUPERIORE STICKY (HEADER, NAV, CATEGORIE UNIFICATI) -->
+  <div class="sticky top-0 z-30 shadow-md">
+    <!-- HEADER PRINCIPALE (TEMA BLU E GIALLO) -->
+    <header class="bg-gradient-to-r from-slate-950 via-blue-900 to-indigo-950 text-white border-b border-yellow-400/20">
+      <div class="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-3.5">
+        <div class="flex items-center justify-between gap-2.5">
+          <!-- Logo e Titolo -->
+          <div class="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+            <div class="h-9 w-9 sm:h-11 sm:w-11 bg-white rounded-xl p-1 flex items-center justify-center shadow-md border border-yellow-400/40 flex-shrink-0">
+              <img src="assets/logo.jpg" alt="Momy Sport Village" class="h-full w-auto object-contain rounded-lg">
             </div>
-            <p class="text-xs text-yellow-300/90 mt-0.5 font-medium">Momy Sport Village • Stagione 26/27</p>
-          </div>
-        </div>
-
-        <!-- Profilo Utente & Azioni Header (Solo Account) -->
-        <div class="flex items-center gap-2.5 flex-wrap">
-          <!-- Cloud Sync Indicator (Nascosto da richiesta) -->
-          <div id="cloud-sync-badge" class="hidden" title="Stato sincronizzazione cloud">
-            <span id="cloud-sync-dot"></span>
-            <span id="cloud-sync-text"></span>
+            <div class="min-w-0">
+              <h1 class="text-base sm:text-xl font-extrabold tracking-tight truncate leading-tight">Torneo Momy</h1>
+              <p class="text-[10px] sm:text-xs text-yellow-300/90 font-medium truncate leading-none">Momy Sport Village • 26/27</p>
+            </div>
           </div>
 
-          <!-- Tasto Vista Utente / Vista Admin (visibile solo per admin) -->
-          <button id="btn-toggle-view-user" onclick="app.toggleViewAsUser()" title="Attiva/Disattiva vista come vedono i non admin" class="hidden text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm font-bold border">
-            <!-- Testo e icona popolati dinamicamente -->
-          </button>
+          <!-- Profilo Utente & Azioni Header (Solo Account) -->
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <!-- Cloud Sync Indicator (Nascosto da richiesta) -->
+            <div id="cloud-sync-badge" class="hidden" title="Stato sincronizzazione cloud">
+              <span id="cloud-sync-dot"></span>
+              <span id="cloud-sync-text"></span>
+            </div>
 
-          <button id="btn-account-header" onclick="app.openAccountPage()" title="Visualizza e gestisci il tuo Account" class="bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm px-3.5 py-2 rounded-xl border border-white/20 transition flex items-center gap-2 cursor-pointer shadow-sm">
-            <span id="header-avatar-circle" class="w-6 h-6 rounded-full bg-yellow-400 text-blue-950 font-black text-xs flex items-center justify-center overflow-hidden flex-shrink-0">
-              <svg class="w-3.5 h-3.5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-              </svg>
-            </span>
-            <span id="header-account-label" class="font-bold tracking-tight">Profilo</span>
-          </button>
+            <!-- Tasto Vista Utente / Vista Admin (visibile solo per admin) -->
+            <button id="btn-toggle-view-user" onclick="app.toggleViewAsUser()" title="Attiva/Disattiva vista come vedono i non admin" class="hidden text-xs px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm font-bold border">
+              <!-- Testo e icona popolati dinamicamente -->
+            </button>
+
+            <button id="btn-account-header" onclick="app.openAccountPage()" title="Visualizza e gestisci il tuo Account" class="bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl border border-white/20 transition flex items-center gap-1.5 sm:gap-2 cursor-pointer shadow-sm">
+              <span id="header-avatar-circle" class="w-6 h-6 rounded-full bg-yellow-400 text-blue-950 font-black text-xs flex items-center justify-center overflow-hidden flex-shrink-0">
+                <svg class="w-3.5 h-3.5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                </svg>
+              </span>
+              <span id="header-account-label" class="font-bold tracking-tight text-xs sm:text-sm hidden sm:inline">Profilo</span>
+            </button>
+          </div>
         </div>
+      </div>
+    </header>
+
+    <!-- BANNER NOTIFICA MODALITÀ VISTA UTENTE (NON ADMIN) -->
+    <div id="banner-view-as-user" class="hidden bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 px-3.5 py-1.5 border-b border-amber-500 shadow-sm">
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-2 text-xs">
+        <div class="flex items-center gap-1.5 font-bold text-[11px] sm:text-xs">
+          <span class="w-2 h-2 rounded-full bg-blue-900 animate-pulse flex-shrink-0"></span>
+          <span>Modalità Utente attiva (vista non-admin)</span>
+        </div>
+        <button onclick="app.toggleViewAsUser()" class="bg-slate-950 hover:bg-slate-800 text-yellow-300 font-black px-2.5 py-1 rounded-lg shadow-sm transition cursor-pointer flex-shrink-0 text-[11px] flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <span>Torna Admin</span>
+        </button>
       </div>
     </div>
-  </header>
 
-  <!-- BANNER NOTIFICA MODALITÀ VISTA UTENTE (NON ADMIN) -->
-  <div id="banner-view-as-user" class="hidden bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 px-4 py-2 border-b border-amber-500 shadow-sm sticky top-[68px] z-35">
-    <div class="max-w-7xl mx-auto flex items-center justify-between gap-3 text-xs">
-      <div class="flex items-center gap-2 font-bold">
-        <span class="w-2.5 h-2.5 rounded-full bg-blue-900 animate-pulse"></span>
-        <span>Modalità Utente attiva: stai visualizzando il sito esattamente come lo vedono i non-admin.</span>
+    <!-- BARRA DI NAVIGAZIONE TAB (DESKTOP E TABLET) -->
+    <nav class="hidden md:block bg-white border-b border-gray-200 shadow-xs">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex space-x-2 sm:space-x-3 py-2 overflow-x-auto">
+          
+          <!-- Tab 1: Classifica (Sostituisce Gironi - Attivo di Default) -->
+          <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-semibold border-b-2 border-blue-600 text-blue-700 bg-blue-50/70 flex items-center gap-2 transition whitespace-nowrap cursor-pointer" data-tab="groups">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            <span>Classifica</span>
+          </button>
+
+          <!-- Tab 2: Calendario Partite -->
+          <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap cursor-pointer" data-tab="schedule">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            <span>Calendario</span>
+            <span id="schedule-nav-badge" class="hidden ml-1 px-1.5 py-0.5 bg-amber-400 text-blue-950 font-black text-[10px] rounded-full shadow-sm animate-pulse"></span>
+          </button>
+
+          <!-- Tab 3: Tabellone Finale -->
+          <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap cursor-pointer" data-tab="bracket">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+            <span>Tabellone</span>
+          </button>
+
+          <!-- Tab 4: Regolamento -->
+          <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap cursor-pointer" data-tab="rules">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span>Regolamento</span>
+          </button>
+
+          <!-- Tab 5: Profilo Personale -->
+          <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap cursor-pointer" data-tab="account">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+            <span id="nav-account-label">Profilo</span>
+          </button>
+
+          <!-- Tab 6: Gestione Account (Tutti gli Account - Riservato Esclusivamente Admin) -->
+          <button id="nav-tab-admin-accounts" class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap hidden cursor-pointer" data-tab="admin-accounts">
+            <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+            </svg>
+            <span>Tutti gli Account</span>
+            <span id="nav-admin-accounts-badge" class="bg-yellow-400 text-blue-950 font-black text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">0</span>
+          </button>
+
+        </div>
       </div>
-      <button onclick="app.toggleViewAsUser()" class="bg-slate-950 hover:bg-slate-800 text-yellow-300 font-black px-3.5 py-1.5 rounded-lg shadow-sm transition cursor-pointer flex-shrink-0 text-xs flex items-center gap-1.5">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-        <span>Torna a Vista Admin</span>
-      </button>
+    </nav>
+
+    <!-- BARRA SELETTORE CATEGORIA (PRE AGONISTICA U12, PRE AGONISTICA, SAT) -->
+    <div id="category-bar-wrapper" class="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 border-b border-yellow-400/30 px-3 sm:px-6 lg:px-8 py-1.5 sm:py-2">
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-2">
+        <div class="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar w-full sm:w-auto py-0.5">
+          <span class="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-yellow-400 flex items-center gap-1 flex-shrink-0">
+            <svg class="w-3.5 h-3.5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+            </svg>
+            <span class="hidden xs:inline">Categoria:</span>
+          </span>
+          <div id="category-selector-buttons" class="flex items-center gap-1.5 flex-nowrap overflow-x-auto no-scrollbar">
+            <!-- Popolato dinamicamente da app.renderCategorySelector() -->
+          </div>
+        </div>
+        <div id="category-status-indicator" class="text-[11px] text-yellow-300/90 font-medium hidden md:flex items-center gap-1.5 flex-shrink-0">
+          <!-- Indicatore categoria attiva -->
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- BARRA DI NAVIGAZIONE TAB (LE 5 SEZIONI) -->
-  <nav class="bg-white border-b border-gray-200 shadow-sm sticky top-[68px] z-30">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex space-x-2 sm:space-x-3 py-2 overflow-x-auto">
-        
-        <!-- Tab 1: Classifica (Sostituisce Gironi - Attivo di Default) -->
-        <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-semibold border-b-2 border-blue-600 text-blue-700 bg-blue-50/70 flex items-center gap-2 transition whitespace-nowrap" data-tab="groups">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-          </svg>
-          <span>Classifica</span>
-        </button>
-
-        <!-- Tab 2: Calendario Partite -->
-        <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap" data-tab="schedule">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-          </svg>
-          <span>Calendario</span>
-          <span id="schedule-nav-badge" class="hidden ml-1 px-1.5 py-0.5 bg-amber-400 text-blue-950 font-black text-[10px] rounded-full shadow-sm animate-pulse"></span>
-        </button>
-
-        <!-- Tab 3: Tabellone Finale -->
-        <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap" data-tab="bracket">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-          </svg>
-          <span>Tabellone</span>
-        </button>
-
-        <!-- Tab 4: Regolamento -->
-        <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap" data-tab="rules">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-          <span>Regolamento</span>
-        </button>
-
-        <!-- Tab 5: Profilo Personale -->
-        <button class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap" data-tab="account">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-          </svg>
-          <span id="nav-account-label">Profilo</span>
-        </button>
-
-        <!-- Tab 6: Gestione Account (Tutti gli Account - Riservato Esclusivamente Admin) -->
-        <button id="nav-tab-admin-accounts" class="nav-tab-btn py-2 px-3.5 rounded-xl text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent flex items-center gap-2 transition whitespace-nowrap hidden" data-tab="admin-accounts">
-          <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
-          </svg>
-          <span>Tutti gli Account</span>
-          <span id="nav-admin-accounts-badge" class="bg-yellow-400 text-blue-950 font-black text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">0</span>
-        </button>
-
-      </div>
-    </div>
-  </nav>
-
-  <!-- BARRA SELETTORE CATEGORIA (U10, U12, OPEN) -->
-  <div id="category-bar-wrapper" class="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 border-b border-yellow-400/30 px-4 sm:px-6 lg:px-8 py-2 sticky top-[118px] z-25 shadow-md">
-    <div class="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
-      <div class="flex items-center gap-2 flex-wrap">
-        <span class="text-[11px] font-extrabold uppercase tracking-wider text-yellow-400 flex items-center gap-1">
-          <svg class="w-3.5 h-3.5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-          </svg>
-          Categoria:
-        </span>
-        <div id="category-selector-buttons" class="flex flex-wrap items-center gap-1.5">
-          <!-- Popolato dinamicamente da app.renderCategorySelector() -->
-        </div>
-      </div>
-      <div id="category-status-indicator" class="text-[11px] text-yellow-300/90 font-medium hidden sm:flex items-center gap-1.5">
-        <!-- Indicatore categoria attiva -->
-      </div>
-    </div>
-  </div>
-
-  <!-- CONTENUTO PRINCIPALE -->
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full">
+  <!-- CONTENUTO PRINCIPALE (CON SPAZIO INFERIORE PER LA BARRA MOBILE) -->
+  <main class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 flex-grow w-full pb-28 md:pb-8">
     
     <!-- SEZIONE 1: CLASSIFICA (ATTIVA DI DEFAULT) -->
     <div id="tab-panel-groups">
@@ -1352,11 +1353,72 @@
     </div>
   </div>
 
+  <!-- BARRA DI NAVIGAZIONE MOBILE IN BASSO (STILE APP NATIVA PER SMARTPHONE) -->
+  <nav id="mobile-bottom-nav" class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-yellow-400/30 text-white shadow-2xl safe-bottom">
+    <div class="flex items-center justify-around text-center px-1 py-1">
+      
+      <!-- Tab 1: Classifica -->
+      <button onclick="app.switchTab('groups')" class="mobile-nav-btn flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition text-yellow-400 font-black cursor-pointer" data-tab="groups">
+        <svg class="w-5 h-5 mb-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+        <span class="text-[10px] tracking-tight">Classifica</span>
+      </button>
+
+      <!-- Tab 2: Calendario -->
+      <button onclick="app.switchTab('schedule')" class="mobile-nav-btn flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition text-gray-400 hover:text-white cursor-pointer" data-tab="schedule">
+        <div class="relative flex-shrink-0">
+          <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          <span id="mobile-schedule-nav-badge" class="hidden absolute -top-1 -right-2 px-1 py-0.2 bg-amber-400 text-blue-950 font-black text-[9px] rounded-full shadow-sm animate-pulse"></span>
+        </div>
+        <span class="text-[10px] tracking-tight">Calendario</span>
+      </button>
+
+      <!-- Tab 3: Tabellone -->
+      <button onclick="app.switchTab('bracket')" class="mobile-nav-btn flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition text-gray-400 hover:text-white cursor-pointer" data-tab="bracket">
+        <svg class="w-5 h-5 mb-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+        <span class="text-[10px] tracking-tight">Tabellone</span>
+      </button>
+
+      <!-- Tab 4: Regolamento -->
+      <button onclick="app.switchTab('rules')" class="mobile-nav-btn flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition text-gray-400 hover:text-white cursor-pointer" data-tab="rules">
+        <svg class="w-5 h-5 mb-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span class="text-[10px] tracking-tight">Regole</span>
+      </button>
+
+      <!-- Tab 5: Profilo -->
+      <button onclick="app.switchTab('account')" class="mobile-nav-btn flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition text-gray-400 hover:text-white cursor-pointer" data-tab="account">
+        <svg class="w-5 h-5 mb-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+        </svg>
+        <span class="text-[10px] tracking-tight">Profilo</span>
+      </button>
+
+      <!-- Tab 6: Gestione Account (Solo Admin) -->
+      <button id="mobile-tab-admin-accounts" onclick="app.switchTab('admin-accounts')" class="mobile-nav-btn flex-1 flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition text-gray-400 hover:text-white cursor-pointer hidden" data-tab="admin-accounts">
+        <div class="relative flex-shrink-0">
+          <svg class="w-5 h-5 mb-0.5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+          </svg>
+        </div>
+        <span class="text-[10px] tracking-tight">Utenti</span>
+      </button>
+
+    </div>
+  </nav>
+
   <!-- Toast Notifiche -->
-  <div id="toast-notification" class="fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl border shadow-xl transition-all duration-300 hidden text-xs sm:text-sm font-medium"></div>
+  <div id="toast-notification" class="fixed bottom-20 md:bottom-5 right-4 sm:right-5 z-50 px-4 py-3 rounded-xl border shadow-xl transition-all duration-300 hidden text-xs sm:text-sm font-medium"></div>
 
   <!-- Firebase SDK (compat) per sincronizzazione cloud in tempo reale -->
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 
   <!-- Script Applicazione -->

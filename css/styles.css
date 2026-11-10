@@ -153,3 +153,40 @@ input[type="date"]::-webkit-datetime-edit-year-field::selection {
   background: transparent !important;
   color: inherit !important;
 }
+
+/* ======================================================== */
+/* OTTIMIZZAZIONI MOBILE & PWA (SMARTPHONE-FIRST) */
+/* ======================================================== */
+
+/* Previene lo zoom automatico di Safari su iPhone quando si tocca un input */
+@media screen and (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="date"],
+  input[type="search"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Safe area insets per iPhone (Notch / Dynamic Island e barra inferiore iOS) */
+.safe-bottom {
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 10px));
+}
+
+/* Migliore reattività al tocco e rimozione lampeggio grigio su iOS */
+button, a, input, select {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Scroll orizzontale fluido senza barre antiestetiche per le pillole */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
