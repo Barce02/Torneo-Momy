@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.2.0";
-const APP_BUILD_TIME = 1731317500000;
+const APP_VERSION = "1.2.1";
+const APP_BUILD_TIME = 1794399400000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -1093,7 +1093,7 @@ class App {
       ranking,
       category,
       role: isAdmin ? "admin" : "player",
-      biometricsEnabled: biometricsChecked
+      biometricsEnabled: false
     };
 
     accounts[email] = accountObj;

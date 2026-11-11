@@ -1,6 +1,6 @@
 {
-  "version": "1.2.0",
-  "buildTime": 1731317500000,
-  "releasedAt": "2026-11-11T10:00:00+01:00",
-  "notes": "Icone barra mobile ingrandite, sistema di auto-aggiornamento istantaneo e cache-busting per tutti i dispositivi"
+  "version": "1.2.1",
+  "buildTime": 1794399400000,
+  "releasedAt": "2026-11-11T13:16:00+01:00",
+  "notes": "Risolto errore creazione profilo in registrazione atleta"
 }
