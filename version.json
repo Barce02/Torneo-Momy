@@ -1,6 +1,6 @@
 {
-  "version": "1.2.3",
-  "buildTime": 1794411000000,
-  "releasedAt": "2026-11-12T00:01:00+01:00",
-  "notes": "Risolto bug scomparsa atleti dalla classifica al reload e sincronizzazione categorie competizione"
+  "version": "1.2.4",
+  "buildTime": 1794411600000,
+  "releasedAt": "2026-11-12T00:15:00+01:00",
+  "notes": "Deduplicazione assoluta atleti e gironi per prevenire duplicati in classifica"
 }

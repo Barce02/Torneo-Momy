@@ -38,10 +38,21 @@ class TournamentManager {
     return player.category || "Da Assegnare";
   }
 
-  // Restituisce la lista di giocatori filtrata per categoria
+  // Restituisce la lista di giocatori filtrata per categoria (senza duplicati)
   getPlayersByCategory(category) {
-    if (!category || category === "all") return this.state.players || [];
-    return (this.state.players || []).filter(p => this.getPlayerCategory(p) === category);
+    const list = this.state.players || [];
+    const seen = new Set();
+    const result = [];
+    list.forEach(p => {
+      if (!p) return;
+      if (category && category !== "all" && this.getPlayerCategory(p) !== category) return;
+      const key = (p.email || p.userId || "").toLowerCase().trim() || p.id;
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(p);
+      }
+    });
+    return result;
   }
 
   // Inizializza e migra la struttura multi-categoria
@@ -100,16 +111,18 @@ class TournamentManager {
         }
       }
 
-      // Popola automaticamente il Girone Unico con tutti gli iscritti di questa categoria
+      // Popola automaticamente il Girone Unico con tutti gli iscritti di questa categoria (senza duplicati)
       const catPlayers = this.getPlayersByCategory(cat);
       const singleGroup = this.state.categoryGroups[cat].single;
-      const currentIds = new Set(singleGroup.playerIds || []);
-      catPlayers.forEach(p => currentIds.add(p.id));
-
-      singleGroup.playerIds = Array.from(currentIds).filter(pid => {
-        const p = this.getPlayer(pid);
-        return p && this.getPlayerCategory(p) === cat;
+      const seenGroupIds = new Set();
+      const uniquePlayerIds = [];
+      catPlayers.forEach(p => {
+        if (p && p.id && !seenGroupIds.has(p.id)) {
+          seenGroupIds.add(p.id);
+          uniquePlayerIds.push(p.id);
+        }
       });
+      singleGroup.playerIds = uniquePlayerIds;
 
       // Riferimenti di retrocompatibilità
       this.state.categoryGroups[cat].sinner = singleGroup;
@@ -639,30 +652,38 @@ class TournamentManager {
 
     const statsMap = {};
 
-    // 1. Assicura che tutti i giocatori appartenenti alla categoria siano inclusi nel girone unico
+    // 1. Assicura che tutti i giocatori appartenenti alla categoria siano inclusi nel girone unico (senza duplicati)
     const catPlayers = this.getPlayersByCategory(cat);
-    if (!group.playerIds) group.playerIds = [];
+    const seenGroupIds = new Set();
+    const cleanGroupPlayerIds = [];
     catPlayers.forEach(p => {
-      if (!group.playerIds.includes(p.id)) {
-        group.playerIds.push(p.id);
+      if (p && p.id && !seenGroupIds.has(p.id)) {
+        seenGroupIds.add(p.id);
+        cleanGroupPlayerIds.push(p.id);
       }
     });
+    group.playerIds = cleanGroupPlayerIds;
 
-    // 2. Inizializza le statistiche per ogni atleta iscritto al girone
+    // 2. Inizializza le statistiche per ogni atleta iscritto al girone (senza duplicati)
+    const seenStandingsKeys = new Set();
     group.playerIds.forEach(id => {
       const p = this.getPlayer(id);
       if (p) {
-        statsMap[id] = {
-          player: p,
-          played: 0,
-          won: 0,
-          drawn: 0,
-          lost: 0,
-          gamesFor: 0,
-          gamesAgainst: 0,
-          diff: 0,
-          points: 0
-        };
+        const pKey = (p.email || p.userId || "").toLowerCase().trim() || p.id;
+        if (!seenStandingsKeys.has(pKey)) {
+          seenStandingsKeys.add(pKey);
+          statsMap[id] = {
+            player: p,
+            played: 0,
+            won: 0,
+            drawn: 0,
+            lost: 0,
+            gamesFor: 0,
+            gamesAgainst: 0,
+            diff: 0,
+            points: 0
+          };
+        }
       }
     });
 

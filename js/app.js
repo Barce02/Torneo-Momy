@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.2.3";
-const APP_BUILD_TIME = 1794411000000;
+const APP_VERSION = "1.2.4";
+const APP_BUILD_TIME = 1794411600000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -240,6 +240,25 @@ class App {
       let accountsChanged = false;
       const accountsToPush = {};
 
+      // 0. Deduplicazione preventiva di state.players per email/identità
+      const seenPlayerKeys = new Set();
+      const dedupedPlayers = [];
+      (this.state.players || []).forEach(p => {
+        if (!p) return;
+        const pEmail = (p.email || p.userId || "").toLowerCase().trim();
+        const key = (pEmail && pEmail.includes("@")) ? `email:${pEmail}` : `id:${p.id}`;
+        if (!seenPlayerKeys.has(key)) {
+          seenPlayerKeys.add(key);
+          dedupedPlayers.push(p);
+        } else {
+          stateChanged = true;
+        }
+      });
+      if (dedupedPlayers.length !== this.state.players.length) {
+        this.state.players = dedupedPlayers;
+        stateChanged = true;
+      }
+
       // 1. Assicura che TUTTI gli account registrati (con ruolo 'player') siano presenti in state.players
       Object.values(accounts).forEach(acc => {
         if (!acc || !acc.email) return;
@@ -276,17 +295,19 @@ class App {
         }
 
         // REGOLA FONDAMENTALE DI CATEGORIA:
-        // Una categoria ufficiale assegnata nel torneo (Pre Agonistica U12, Pre Agonistica, SAT)
-        // è prioritaria e NON DEVE MAI essere azzerata a "Da Assegnare" da un reload!
-        if (existing.category && TournamentManager.CATEGORIES.includes(existing.category)) {
+        // Se l'account ha una categoria ufficiale specifica (impostata dall'admin), assegnala al giocatore!
+        // Altrimenti se il giocatore ha una categoria ufficiale, assegnala all'account!
+        if (acc.category && TournamentManager.CATEGORIES.includes(acc.category)) {
+          if (existing.category !== acc.category) {
+            existing.category = acc.category;
+            stateChanged = true;
+          }
+        } else if (existing.category && TournamentManager.CATEGORIES.includes(existing.category)) {
           if (acc.category !== existing.category) {
             acc.category = existing.category;
             accountsChanged = true;
             accountsToPush[this.encodeEmailKey(emailKey)] = acc;
           }
-        } else if (acc.category && TournamentManager.CATEGORIES.includes(acc.category)) {
-          existing.category = acc.category;
-          stateChanged = true;
         } else {
           // Se entrambi non hanno ancora una categoria ufficiale, assegna Pre Agonistica U12
           const defaultCat = "Pre Agonistica U12";
@@ -561,24 +582,40 @@ class App {
       if (cloudState) {
         this.isRemoteUpdate = true;
         
-        // Fusione intelligente dei giocatori tra cloud e locale
+        // Fusione intelligente dei giocatori tra cloud e locale (senza duplicazioni)
         const localPlayers = (this.state && this.state.players && this.state.players.length > 0)
           ? this.state.players
           : (this.loadState().players || []);
         const cloudPlayers = cloudState.players || [];
         
+        const getPlayerIdentityKey = (p) => {
+          const em = (p.email || p.userId || "").toLowerCase().trim();
+          if (em && em.includes("@")) return `email:${em}`;
+          return `id:${p.id}`;
+        };
+
         const playersMap = new Map();
         cloudPlayers.forEach(p => {
-          if (p && p.id) playersMap.set(p.id, p);
+          if (p && p.id) {
+            const key = getPlayerIdentityKey(p);
+            if (!playersMap.has(key)) {
+              playersMap.set(key, p);
+            }
+          }
         });
+
         localPlayers.forEach(lp => {
           if (lp && lp.id) {
-            if (!playersMap.has(lp.id)) {
-              playersMap.set(lp.id, lp);
+            const key = getPlayerIdentityKey(lp);
+            if (!playersMap.has(key)) {
+              playersMap.set(key, lp);
             } else {
-              const cp = playersMap.get(lp.id);
+              const cp = playersMap.get(key);
               if (lp.category && TournamentManager.CATEGORIES.includes(lp.category) && (!cp.category || cp.category === "Da Assegnare")) {
                 cp.category = lp.category;
+              }
+              if (lp.photoUrl && !cp.photoUrl) {
+                cp.photoUrl = lp.photoUrl;
               }
             }
           }
