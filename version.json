@@ -1,6 +1,6 @@
 {
-  "version": "1.2.2",
-  "buildTime": 1794409500000,
-  "releasedAt": "2026-11-11T23:45:00+01:00",
-  "notes": "Sincronizzazione account Firebase cumulativa non distruttiva, salvataggio atomico e ripristino atleti registrati"
+  "version": "1.2.3",
+  "buildTime": 1794411000000,
+  "releasedAt": "2026-11-12T00:01:00+01:00",
+  "notes": "Risolto bug scomparsa atleti dalla classifica al reload e sincronizzazione categorie competizione"
 }

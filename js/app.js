@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.2.2";
-const APP_BUILD_TIME = 1794409500000;
+const APP_VERSION = "1.2.3";
+const APP_BUILD_TIME = 1794411000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -238,40 +238,88 @@ class App {
       if (!this.state.players) this.state.players = [];
       let stateChanged = false;
       let accountsChanged = false;
+      const accountsToPush = {};
 
-      // 1. Sincronizza dati anagrafici da accounts ad atleti del torneo
+      // 1. Assicura che TUTTI gli account registrati (con ruolo 'player') siano presenti in state.players
       Object.values(accounts).forEach(acc => {
         if (!acc || !acc.email) return;
         if (isUserAdmin(acc.email) || acc.role === "admin") return;
 
         const emailKey = acc.email.toLowerCase().trim();
-        const existing = this.state.players.find(p =>
+        let existing = this.state.players.find(p =>
           (p.email && p.email.toLowerCase().trim() === emailKey) ||
           (p.userId && p.userId.toLowerCase().trim() === emailKey)
         );
 
-        if (existing) {
-          let cat = acc.category || "Da Assegnare";
-          if (cat !== "Da Assegnare") {
-            cat = this.tournamentManager.getPlayerCategory(acc);
+        if (!existing) {
+          const fn = acc.firstName || (acc.name ? acc.name.split(" ")[0] : "");
+          const ln = acc.lastName || (acc.name ? acc.name.split(" ").slice(1).join(" ") : "");
+          const chosenCat = (acc.category && TournamentManager.CATEGORIES.includes(acc.category))
+            ? acc.category
+            : "Pre Agonistica U12";
+          existing = {
+            id: `p-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            firstName: fn,
+            lastName: ln,
+            name: acc.name || `${fn} ${ln}`.trim(),
+            birthDate: acc.birthDate || "",
+            ranking: acc.ranking || "NC",
+            category: chosenCat,
+            notes: "",
+            email: emailKey,
+            userId: emailKey,
+            photoUrl: acc.photoUrl || "",
+            status: "confermato"
+          };
+          this.state.players.push(existing);
+          stateChanged = true;
+        }
+
+        // REGOLA FONDAMENTALE DI CATEGORIA:
+        // Una categoria ufficiale assegnata nel torneo (Pre Agonistica U12, Pre Agonistica, SAT)
+        // è prioritaria e NON DEVE MAI essere azzerata a "Da Assegnare" da un reload!
+        if (existing.category && TournamentManager.CATEGORIES.includes(existing.category)) {
+          if (acc.category !== existing.category) {
+            acc.category = existing.category;
+            accountsChanged = true;
+            accountsToPush[this.encodeEmailKey(emailKey)] = acc;
           }
-          if (existing.category !== cat || existing.name !== (acc.name || `${acc.firstName || ''} ${acc.lastName || ''}`.trim())) {
-            existing.category = cat;
-            if (acc.name) existing.name = acc.name;
-            if (acc.birthDate) existing.birthDate = acc.birthDate;
-            if (acc.ranking) existing.ranking = acc.ranking;
-            stateChanged = true;
-          }
+        } else if (acc.category && TournamentManager.CATEGORIES.includes(acc.category)) {
+          existing.category = acc.category;
+          stateChanged = true;
+        } else {
+          // Se entrambi non hanno ancora una categoria ufficiale, assegna Pre Agonistica U12
+          const defaultCat = "Pre Agonistica U12";
+          existing.category = defaultCat;
+          acc.category = defaultCat;
+          stateChanged = true;
+          accountsChanged = true;
+          accountsToPush[this.encodeEmailKey(emailKey)] = acc;
+        }
+
+        // Sincronizza anagrafica se modificata
+        const fullName = acc.name || `${acc.firstName || ''} ${acc.lastName || ''}`.trim();
+        if (fullName && existing.name !== fullName) {
+          existing.name = fullName;
+          stateChanged = true;
+        }
+        if (acc.birthDate && existing.birthDate !== acc.birthDate) {
+          existing.birthDate = acc.birthDate;
+          stateChanged = true;
+        }
+        if (acc.ranking && existing.ranking !== acc.ranking) {
+          existing.ranking = acc.ranking;
+          stateChanged = true;
         }
       });
 
-      // 2. Ripristino reciproco: se ci sono atleti in state.players con email ma senza account, ricrea l'account!
-      const accountsToPush = {};
+      // 2. Ripristino reciproco: se un atleta in state.players ha email ma non ha account, ricrealo!
       this.state.players.forEach(p => {
         const pEmail = (p.email || p.userId || "").toLowerCase().trim();
         if (pEmail && pEmail.includes("@") && !accounts[pEmail]) {
           const fn = p.firstName || (p.name ? p.name.split(" ")[0] : "");
           const ln = p.lastName || (p.name ? p.name.split(" ").slice(1).join(" ") : "");
+          const cat = (p.category && TournamentManager.CATEGORIES.includes(p.category)) ? p.category : "Pre Agonistica U12";
           const recoveredAcc = {
             firstName: fn,
             lastName: ln,
@@ -279,7 +327,7 @@ class App {
             email: pEmail,
             birthDate: p.birthDate || "",
             ranking: p.ranking || "NC",
-            category: p.category || "Da Assegnare",
+            category: cat,
             role: isUserAdmin(pEmail) ? "admin" : "player",
             biometricsEnabled: false,
             photoUrl: p.photoUrl || "",
@@ -302,6 +350,9 @@ class App {
       if (stateChanged) {
         this.tournamentManager.ensureCategories();
         localStorage.setItem(DATA_KEY, JSON.stringify(this.state));
+        if (this.db && !this.isRemoteUpdate) {
+          this.pushStateToFirebase(this.state);
+        }
       }
     } catch (e) {
       console.warn("Errore syncAccountsToPlayers", e);
@@ -456,7 +507,22 @@ class App {
       }
 
       // Fusione sicura e cumulativa: nessun account viene mai sovrascritto o perso
-      const merged = { ...localAccounts, ...cloudAccounts };
+      const merged = { ...localAccounts };
+      Object.entries(cloudAccounts).forEach(([em, cAcc]) => {
+        if (!merged[em]) {
+          merged[em] = cAcc;
+        } else {
+          const localCat = merged[em].category;
+          const cloudCat = cAcc.category;
+          merged[em] = { ...cAcc, ...merged[em] };
+          // Preserva sempre la categoria ufficiale assegnata
+          if (localCat && TournamentManager.CATEGORIES.includes(localCat)) {
+            merged[em].category = localCat;
+          } else if (cloudCat && TournamentManager.CATEGORIES.includes(cloudCat)) {
+            merged[em].category = cloudCat;
+          }
+        }
+      });
       this.accounts = merged;
       localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(merged));
 
@@ -494,13 +560,38 @@ class App {
       const cloudState = snapshot.val();
       if (cloudState) {
         this.isRemoteUpdate = true;
+        
+        // Fusione intelligente dei giocatori tra cloud e locale
+        const localPlayers = (this.state && this.state.players && this.state.players.length > 0)
+          ? this.state.players
+          : (this.loadState().players || []);
+        const cloudPlayers = cloudState.players || [];
+        
+        const playersMap = new Map();
+        cloudPlayers.forEach(p => {
+          if (p && p.id) playersMap.set(p.id, p);
+        });
+        localPlayers.forEach(lp => {
+          if (lp && lp.id) {
+            if (!playersMap.has(lp.id)) {
+              playersMap.set(lp.id, lp);
+            } else {
+              const cp = playersMap.get(lp.id);
+              if (lp.category && TournamentManager.CATEGORIES.includes(lp.category) && (!cp.category || cp.category === "Da Assegnare")) {
+                cp.category = lp.category;
+              }
+            }
+          }
+        });
+
+        cloudState.players = Array.from(playersMap.values());
         this.state = cloudState;
-        if (!this.state.players) this.state.players = [];
         this.tournamentManager.state = this.state;
+        this.tournamentManager.ensureCategories();
         localStorage.setItem(DATA_KEY, JSON.stringify(this.state));
+        this.isRemoteUpdate = false;
         this.syncAccountsToPlayers();
         this.render();
-        this.isRemoteUpdate = false;
       } else if (!initialStateLoaded) {
         // Se Firebase è ancora vuoto, effettua il primo seeding con lo stato locale
         if (this.state && this.state.players && this.state.players.length > 0) {
@@ -3171,23 +3262,28 @@ class App {
       return;
     }
 
+    const chosenCat = specificCategory || (acc.category && TournamentManager.CATEGORIES.includes(acc.category) ? acc.category : "Pre Agonistica U12");
+
     const existingPlayer = this.getPlayerForAccount(acc);
     if (existingPlayer) {
-      if (specificCategory && existingPlayer.category !== specificCategory) {
-        this.changePlayerCategory(existingPlayer.id, specificCategory);
-      } else {
-        this.showToast(`L'atleta "${acc.name || cleanEmail}" è già iscritto nel torneo.`, "info");
-      }
+      existingPlayer.category = chosenCat;
+      acc.category = chosenCat;
+      this.saveAccounts(accounts);
+      this.pushSingleAccountToFirebase(cleanEmail, acc);
+      this.tournamentManager.ensureCategories();
+      this.saveState();
+      this.showToast(`Atleta "${acc.name || cleanEmail}" inserito in "${chosenCat}"!`, "success");
+      this.render();
       return;
     }
 
     const firstName = acc.firstName || (acc.name ? acc.name.split(" ")[0] : "");
     const lastName = acc.lastName || (acc.name ? acc.name.split(" ").slice(1).join(" ") : "");
     const fullName = acc.name || `${firstName} ${lastName}`.trim();
-    const chosenCat = specificCategory || (acc.category && acc.category !== "Da Assegnare" ? acc.category : ((this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Pre Agonistica U12"));
 
     acc.category = chosenCat;
     this.saveAccounts(accounts);
+    this.pushSingleAccountToFirebase(cleanEmail, acc);
 
     const newPlayer = {
       id: `p-${Date.now()}`,
@@ -3205,6 +3301,7 @@ class App {
     };
 
     this.state.players.push(newPlayer);
+    this.tournamentManager.ensureCategories();
     this.saveState();
     this.showToast(`Atleta "${fullName}" iscritto con successo a "${chosenCat}"!`, "success");
     this.render();
@@ -3226,6 +3323,7 @@ class App {
       if (accounts[email]) {
         accounts[email].category = newCategory;
         this.saveAccounts(accounts);
+        this.pushSingleAccountToFirebase(email, accounts[email]);
       }
     }
 
