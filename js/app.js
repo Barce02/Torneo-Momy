@@ -9,6 +9,9 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
+const APP_VERSION = "1.2.0";
+const APP_BUILD_TIME = 1731317500000;
+
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
 const ACCOUNTS_KEY = "torneo_momy_accounts_v7";
@@ -471,6 +474,9 @@ class App {
     // Nascondi splash screen iniziale con logo Momy
     this.hideSplashScreen();
 
+    // Gestione automatica aggiornamenti app e sincronizzazione cloud istantanea
+    this.initAppUpdateManager();
+
     // Se l'utente non ha ancora effettuato il login la prima volta, apri il modale dopo la splash
     if (!this.user) {
       setTimeout(() => {
@@ -478,6 +484,126 @@ class App {
         const hasAccounts = Object.keys(accounts).length > 0;
         this.openLoginModal(hasAccounts ? "login" : "register");
       }, 850);
+    }
+  }
+
+  // ==========================================
+  // GESTORE AGGIORNAMENTI APP & CACHE-BUSTING
+  // ==========================================
+  initAppUpdateManager() {
+    // 1. Rimuovi eventuali Service Worker legacy/obsoleti che potrebbero causare cache non aggiornata
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        for (const reg of registrations) {
+          reg.unregister().then(() => {
+            console.log("[UpdateManager] Service Worker legacy disinstallato con successo");
+          });
+        }
+      }).catch(err => console.warn("Errore rimozione SW:", err));
+    }
+
+    // 2. Controllo iniziale 1.5 secondi dopo l'avvio della schermata
+    setTimeout(() => {
+      this.checkForAppUpdates(true);
+    }, 1500);
+
+    // 3. Controllo automatico ogni volta che l'utente torna sull'app (es. sblocco iPhone, cambio tab Safari)
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        if (this.db) {
+          try { this.db.goOnline(); } catch (e) {}
+        }
+        this.checkForAppUpdates(true);
+      }
+    });
+
+    window.addEventListener("focus", () => {
+      if (this.db) {
+        try { this.db.goOnline(); } catch (e) {}
+      }
+      this.checkForAppUpdates(true);
+    });
+
+    // 4. Controllo periodico in background ogni 10 minuti
+    setInterval(() => {
+      this.checkForAppUpdates(true);
+    }, 10 * 60 * 1000);
+  }
+
+  async checkForAppUpdates(silent = true) {
+    try {
+      const now = Date.now();
+      // Se silent, evita chiamate a raffica (al massimo 1 ogni 20 secondi)
+      if (silent && this._lastUpdateCheck && (now - this._lastUpdateCheck < 20000)) {
+        return;
+      }
+      this._lastUpdateCheck = now;
+
+      const res = await fetch(`version.json?_t=${Date.now()}`, {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          "Pragma": "no-cache"
+        }
+      });
+
+      if (!res.ok) {
+        if (!silent) this.showToast("Impossibile verificare gli aggiornamenti al momento.", "warning");
+        return;
+      }
+
+      const remote = await res.json();
+      const hasNewVersion = remote && (
+        (remote.buildTime && remote.buildTime > APP_BUILD_TIME) ||
+        (remote.version && remote.version !== APP_VERSION)
+      );
+
+      if (hasNewVersion) {
+        console.log(`[UpdateManager] Nuova versione rilevata: v${remote.version} (build ${remote.buildTime})`);
+        
+        // Verifica se l'utente sta compilando un input o ha un modale aperto
+        const isEditing = document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+        const hasOpenModal = document.querySelector('.modal-backdrop:not(.hidden)');
+
+        if (isEditing || hasOpenModal) {
+          this.showUpdateBanner(remote.version);
+        } else {
+          this.showToast("Nuovo aggiornamento applicato! Ricaricamento in corso...", "info");
+          setTimeout(() => {
+            window.location.reload(true);
+          }, 600);
+        }
+      } else {
+        if (!silent) {
+          this.showToast(`L'app è aggiornata all'ultima versione (v${APP_VERSION})!`, "success");
+        }
+      }
+    } catch (err) {
+      console.warn("[UpdateManager] Errore verifica aggiornamenti:", err);
+      if (!silent) {
+        this.showToast("Connessione verificata: nessuna nuova versione.", "info");
+      }
+    }
+  }
+
+  showUpdateBanner(newVersion) {
+    let banner = document.getElementById("app-update-banner");
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.id = "app-update-banner";
+      banner.className = "fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-blue-950 font-bold px-3 py-2 text-xs shadow-2xl flex items-center justify-between border-b border-amber-600/30";
+      banner.innerHTML = `
+        <div class="flex items-center gap-2 truncate">
+          <svg class="w-4 h-4 flex-shrink-0 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          <span class="truncate">È disponibile una nuova versione del Torneo Momy${newVersion ? ' (' + newVersion + ')' : ''}!</span>
+        </div>
+        <button onclick="window.location.reload(true)" class="bg-slate-950 text-yellow-400 hover:text-white px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider ml-2 flex-shrink-0 shadow transition cursor-pointer">
+          Aggiorna ora
+        </button>
+      `;
+      document.body.prepend(banner);
+    } else {
+      banner.classList.remove("hidden");
     }
   }
 
@@ -5409,6 +5535,14 @@ class App {
               <span>Crea Nuovo Account</span>
             </button>
           </div>
+
+          <div class="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500 inline-block shadow-sm"></span>v${APP_VERSION}</span>
+            <button type="button" onclick="app.checkForAppUpdates(false)" class="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              Verifica aggiornamenti
+            </button>
+          </div>
         </div>
       `;
       return;
@@ -5622,6 +5756,18 @@ class App {
                   Salva Modifiche Profilo
                 </button>
               </div>
+            </div>
+
+            <!-- Info Versione & Aggiornamenti -->
+            <div class="mt-6 pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-2.5">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block shadow-sm"></span>
+                <span>Versione App: <strong class="text-gray-800 font-bold">v${APP_VERSION}</strong></span>
+              </div>
+              <button type="button" onclick="app.checkForAppUpdates(false)" class="w-full sm:w-auto text-blue-700 hover:text-blue-900 font-semibold text-xs flex items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition border border-blue-200 cursor-pointer shadow-sm">
+                <svg class="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Verifica aggiornamenti
+              </button>
             </div>
 
           </form>
