@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.2.1";
-const APP_BUILD_TIME = 1794399400000;
+const APP_VERSION = "1.2.2";
+const APP_BUILD_TIME = 1794409500000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -237,7 +237,9 @@ class App {
       const accounts = this.loadAccounts();
       if (!this.state.players) this.state.players = [];
       let stateChanged = false;
+      let accountsChanged = false;
 
+      // 1. Sincronizza dati anagrafici da accounts ad atleti del torneo
       Object.values(accounts).forEach(acc => {
         if (!acc || !acc.email) return;
         if (isUserAdmin(acc.email) || acc.role === "admin") return;
@@ -262,6 +264,40 @@ class App {
           }
         }
       });
+
+      // 2. Ripristino reciproco: se ci sono atleti in state.players con email ma senza account, ricrea l'account!
+      const accountsToPush = {};
+      this.state.players.forEach(p => {
+        const pEmail = (p.email || p.userId || "").toLowerCase().trim();
+        if (pEmail && pEmail.includes("@") && !accounts[pEmail]) {
+          const fn = p.firstName || (p.name ? p.name.split(" ")[0] : "");
+          const ln = p.lastName || (p.name ? p.name.split(" ").slice(1).join(" ") : "");
+          const recoveredAcc = {
+            firstName: fn,
+            lastName: ln,
+            name: p.name || `${fn} ${ln}`.trim(),
+            email: pEmail,
+            birthDate: p.birthDate || "",
+            ranking: p.ranking || "NC",
+            category: p.category || "Da Assegnare",
+            role: isUserAdmin(pEmail) ? "admin" : "player",
+            biometricsEnabled: false,
+            photoUrl: p.photoUrl || "",
+            password: "momy"
+          };
+          accounts[pEmail] = recoveredAcc;
+          accountsToPush[this.encodeEmailKey(pEmail)] = recoveredAcc;
+          accountsChanged = true;
+        }
+      });
+
+      if (accountsChanged) {
+        localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+        this.accounts = accounts;
+        if (this.db && Object.keys(accountsToPush).length > 0) {
+          this.db.ref("torneo_momy/accounts").update(accountsToPush).catch(e => console.warn(e));
+        }
+      }
 
       if (stateChanged) {
         this.tournamentManager.ensureCategories();
@@ -302,6 +338,19 @@ class App {
     }
   }
 
+  pushSingleAccountToFirebase(email, account) {
+    if (!this.db || this.isRemoteUpdate || !email || !account) return;
+    try {
+      const key = this.encodeEmailKey(email);
+      if (!key) return;
+      this.db.ref(`torneo_momy/accounts/${key}`).set(account).catch(err => {
+        console.warn("Errore salvataggio singolo account su Firebase:", err);
+      });
+    } catch (e) {
+      console.warn("pushSingleAccountToFirebase exception:", e);
+    }
+  }
+
   pushAccountsToFirebase(accounts) {
     if (!this.db || this.isRemoteUpdate) return;
     try {
@@ -312,12 +361,17 @@ class App {
           sanitized[key] = acc;
         }
       });
-      this.db.ref("torneo_momy/accounts").set(sanitized).catch(err => {
-        console.warn("Errore salvataggio account su Firebase:", err);
-        if (err.message && err.message.toLowerCase().includes("permission")) {
-          this.updateSyncStatus("error", "Permesso negato");
-        }
-      });
+      if (Object.keys(sanitized).length > 0) {
+        // NON usare mai .set() sulla radice /torneo_momy/accounts per non rischiare di cancellare
+        // gli account salvati contemporaneamente da altri client o utenti.
+        // Si usa .update() per unire in sicurezza tutti i record.
+        this.db.ref("torneo_momy/accounts").update(sanitized).catch(err => {
+          console.warn("Errore aggiornamento account su Firebase:", err);
+          if (err.message && err.message.toLowerCase().includes("permission")) {
+            this.updateSyncStatus("error", "Permesso negato");
+          }
+        });
+      }
     } catch (e) {
       console.warn("pushAccountsToFirebase exception:", e);
     }
@@ -390,27 +444,43 @@ class App {
     const accountsRef = this.db.ref("torneo_momy/accounts");
     accountsRef.on("value", (snapshot) => {
       const val = snapshot.val();
+      const localAccounts = this.loadAccounts();
+      const cloudAccounts = {};
+
       if (val) {
-        const cloudAccounts = {};
         Object.values(val).forEach(acc => {
           if (acc && acc.email) {
             cloudAccounts[acc.email.toLowerCase().trim()] = acc;
           }
         });
-        // Unisci con i dati locali per sicurezza
-        this.accounts = { ...this.loadAccounts(), ...cloudAccounts };
-        localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(this.accounts));
-        this.syncAccountsToPlayers();
-        this.renderTabContent();
-        this.renderUserBadge();
-      } else if (!initialAccountsLoaded) {
-        // Se Firebase è ancora vuoto, effettua il primo seeding con gli account locali
-        const localAccounts = this.loadAccounts();
-        if (Object.keys(localAccounts).length > 0) {
-          console.log("Seeding account locali nel cloud Firebase...");
-          this.pushAccountsToFirebase(localAccounts);
-        }
       }
+
+      // Fusione sicura e cumulativa: nessun account viene mai sovrascritto o perso
+      const merged = { ...localAccounts, ...cloudAccounts };
+      this.accounts = merged;
+      localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(merged));
+
+      // Se in locale c'erano account non presenti nel cloud (es. creati offline o persi in precedenza),
+      // reinviali al cloud con update() per ripristinarli definitivamente su Firebase
+      const missingInCloud = {};
+      let hasMissing = false;
+      Object.entries(localAccounts).forEach(([em, acc]) => {
+        const cleanEm = em.toLowerCase().trim();
+        if (!cloudAccounts[cleanEm] && acc && acc.email) {
+          const key = this.encodeEmailKey(cleanEm);
+          missingInCloud[key] = acc;
+          hasMissing = true;
+        }
+      });
+
+      if (hasMissing) {
+        console.log("[Sync] Ripristino account locali mancanti su Firebase:", Object.keys(missingInCloud));
+        this.db.ref("torneo_momy/accounts").update(missingInCloud).catch(e => console.warn(e));
+      }
+
+      this.syncAccountsToPlayers();
+      this.renderTabContent();
+      this.renderUserBadge();
       initialAccountsLoaded = true;
       this.updateSyncStatus("online", "Sincronizzato");
     }, (error) => {
@@ -1098,6 +1168,7 @@ class App {
 
     accounts[email] = accountObj;
     this.saveAccounts(accounts);
+    this.pushSingleAccountToFirebase(email, accountObj);
     localStorage.setItem(LAST_EMAIL_KEY, email);
 
     // Se l'atleta era già stato inserito nel torneo dall'amministrazione, aggiorna anagrafica
@@ -1176,6 +1247,7 @@ class App {
       };
       accounts[email] = account;
       this.saveAccounts(accounts);
+      this.pushSingleAccountToFirebase(email, account);
     }
 
     if (!account) {
@@ -3066,7 +3138,15 @@ class App {
     }
 
     delete accounts[cleanEmail];
-    this.saveAccounts(accounts);
+    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+    this.accounts = accounts;
+
+    if (this.db) {
+      const key = this.encodeEmailKey(cleanEmail);
+      this.db.ref(`torneo_momy/accounts/${key}`).remove().catch(err => {
+        console.warn("Errore eliminazione account da Firebase:", err);
+      });
+    }
 
     if (this.user && this.user.email.toLowerCase() === cleanEmail) {
       this.logout();
