@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.2.4";
-const APP_BUILD_TIME = 1794411600000;
+const APP_VERSION = "1.2.5";
+const APP_BUILD_TIME = 1794412000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -992,19 +992,8 @@ class App {
     }
   }
 
-  toggleTablePassword(emailSafe, actualPassword) {
-    const el = document.getElementById(`pwd-display-${emailSafe}`);
-    if (!el) return;
-    const isMasked = el.textContent.includes("•");
-    if (isMasked) {
-      el.textContent = actualPassword || "(Nessuna)";
-      el.classList.remove("text-gray-800");
-      el.classList.add("text-blue-900", "font-bold");
-    } else {
-      el.textContent = "••••••••";
-      el.classList.remove("text-blue-900", "font-bold");
-      el.classList.add("text-gray-800");
-    }
+  toggleTablePassword() {
+    this.showToast("Le password degli account sono protette e private per la privacy.", "info");
   }
 
   switchAuthMode(mode) {
@@ -2930,7 +2919,7 @@ class App {
                 <th class="py-3 px-3 w-10 text-center">#</th>
                 <th class="py-3 px-3">Utente</th>
                 <th class="py-3 px-3">Email (Account)</th>
-                <th class="py-3 px-3">Password</th>
+                <th class="py-3 px-3">Privacy & Accesso</th>
                 <th class="py-3 px-3">Nascita / FITP</th>
                 <th class="py-3 px-3">Ruolo</th>
                 <th class="py-3 px-3">Iscrizione Competizione</th>
@@ -2960,16 +2949,11 @@ class App {
                     <td class="py-3 px-3 font-medium text-gray-800 font-mono text-xs">
                       <span class="truncate max-w-[170px] inline-block" title="${acc.email}">${acc.email}</span>
                     </td>
-                    <td class="py-3 px-3 font-mono text-xs">
-                      <div class="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 max-w-fit">
-                        <span id="pwd-display-${safeEmail}" class="tracking-wider text-gray-700">••••••••</span>
-                        <button type="button" onclick="app.toggleTablePassword('${safeEmail}', '${this.escapeHtml(acc.password || '')}')" title="Mostra/Nascondi password" class="text-gray-400 hover:text-blue-700 p-0.5 transition cursor-pointer">
-                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                          </svg>
-                        </button>
-                      </div>
+                    <td class="py-3 px-3">
+                      <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg" title="Password protetta per la privacy dell'utente">
+                        <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                        <span>•••••••• (Protetto)</span>
+                      </span>
                     </td>
                     <td class="py-3 px-3 text-gray-600 font-mono text-xs whitespace-nowrap">
                       <div>${this.formatDate(acc.birthDate)}</div>
@@ -3084,7 +3068,15 @@ class App {
       if (fnInput) fnInput.value = acc.firstName || (acc.name ? acc.name.split(" ")[0] : "");
       if (lnInput) lnInput.value = acc.lastName || (acc.name ? acc.name.split(" ").slice(1).join(" ") : "");
       if (emInput) emInput.value = acc.email || "";
-      if (pwInput) pwInput.value = acc.password || "";
+      if (pwInput) {
+        pwInput.value = "";
+        pwInput.placeholder = "•••••••• (lascia vuoto per non modificare)";
+        pwInput.required = false;
+      }
+      const pwLabel = document.getElementById("admin-account-password-label");
+      if (pwLabel) pwLabel.textContent = "Reimposta Password (opzionale)";
+      const pwHelp = document.getElementById("admin-account-password-help");
+      if (pwHelp) pwHelp.classList.remove("hidden");
       if (bdInput) bdInput.value = acc.birthDate || "";
       if (rkInput) rkInput.value = acc.ranking || "NC";
       if (catSelect) catSelect.value = acc.category || this.tournamentManager.getPlayerCategory(acc);
@@ -3107,7 +3099,15 @@ class App {
       if (fnInput) fnInput.value = "";
       if (lnInput) lnInput.value = "";
       if (emInput) emInput.value = "";
-      if (pwInput) pwInput.value = "";
+      if (pwInput) {
+        pwInput.value = "";
+        pwInput.placeholder = "Minimo 4 caratteri (es. momy)";
+        pwInput.required = true;
+      }
+      const pwLabel = document.getElementById("admin-account-password-label");
+      if (pwLabel) pwLabel.textContent = "Password Iniziale *";
+      const pwHelp = document.getElementById("admin-account-password-help");
+      if (pwHelp) pwHelp.classList.add("hidden");
       if (bdInput) bdInput.value = "";
       if (rkInput) rkInput.value = "NC";
       if (catSelect) catSelect.value = (this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Pre Agonistica U12";
@@ -3145,7 +3145,12 @@ class App {
       alert("Inserisci un indirizzo email valido.");
       return;
     }
-    if (!password || password.length < 4) {
+
+    const prevAcc = origEmail ? (this.accounts[origEmail] || {}) : {};
+    let finalPassword = password;
+    if (origEmail && !password) {
+      finalPassword = prevAcc.password || "momy";
+    } else if (!finalPassword || finalPassword.length < 4) {
       alert("La password deve contenere almeno 4 caratteri.");
       return;
     }
@@ -3172,7 +3177,6 @@ class App {
     }
 
     const fullName = `${firstName} ${lastName}`.trim();
-    const prevAcc = origEmail ? (this.accounts[origEmail] || {}) : {};
 
     const updatedAccount = {
       ...prevAcc,
@@ -3180,7 +3184,7 @@ class App {
       lastName,
       name: fullName,
       email,
-      password,
+      password: finalPassword,
       birthDate,
       ranking,
       category,
