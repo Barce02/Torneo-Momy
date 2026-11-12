@@ -1,6 +1,6 @@
 {
-  "version": "1.2.7",
-  "buildTime": 1794526000000,
-  "releasedAt": "2026-11-12T23:55:00+01:00",
-  "notes": "Fix(pwa): protezione definitiva contro sovrascrittura categorie e isolamento salvataggi cloud per web app standalone"
+  "version": "1.2.8",
+  "buildTime": 1794530000000,
+  "releasedAt": "2026-11-13T00:10:00+01:00",
+  "notes": "Fix(matches): ordine alfabetico atleti in classifiche pre-gara e creazione partite con ricerca rapida giocatori"
 }

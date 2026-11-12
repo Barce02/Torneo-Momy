@@ -742,6 +742,12 @@ class TournamentManager {
     const sortedPoints = Object.keys(pointsMap).map(Number).sort((a, b) => b - a);
     const sortedStandings = [];
 
+    const compareAlphabetical = (pA, pB) => {
+      const nameA = (pA.name || `${pA.firstName || ''} ${pA.lastName || ''}`).trim();
+      const nameB = (pB.name || `${pB.firstName || ''} ${pB.lastName || ''}`).trim();
+      return nameA.localeCompare(nameB, 'it', { sensitivity: 'base' });
+    };
+
     sortedPoints.forEach(pt => {
       const cluster = pointsMap[pt];
       if (cluster.length === 1) {
@@ -749,27 +755,41 @@ class TournamentManager {
       } else if (cluster.length === 2) {
         const p1 = cluster[0];
         const p2 = cluster[1];
-        const h2h = this.getHeadToHeadWinner(group.matches || [], p1.player.id, p2.player.id);
-        if (h2h === p1.player.id) {
-          sortedStandings.push(p1, p2);
-        } else if (h2h === p2.player.id) {
-          sortedStandings.push(p2, p1);
-        } else {
-          cluster.sort((a, b) => {
-            if (b.diff !== a.diff) return b.diff - a.diff;
-            if (b.gamesFor !== a.gamesFor) return b.gamesFor - a.gamesFor;
-            return this.getRankingWeight(b.player.ranking) - this.getRankingWeight(a.player.ranking);
-          });
+        // Se entrambi hanno 0 partite giocate, ordina in puro ordine alfabetico
+        if (p1.played === 0 && p2.played === 0) {
+          cluster.sort((a, b) => compareAlphabetical(a.player, b.player));
           sortedStandings.push(...cluster);
+        } else {
+          const h2h = this.getHeadToHeadWinner(group.matches || [], p1.player.id, p2.player.id);
+          if (h2h === p1.player.id) {
+            sortedStandings.push(p1, p2);
+          } else if (h2h === p2.player.id) {
+            sortedStandings.push(p2, p1);
+          } else {
+            cluster.sort((a, b) => {
+              if (b.diff !== a.diff) return b.diff - a.diff;
+              if (b.gamesFor !== a.gamesFor) return b.gamesFor - a.gamesFor;
+              const rankDiff = this.getRankingWeight(b.player.ranking) - this.getRankingWeight(a.player.ranking);
+              if (rankDiff !== 0) return rankDiff;
+              return compareAlphabetical(a.player, b.player);
+            });
+            sortedStandings.push(...cluster);
+          }
         }
       } else {
         cluster.sort((a, b) => {
-          if (b.diff !== a.diff) return b.diff - a.diff;
-          if (b.gamesFor !== a.gamesFor) return b.gamesFor - a.gamesFor;
+          // Se entrambi hanno 0 partite giocate, ordina in puro ordine alfabetico
+          if (a.played === 0 && b.played === 0) {
+            return compareAlphabetical(a.player, b.player);
+          }
           const h2h = this.getHeadToHeadWinner(group.matches || [], a.player.id, b.player.id);
           if (h2h === a.player.id) return -1;
           if (h2h === b.player.id) return 1;
-          return this.getRankingWeight(b.player.ranking) - this.getRankingWeight(a.player.ranking);
+          if (b.diff !== a.diff) return b.diff - a.diff;
+          if (b.gamesFor !== a.gamesFor) return b.gamesFor - a.gamesFor;
+          const rankDiff = this.getRankingWeight(b.player.ranking) - this.getRankingWeight(a.player.ranking);
+          if (rankDiff !== 0) return rankDiff;
+          return compareAlphabetical(a.player, b.player);
         });
         sortedStandings.push(...cluster);
       }

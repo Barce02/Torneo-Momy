@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.2.7";
-const APP_BUILD_TIME = 1794526000000;
+const APP_VERSION = "1.2.8";
+const APP_BUILD_TIME = 1794530000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -5045,38 +5045,110 @@ class App {
       }
     }
 
+    // Reset delle caselle di ricerca rapida
+    const s1 = document.getElementById("create-match-search-p1");
+    const s2 = document.getElementById("create-match-search-p2");
+    if (s1) s1.value = "";
+    if (s2) s2.value = "";
+    this.updateClearBtnVisibility("p1");
+    this.updateClearBtnVisibility("p2");
+
     this.onCategoryChangeInCreateMatchModal();
     this.openModal("modal-create-match");
   }
 
+  getPlayersForCategorySorted(cat) {
+    const list = (this.state.players || []).filter(p => this.tournamentManager.getPlayerCategory(p) === cat);
+    return list.sort((a, b) => {
+      const nameA = (a.name || `${a.firstName || ''} ${a.lastName || ''}`).trim();
+      const nameB = (b.name || `${b.firstName || ''} ${b.lastName || ''}`).trim();
+      return nameA.localeCompare(nameB, 'it', { sensitivity: 'base' });
+    });
+  }
+
   onCategoryChangeInCreateMatchModal() {
+    const s1 = document.getElementById("create-match-search-p1");
+    const s2 = document.getElementById("create-match-search-p2");
+    if (s1) s1.value = "";
+    if (s2) s2.value = "";
+    this.updateClearBtnVisibility("p1");
+    this.updateClearBtnVisibility("p2");
+
+    this.populateCreateMatchSelect("p1");
+    this.populateCreateMatchSelect("p2");
+  }
+
+  populateCreateMatchSelect(target = "p1", filterQuery = "") {
     const catSelect = document.getElementById("create-match-category");
     const cat = catSelect ? catSelect.value : "Pre Agonistica U12";
+    const selectEl = document.getElementById(target === "p1" ? "create-match-player1" : "create-match-player2");
+    const badgeEl = document.getElementById(target === "p1" ? "create-match-p1-badge" : "create-match-p2-badge");
+    if (!selectEl) return;
 
-    const p1Select = document.getElementById("create-match-player1");
-    const p2Select = document.getElementById("create-match-player2");
-    if (!p1Select || !p2Select) return;
+    const allPlayers = this.getPlayersForCategorySorted(cat);
+    const q = (filterQuery || "").trim().toLowerCase();
 
-    // Recupera i giocatori appartenenti a questa categoria
-    const players = this.state.players.filter(p => this.tournamentManager.getPlayerCategory(p) === cat);
+    let filtered = allPlayers;
+    if (q) {
+      filtered = allPlayers.filter(p => {
+        const full = (p.name || `${p.firstName || ''} ${p.lastName || ''}`).toLowerCase();
+        const fn = (p.firstName || "").toLowerCase();
+        const ln = (p.lastName || "").toLowerCase();
+        const rk = (p.ranking || "").toLowerCase();
+        return full.includes(q) || fn.includes(q) || ln.includes(q) || rk.includes(q);
+      });
+    }
 
-    if (players.length === 0) {
-      p1Select.innerHTML = `<option value="">Nessun atleta in ${cat}</option>`;
-      p2Select.innerHTML = `<option value="">Nessun atleta in ${cat}</option>`;
+    if (badgeEl) {
+      badgeEl.textContent = q ? `${filtered.length} di ${allPlayers.length}` : `${allPlayers.length} atleti A-Z`;
+    }
+
+    if (allPlayers.length === 0) {
+      selectEl.innerHTML = `<option value="">Nessun atleta in ${cat}</option>`;
       return;
     }
 
-    const opts1 = [`<option value="">-- Seleziona Giocatore 1 --</option>`];
-    const opts2 = [`<option value="">-- Seleziona Giocatore 2 --</option>`];
+    const currentVal = selectEl.value;
+    const placeholder = target === "p1" ? "-- Seleziona Giocatore 1 --" : "-- Seleziona Giocatore 2 --";
+    const opts = [`<option value="">${placeholder}</option>`];
 
-    players.forEach((p, idx) => {
+    filtered.forEach(p => {
       const label = `${p.name} (${p.ranking || 'NC'})`;
-      opts1.push(`<option value="${p.id}" ${idx === 0 ? 'selected' : ''}>${label}</option>`);
-      opts2.push(`<option value="${p.id}" ${idx === 1 ? 'selected' : ''}>${label}</option>`);
+      opts.push(`<option value="${p.id}">${label}</option>`);
     });
 
-    p1Select.innerHTML = opts1.join("");
-    p2Select.innerHTML = opts2.join("");
+    selectEl.innerHTML = opts.join("");
+
+    // Se il giocatore precedentemente selezionato è ancora nella lista filtrata, mantienilo
+    if (currentVal && filtered.some(p => p.id === currentVal)) {
+      selectEl.value = currentVal;
+    } else if (q && filtered.length === 1) {
+      // Se la ricerca individua esattamente 1 solo atleta, selezionalo automaticamente
+      selectEl.value = filtered[0].id;
+    }
+  }
+
+  filterCreateMatchPlayer(target = "p1") {
+    const inputEl = document.getElementById(target === "p1" ? "create-match-search-p1" : "create-match-search-p2");
+    const q = inputEl ? inputEl.value : "";
+    this.updateClearBtnVisibility(target);
+    this.populateCreateMatchSelect(target, q);
+  }
+
+  clearCreateMatchSearch(target = "p1") {
+    const inputEl = document.getElementById(target === "p1" ? "create-match-search-p1" : "create-match-search-p2");
+    if (inputEl) inputEl.value = "";
+    this.updateClearBtnVisibility(target);
+    this.populateCreateMatchSelect(target, "");
+    if (inputEl) inputEl.focus();
+  }
+
+  updateClearBtnVisibility(target = "p1") {
+    const inputEl = document.getElementById(target === "p1" ? "create-match-search-p1" : "create-match-search-p2");
+    const clearBtn = document.getElementById(target === "p1" ? "create-match-clear-p1" : "create-match-clear-p2");
+    if (!clearBtn) return;
+    const hasVal = Boolean(inputEl && inputEl.value.trim().length > 0);
+    clearBtn.classList.toggle("hidden", !hasVal);
   }
 
   handleSaveCreateMatch() {
