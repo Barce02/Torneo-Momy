@@ -69,9 +69,6 @@ class TournamentManager {
       this.state.categoryGroups["Pre Agonistica"] = this.state.categoryGroups["Open"];
       delete this.state.categoryGroups["Open"];
     }
-    if (this.state.groups && !this.state.categoryGroups["Pre Agonistica U12"]) {
-      this.state.categoryGroups["Pre Agonistica U12"] = this.state.groups;
-    }
     delete this.state.categoryGroups["U10"];
     delete this.state.categoryGroups["U9"];
     delete this.state.categoryGroups["SAT U14"];
@@ -420,9 +417,7 @@ class TournamentManager {
   ensureGroups(category = "Pre Agonistica U12") {
     this.ensureCategories();
     const cat = category || "Pre Agonistica U12";
-    const catGroup = this.state.categoryGroups[cat];
-    this.state.groups = catGroup;
-    return catGroup;
+    return this.state.categoryGroups[cat];
   }
 
   autoAssignGroups(category = "Pre Agonistica U12") {
@@ -436,7 +431,6 @@ class TournamentManager {
     single.playerIds = catPlayers.map(p => p.id);
     if (!single.matches) single.matches = [];
 
-    this.state.groups = catGroup;
     return catGroup;
   }
 

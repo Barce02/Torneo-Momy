@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.2.6";
-const APP_BUILD_TIME = 1794519600000;
+const APP_VERSION = "1.2.7";
+const APP_BUILD_TIME = 1794526000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -33,6 +33,8 @@ class App {
   constructor() {
     this.db = null;
     this.isRemoteUpdate = false;
+    this.initialStateLoaded = false;
+    this.initialAccountsLoaded = false;
     this.accounts = this.loadAccounts();
     this.user = this.loadUser();
     this.state = this.loadState();
@@ -229,7 +231,7 @@ class App {
     } catch (e) {
       console.error("Errore salvataggio dati", e);
     }
-    if (!this.isRemoteUpdate) {
+    if (!this.isRemoteUpdate && this.isRealAdmin && this.initialStateLoaded) {
       this.pushStateToFirebase(this.state);
     }
     this.render();
@@ -237,6 +239,9 @@ class App {
 
   // Sincronizza automaticamente gli account registrati nell'elenco atleti per la propria categoria
   syncAccountsToPlayers() {
+    if (!this.initialStateLoaded) {
+      return;
+    }
     try {
       const accounts = this.loadAccounts();
       if (!this.state.players) this.state.players = [];
@@ -372,7 +377,7 @@ class App {
       if (accountsChanged) {
         localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
         this.accounts = accounts;
-        if (this.db && Object.keys(accountsToPush).length > 0) {
+        if (this.db && Object.keys(accountsToPush).length > 0 && this.isRealAdmin) {
           this.db.ref("torneo_momy/accounts").update(accountsToPush).catch(e => console.warn(e));
         }
       }
@@ -380,7 +385,7 @@ class App {
       if (stateChanged) {
         this.tournamentManager.ensureCategories();
         localStorage.setItem(DATA_KEY, JSON.stringify(this.state));
-        if (this.db && !this.isRemoteUpdate) {
+        if (this.db && !this.isRemoteUpdate && this.isRealAdmin) {
           this.pushStateToFirebase(this.state);
         }
       }
@@ -459,7 +464,7 @@ class App {
   }
 
   pushStateToFirebase(state) {
-    if (!this.db || this.isRemoteUpdate) return;
+    if (!this.db || this.isRemoteUpdate || !this.initialStateLoaded || !this.isRealAdmin) return;
     try {
       this.db.ref("torneo_momy/state").set(state).catch(err => {
         console.warn("Errore salvataggio stato torneo su Firebase:", err);
@@ -518,9 +523,6 @@ class App {
   }
 
   setupRealtimeSync() {
-    let initialAccountsLoaded = false;
-    let initialStateLoaded = false;
-
     // 1. Sincronizzazione Realtime ACCOUNTS
     const accountsRef = this.db.ref("torneo_momy/accounts");
     accountsRef.on("value", (snapshot) => {
@@ -567,7 +569,7 @@ class App {
       }
 
       // Se in locale c'erano account non presenti nel cloud (es. creati offline o persi in precedenza),
-      // reinviali al cloud con update() per ripristinarli definitivamente su Firebase
+      // reinviali al cloud con update() per ripristinarli definitivamente su Firebase solo se admin autenticato
       const missingInCloud = {};
       let hasMissing = false;
       Object.entries(localAccounts).forEach(([em, acc]) => {
@@ -579,15 +581,17 @@ class App {
         }
       });
 
-      if (hasMissing) {
+      if (hasMissing && this.isRealAdmin) {
         console.log("[Sync] Ripristino account locali mancanti su Firebase:", Object.keys(missingInCloud));
         this.db.ref("torneo_momy/accounts").update(missingInCloud).catch(e => console.warn(e));
       }
 
-      this.syncAccountsToPlayers();
+      this.initialAccountsLoaded = true;
+      if (this.initialStateLoaded) {
+        this.syncAccountsToPlayers();
+      }
       this.renderTabContent();
       this.renderUserBadge();
-      initialAccountsLoaded = true;
       this.updateSyncStatus("online", "Sincronizzato");
     }, (error) => {
       console.error("Errore sincronizzazione Firebase accounts:", error);
@@ -600,53 +604,16 @@ class App {
       const cloudState = snapshot.val();
       if (cloudState) {
         this.isRemoteUpdate = true;
-        
-        // Fusione intelligente dei giocatori tra cloud e locale (senza duplicazioni)
-        const localPlayers = (this.state && this.state.players && this.state.players.length > 0)
-          ? this.state.players
-          : (this.loadState().players || []);
-        const cloudPlayers = cloudState.players || [];
-        
-        const getPlayerIdentityKey = (p) => {
-          const em = (p.email || p.userId || "").toLowerCase().trim();
-          if (em && em.includes("@")) return `email:${em}`;
-          return `id:${p.id}`;
-        };
-
-        const playersMap = new Map();
-        cloudPlayers.forEach(p => {
-          if (p && p.id) {
-            const key = getPlayerIdentityKey(p);
-            if (!playersMap.has(key)) {
-              playersMap.set(key, p);
-            }
-          }
-        });
-
-        localPlayers.forEach(lp => {
-          if (lp && lp.id) {
-            const key = getPlayerIdentityKey(lp);
-            if (!playersMap.has(key)) {
-              playersMap.set(key, lp);
-            } else {
-              const cp = playersMap.get(key);
-              if (lp.category && TournamentManager.CATEGORIES.includes(lp.category) && (!cp.category || cp.category === "Da Assegnare")) {
-                cp.category = lp.category;
-              }
-              if (lp.photoUrl && !cp.photoUrl) {
-                cp.photoUrl = lp.photoUrl;
-              }
-            }
-          }
-        });
-
-        cloudState.players = Array.from(playersMap.values());
         this.state = cloudState;
         this.tournamentManager.state = this.state;
         this.tournamentManager.ensureCategories();
         localStorage.setItem(DATA_KEY, JSON.stringify(this.state));
         this.isRemoteUpdate = false;
-        this.syncAccountsToPlayers();
+        this.initialStateLoaded = true;
+
+        if (this.initialAccountsLoaded) {
+          this.syncAccountsToPlayers();
+        }
 
         // Se l'utente è un atleta (non admin) e non ha cambiato manualmente categoria,
         // posizionalo subito sulla sua categoria di gara
@@ -658,14 +625,14 @@ class App {
         }
 
         this.render();
-      } else if (!initialStateLoaded) {
-        // Se Firebase è ancora vuoto, effettua il primo seeding con lo stato locale
+      } else if (!this.initialStateLoaded && this.isRealAdmin) {
+        // Se Firebase è ancora vuoto, effettua il primo seeding con lo stato locale solo se admin
         if (this.state && this.state.players && this.state.players.length > 0) {
           console.log("Seeding stato torneo nel cloud Firebase...");
           this.pushStateToFirebase(this.state);
         }
       }
-      initialStateLoaded = true;
+      this.initialStateLoaded = true;
       this.updateSyncStatus("online", "Sincronizzato");
     }, (error) => {
       console.error("Errore sincronizzazione Firebase state:", error);
@@ -693,7 +660,6 @@ class App {
 
   init() {
     this.initFirebase();
-    this.syncAccountsToPlayers();
     this.bindEvents();
     this.renderUserBadge();
     this.render();

@@ -1,6 +1,6 @@
 {
-  "version": "1.2.6",
-  "buildTime": 1794519600000,
-  "releasedAt": "2026-11-12T22:00:00+01:00",
-  "notes": "Fix(classifiche): sincronizzazione categorie utenti con classifica ufficiale e posizionamento automatico alla categoria dell'atleta"
+  "version": "1.2.7",
+  "buildTime": 1794526000000,
+  "releasedAt": "2026-11-12T23:55:00+01:00",
+  "notes": "Fix(pwa): protezione definitiva contro sovrascrittura categorie e isolamento salvataggi cloud per web app standalone"
 }
