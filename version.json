@@ -1,6 +1,6 @@
 {
-  "version": "1.2.5",
-  "buildTime": 1794412000000,
-  "releasedAt": "2026-11-12T00:28:00+01:00",
-  "notes": "Privacy password: oscuramento totale password utenti anche da vista admin"
+  "version": "1.2.6",
+  "buildTime": 1794519600000,
+  "releasedAt": "2026-11-12T22:00:00+01:00",
+  "notes": "Fix(classifiche): sincronizzazione categorie utenti con classifica ufficiale e posizionamento automatico alla categoria dell'atleta"
 }

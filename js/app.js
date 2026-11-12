@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.2.5";
-const APP_BUILD_TIME = 1794412000000;
+const APP_VERSION = "1.2.6";
+const APP_BUILD_TIME = 1794519600000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -45,7 +45,11 @@ class App {
     this.currentEditingMatchId = null;
     this.revealedPasswords = {};
 
-    this.selectedCategory = "Pre Agonistica U12"; // "all", "Pre Agonistica U12", "Pre Agonistica", "SAT"
+    this.userHasManuallyChangedCategory = false;
+    const initialUserCat = this.getUserCategory();
+    this.selectedCategory = (initialUserCat && TournamentManager.CATEGORIES.includes(initialUserCat) && !this.isAdmin)
+      ? initialUserCat
+      : "Pre Agonistica U12"; // "all", "Pre Agonistica U12", "Pre Agonistica", "SAT"
     this.pendingPasswordReset = this.loadPendingPasswordReset();
 
     // Modalità Vista Utente per Admin (anteprima come vedono i non admin)
@@ -275,7 +279,7 @@ class App {
           const ln = acc.lastName || (acc.name ? acc.name.split(" ").slice(1).join(" ") : "");
           const chosenCat = (acc.category && TournamentManager.CATEGORIES.includes(acc.category))
             ? acc.category
-            : "Pre Agonistica U12";
+            : "Da Assegnare";
           existing = {
             id: `p-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
             firstName: fn,
@@ -295,27 +299,32 @@ class App {
         }
 
         // REGOLA FONDAMENTALE DI CATEGORIA:
-        // Se l'account ha una categoria ufficiale specifica (impostata dall'admin), assegnala al giocatore!
-        // Altrimenti se il giocatore ha una categoria ufficiale, assegnala all'account!
-        if (acc.category && TournamentManager.CATEGORIES.includes(acc.category)) {
-          if (existing.category !== acc.category) {
-            existing.category = acc.category;
-            stateChanged = true;
-          }
-        } else if (existing.category && TournamentManager.CATEGORIES.includes(existing.category)) {
+        // 1. Se l'atleta esiste nel torneo con una categoria ufficiale (Pre Agonistica U12, Pre Agonistica, SAT),
+        //    quella è la categoria ufficiale stabilita dall'amministrazione e l'account DEVE rifletterla!
+        // 2. Se l'atleta non ha ancora una categoria ufficiale ma l'account sì (assegnata da admin), assegnala all'atleta!
+        if (existing.category && TournamentManager.CATEGORIES.includes(existing.category)) {
           if (acc.category !== existing.category) {
             acc.category = existing.category;
             accountsChanged = true;
             accountsToPush[this.encodeEmailKey(emailKey)] = acc;
           }
+        } else if (acc.category && TournamentManager.CATEGORIES.includes(acc.category)) {
+          if (existing.category !== acc.category) {
+            existing.category = acc.category;
+            stateChanged = true;
+          }
         } else {
-          // Se entrambi non hanno ancora una categoria ufficiale, assegna Pre Agonistica U12
-          const defaultCat = "Pre Agonistica U12";
-          existing.category = defaultCat;
-          acc.category = defaultCat;
-          stateChanged = true;
-          accountsChanged = true;
-          accountsToPush[this.encodeEmailKey(emailKey)] = acc;
+          // Se entrambi non hanno ancora una categoria ufficiale, imposta "Da Assegnare"
+          const defaultCat = "Da Assegnare";
+          if (existing.category !== defaultCat) {
+            existing.category = defaultCat;
+            stateChanged = true;
+          }
+          if (acc.category !== defaultCat) {
+            acc.category = defaultCat;
+            accountsChanged = true;
+            accountsToPush[this.encodeEmailKey(emailKey)] = acc;
+          }
         }
 
         // Sincronizza anagrafica se modificata
@@ -340,7 +349,7 @@ class App {
         if (pEmail && pEmail.includes("@") && !accounts[pEmail]) {
           const fn = p.firstName || (p.name ? p.name.split(" ")[0] : "");
           const ln = p.lastName || (p.name ? p.name.split(" ").slice(1).join(" ") : "");
-          const cat = (p.category && TournamentManager.CATEGORIES.includes(p.category)) ? p.category : "Pre Agonistica U12";
+          const cat = (p.category && TournamentManager.CATEGORIES.includes(p.category)) ? p.category : "Da Assegnare";
           const recoveredAcc = {
             firstName: fn,
             lastName: ln,
@@ -536,16 +545,26 @@ class App {
           const localCat = merged[em].category;
           const cloudCat = cAcc.category;
           merged[em] = { ...cAcc, ...merged[em] };
-          // Preserva sempre la categoria ufficiale assegnata
-          if (localCat && TournamentManager.CATEGORIES.includes(localCat)) {
-            merged[em].category = localCat;
-          } else if (cloudCat && TournamentManager.CATEGORIES.includes(cloudCat)) {
+          // Il cloud Firebase è l'autorità primaria per le categorie ufficiali
+          if (cloudCat && TournamentManager.CATEGORIES.includes(cloudCat)) {
             merged[em].category = cloudCat;
+          } else if (localCat && TournamentManager.CATEGORIES.includes(localCat)) {
+            merged[em].category = localCat;
           }
         }
       });
       this.accounts = merged;
       localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(merged));
+
+      // Sincronizza tempestivamente la sessione dell'utente attualmente loggato
+      if (this.user && this.user.email) {
+        const cleanUserEmail = this.user.email.toLowerCase().trim();
+        const freshAcc = merged[cleanUserEmail];
+        if (freshAcc && freshAcc.category && this.user.category !== freshAcc.category) {
+          this.user.category = freshAcc.category;
+          localStorage.setItem(USER_KEY, JSON.stringify(this.user));
+        }
+      }
 
       // Se in locale c'erano account non presenti nel cloud (es. creati offline o persi in precedenza),
       // reinviali al cloud con update() per ripristinarli definitivamente su Firebase
@@ -628,6 +647,16 @@ class App {
         localStorage.setItem(DATA_KEY, JSON.stringify(this.state));
         this.isRemoteUpdate = false;
         this.syncAccountsToPlayers();
+
+        // Se l'utente è un atleta (non admin) e non ha cambiato manualmente categoria,
+        // posizionalo subito sulla sua categoria di gara
+        if (!this.isAdmin && !this.userHasManuallyChangedCategory) {
+          const userCat = this.getUserCategory();
+          if (userCat && TournamentManager.CATEGORIES.includes(userCat)) {
+            this.selectedCategory = userCat;
+          }
+        }
+
         this.render();
       } else if (!initialStateLoaded) {
         // Se Firebase è ancora vuoto, effettua il primo seeding con lo stato locale
@@ -1267,8 +1296,18 @@ class App {
       return;
     }
 
-    // La categoria non viene scelta dall'utente: viene assegnata dall'amministrazione del torneo
-    const category = "Da Assegnare";
+    // Se l'atleta era già stato inserito nel torneo dall'amministrazione, eredita la categoria ufficiale
+    let category = "Da Assegnare";
+    if (!isAdmin && this.state.players) {
+      const cleanEmail = email.toLowerCase().trim();
+      const existingPlayer = this.state.players.find(p =>
+        (p.email && p.email.toLowerCase().trim() === cleanEmail) ||
+        (p.userId && p.userId.toLowerCase().trim() === cleanEmail)
+      );
+      if (existingPlayer && existingPlayer.category && TournamentManager.CATEGORIES.includes(existingPlayer.category)) {
+        category = existingPlayer.category;
+      }
+    }
 
     const accountObj = {
       firstName,
@@ -1304,6 +1343,10 @@ class App {
         this.tournamentManager.ensureCategories();
         this.saveState();
       }
+    }
+
+    if (!isAdmin && category && TournamentManager.CATEGORIES.includes(category)) {
+      this.selectedCategory = category;
     }
 
     this.saveUser(accountObj);
@@ -1385,6 +1428,14 @@ class App {
 
     localStorage.setItem(LAST_EMAIL_KEY, email);
     this.saveUser(account);
+
+    if (!isAdmin) {
+      this.userHasManuallyChangedCategory = false;
+      const userCat = this.getUserCategory();
+      if (userCat && TournamentManager.CATEGORIES.includes(userCat)) {
+        this.selectedCategory = userCat;
+      }
+    }
 
     // Supporto al gestore password del browser (iCloud Keychain, Chrome, Edge)
     if (window.PasswordCredential && navigator.credentials && navigator.credentials.store) {
@@ -1560,7 +1611,7 @@ class App {
     const firstName = (this.user.firstName || "").toLowerCase().trim();
     const lastName = (this.user.lastName || "").toLowerCase().trim();
 
-    return (this.state.players || []).find(p => {
+    return (this.state?.players || []).find(p => {
       if (p.userId && p.userId.toLowerCase().trim() === email) return true;
       if (p.email && p.email.toLowerCase().trim() === email) return true;
       const pName = (p.name || "").toLowerCase().trim();
@@ -1568,6 +1619,24 @@ class App {
       if (firstName && lastName && pName.includes(firstName) && pName.includes(lastName)) return true;
       return false;
     }) || null;
+  }
+
+  // Restituisce la categoria ufficiale dell'utente collegato
+  getUserCategory() {
+    if (!this.user) return null;
+    const cp = this.getCurrentPlayer();
+    if (cp && cp.category && TournamentManager.CATEGORIES.includes(cp.category)) {
+      return cp.category;
+    }
+    if (this.user.category && TournamentManager.CATEGORIES.includes(this.user.category)) {
+      return this.user.category;
+    }
+    const cleanEmail = (this.user.email || "").toLowerCase().trim();
+    const acc = cleanEmail ? ((this.accounts && this.accounts[cleanEmail]) || (this.loadAccounts && this.loadAccounts()[cleanEmail])) : null;
+    if (acc && acc.category && TournamentManager.CATEGORIES.includes(acc.category)) {
+      return acc.category;
+    }
+    return null;
   }
 
   getPendingScheduleMatchesForUser() {
@@ -1842,9 +1911,19 @@ class App {
 
     this.currentTab = tab;
 
-    // Se si naviga in Gironi e la categoria attiva è "all", imposta Pre Agonistica U12 di default
-    if (tab === "groups" && this.selectedCategory === "all") {
-      this.selectedCategory = "Pre Agonistica U12";
+    // Se si naviga in Classifica (groups) e l'utente è un atleta (non admin), posizionalo sulla sua categoria di default
+    if (tab === "groups") {
+      if (this.selectedCategory === "all" || this.selectedCategory === "Da Assegnare") {
+        const myCat = this.getUserCategory();
+        this.selectedCategory = (myCat && TournamentManager.CATEGORIES.includes(myCat) && !this.isAdmin)
+          ? myCat
+          : "Pre Agonistica U12";
+      } else if (!this.isAdmin && !this.userHasManuallyChangedCategory) {
+        const myCat = this.getUserCategory();
+        if (myCat && TournamentManager.CATEGORIES.includes(myCat)) {
+          this.selectedCategory = myCat;
+        }
+      }
     }
 
     document.querySelectorAll(".nav-tab-btn").forEach(btn => {
@@ -1879,6 +1958,7 @@ class App {
   // ==========================================
   setCategory(cat) {
     if (cat === "SAT U14") cat = "SAT";
+    this.userHasManuallyChangedCategory = true;
     this.selectedCategory = cat;
     this.renderCategorySelector();
     this.renderTabContent();
@@ -1916,7 +1996,10 @@ class App {
 
     // In Gironi "all" non è ammesso, ma in Tabellone "all" permette di visualizzare tutti i tabelloni divisi per categoria
     if (this.currentTab === "groups" && (this.selectedCategory === "all" || this.selectedCategory === "Da Assegnare")) {
-      this.selectedCategory = "Pre Agonistica U12";
+      const myCat = this.getUserCategory();
+      this.selectedCategory = (myCat && TournamentManager.CATEGORIES.includes(myCat) && !this.isAdmin)
+        ? myCat
+        : "Pre Agonistica U12";
     } else if (this.currentTab === "bracket" && this.selectedCategory === "Da Assegnare") {
       this.selectedCategory = "all";
     }
@@ -2063,10 +2146,19 @@ class App {
     const container = document.getElementById("groups-container");
     if (!container) return;
 
-    if (this.selectedCategory === "all") {
+    // Se l'utente è un atleta (non admin) e non ha cambiato manualmente categoria, posizionalo sulla sua
+    if (!this.isAdmin && !this.userHasManuallyChangedCategory) {
+      const myCat = this.getUserCategory();
+      if (myCat && TournamentManager.CATEGORIES.includes(myCat)) {
+        this.selectedCategory = myCat;
+      }
+    }
+
+    if (this.selectedCategory === "all" || this.selectedCategory === "Da Assegnare") {
       this.selectedCategory = "Pre Agonistica U12";
     }
     const cat = this.selectedCategory;
+    const userCategory = this.getUserCategory();
     const formatInfo = this.getCategoryFormatInfo(cat);
 
     this.tournamentManager.ensureCategories();
@@ -2091,6 +2183,14 @@ class App {
             <div class="flex items-center gap-2 mb-1 flex-wrap">
               <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
               <span class="text-xs font-black uppercase tracking-wider text-yellow-300">Classifica Ufficiale • Categoria ${cat}</span>
+              ${userCategory === cat ? `
+                <span class="bg-yellow-400 text-blue-950 text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs">La Tua Categoria</span>
+              ` : (userCategory && TournamentManager.CATEGORIES.includes(userCategory) ? `
+                <button type="button" onclick="app.setCategory('${userCategory}')" class="text-[10px] bg-yellow-400/20 hover:bg-yellow-400/30 text-yellow-300 font-bold px-2 py-0.5 rounded-full border border-yellow-400/40 transition cursor-pointer flex items-center gap-1">
+                  <span>Vai alla tua categoria (${userCategory})</span>
+                  <svg class="w-3 h-3 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </button>
+              ` : '')}
             </div>
             <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Classifica Ufficiale (${cat})</h2>
           </div>
@@ -2188,18 +2288,26 @@ class App {
                   </thead>
                   <tbody class="divide-y divide-gray-100">
                     ${standings.map((s, idx) => {
-                      const isMe = this.user && s.player.email && this.user.email && (s.player.email.toLowerCase() === this.user.email.toLowerCase());
+                      const myPlayer = this.getCurrentPlayer();
+                      const isMe = Boolean(
+                        (myPlayer && myPlayer.id === s.player.id) ||
+                        (this.user && this.user.email && (
+                          (s.player.email && s.player.email.toLowerCase().trim() === this.user.email.toLowerCase().trim()) ||
+                          (s.player.userId && s.player.userId.toLowerCase().trim() === this.user.email.toLowerCase().trim())
+                        ))
+                      );
                       
                       return `
-                        <tr class="hover:bg-blue-50/50 transition ${isMe ? 'bg-blue-50/70 font-semibold' : ''}">
+                        <tr class="hover:bg-blue-50/50 transition ${isMe ? 'bg-amber-50/90 font-bold border-l-4 border-l-yellow-400 shadow-xs' : ''}">
                           <td class="py-2.5 px-2 text-center font-mono font-bold">
-                            <span class="inline-flex items-center justify-center w-5 h-5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-200">
+                            <span class="inline-flex items-center justify-center w-5 h-5 rounded-md ${isMe ? 'bg-yellow-400 text-blue-950 font-black shadow-xs' : 'bg-emerald-100 text-emerald-800'} text-[10px] font-black border border-emerald-200">
                               ${idx + 1}
                             </span>
                           </td>
                           <td class="py-2.5 px-2.5 font-bold text-gray-900">
                             <div class="flex items-center gap-1.5 min-w-0">
-                              <span class="truncate">${s.player.name}</span>
+                              <span class="truncate ${isMe ? 'text-blue-950 font-black' : ''}">${s.player.name}</span>
+                              ${isMe ? `<span class="bg-yellow-400 text-blue-950 text-[9px] font-black px-1.5 py-0.2 rounded shadow-xs flex-shrink-0">TU</span>` : ''}
                               ${s.player.ranking ? `<span class="text-[9px] font-mono bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-semibold flex-shrink-0">${s.player.ranking}</span>` : ''}
                               <span class="hidden sm:inline-block text-[8px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 rounded font-bold flex-shrink-0">Qualificato</span>
                             </div>
@@ -5771,7 +5879,9 @@ class App {
     const accounts = this.loadAccounts();
     const accountsCount = Object.keys(accounts).length;
     const linkedPlayer = this.getPlayerForAccount(u);
-    const curCat = this.tournamentManager.getPlayerCategory(u);
+    const curCat = (linkedPlayer && linkedPlayer.category && TournamentManager.CATEGORIES.includes(linkedPlayer.category))
+      ? linkedPlayer.category
+      : this.tournamentManager.getPlayerCategory(u);
     const catLabels = {
       "Pre Agonistica U12": "Pre Agonistica U12",
       "Pre Agonistica": "Pre Agonistica",
