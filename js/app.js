@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.2.8";
-const APP_BUILD_TIME = 1794530000000;
+const APP_VERSION = "1.2.9";
+const APP_BUILD_TIME = 1794532000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -62,7 +62,8 @@ class App {
     }
 
     // Filtri calendario
-    this.scheduleSelectedDay = "sabato"; // "sabato", "domenica", "unscheduled"
+    this.scheduleSelectedDay = "sabato"; // "sabato", "domenica", "unscheduled", "other"
+    this.scheduleCategoryFilter = "all"; // "all" o categoria specifica per il calendario
     this.schedulePhaseFilter = "all";
     this.scheduleCourtFilter = "all";
     this.scheduleStatusFilter = "all";
@@ -1876,6 +1877,12 @@ class App {
     }
 
     this.currentTab = tab;
+
+    // Se si naviga in Calendario (schedule), resetta i filtri per vedere tutti gli incontri
+    if (tab === "schedule") {
+      this.scheduleCategoryFilter = "all";
+      this.scheduleSearchQuery = "";
+    }
 
     // Se si naviga in Classifica (groups) e l'utente è un atleta (non admin), posizionalo sulla sua categoria di default
     if (tab === "groups") {
@@ -3919,9 +3926,14 @@ class App {
   }
 
   setScheduleDay(day) {
-    this.scheduleSelectedDay = day; // "sabato", "domenica", "unscheduled"
+    this.scheduleSelectedDay = day; // "sabato", "domenica", "unscheduled", "other"
     this.renderScheduleView();
     this.scrollToTop();
+  }
+
+  setScheduleCategoryFilter(cat) {
+    this.scheduleCategoryFilter = cat;
+    this.renderScheduleView();
   }
 
   setWeekendDates(satDate, sunDate) {
@@ -4030,7 +4042,7 @@ class App {
       (allMatches || []).forEach(item => {
         const dt = item.match && item.match.dateTime;
         if (dt) {
-          const d = new Date(dt);
+          const d = new Date(dt.length === 10 ? dt + 'T12:00:00' : dt);
           if (!isNaN(d.getTime())) {
             const dayOfWeek = d.getDay(); // 0 is Sun, 6 is Sat
             const dStr = dt.substring(0, 10);
@@ -4039,6 +4051,21 @@ class App {
           }
         }
       });
+    }
+
+    // Se abbiamo trovato una delle due date dai match, deriviamo l'altra dallo stesso weekend
+    if (satDate && !sunDate) {
+      try {
+        const s = new Date(satDate + 'T12:00:00');
+        s.setDate(s.getDate() + 1);
+        sunDate = s.toISOString().split('T')[0];
+      } catch (e) {}
+    } else if (sunDate && !satDate) {
+      try {
+        const s = new Date(sunDate + 'T12:00:00');
+        s.setDate(s.getDate() - 1);
+        satDate = s.toISOString().split('T')[0];
+      } catch (e) {}
     }
 
     if (!satDate || !sunDate) {
@@ -4080,16 +4107,16 @@ class App {
   isMatchOnDay(m, targetDay, satDate, sunDate) {
     if (!m || !m.dateTime) return false;
     const dStr = m.dateTime.substring(0, 10);
-    const d = new Date(m.dateTime);
+    const d = new Date(m.dateTime.length === 10 ? m.dateTime + 'T12:00:00' : m.dateTime);
     const isDateValid = !isNaN(d.getTime());
     const dayOfWeek = isDateValid ? d.getDay() : null;
 
     if (targetDay === "sabato") {
-      if (satDate && dStr === satDate) return true;
+      if (satDate) return dStr === satDate;
       return dayOfWeek === 6;
     }
     if (targetDay === "domenica") {
-      if (sunDate && dStr === sunDate) return true;
+      if (sunDate) return dStr === sunDate;
       return dayOfWeek === 0;
     }
     return false;
@@ -4149,7 +4176,7 @@ class App {
   }
 
   scrollToCourt(courtName, day) {
-    if (day && (day === "sabato" || day === "domenica")) {
+    if (day && (day === "sabato" || day === "domenica" || day === "other")) {
       this.scheduleSelectedDay = day;
       this.renderScheduleView();
     }
@@ -4204,17 +4231,29 @@ class App {
     if (!container) return;
 
     const allMatches = this.getAllMatches();
-    const scheduledMatches = allMatches.filter(x => x.match.dateTime);
-    const unscheduledMatches = allMatches.filter(x => !x.match.dateTime);
-    const completedMatches = allMatches.filter(x => x.match.status === "completato");
+
+    if (!this.scheduleCategoryFilter) {
+      this.scheduleCategoryFilter = "all";
+    }
+
+    const matchesForCategory = this.scheduleCategoryFilter === "all"
+      ? allMatches
+      : allMatches.filter(x => x.category === this.scheduleCategoryFilter);
+
+    const scheduledMatches = matchesForCategory.filter(x => x.match.dateTime);
+    const unscheduledMatches = matchesForCategory.filter(x => !x.match.dateTime);
+    const completedMatches = matchesForCategory.filter(x => x.match.status === "completato");
 
     // Calcolo date e conteggi Sabato & Domenica
     const { satDate, sunDate } = this.getTournamentWeekendDates(allMatches);
-    const satMatches = allMatches.filter(x => this.isMatchOnDay(x.match, "sabato", satDate, sunDate));
-    const sunMatches = allMatches.filter(x => this.isMatchOnDay(x.match, "domenica", satDate, sunDate));
+    const satMatches = matchesForCategory.filter(x => this.isMatchOnDay(x.match, "sabato", satDate, sunDate));
+    const sunMatches = matchesForCategory.filter(x => this.isMatchOnDay(x.match, "domenica", satDate, sunDate));
+    const otherMatches = matchesForCategory.filter(x => x.match.dateTime && !this.isMatchOnDay(x.match, "sabato", satDate, sunDate) && !this.isMatchOnDay(x.match, "domenica", satDate, sunDate));
 
-    // Se non è selezionato né sabato né domenica né unscheduled, default a sabato
-    if (!["sabato", "domenica", "unscheduled"].includes(this.scheduleSelectedDay)) {
+    // Se non è selezionato né sabato né domenica né unscheduled né other, default a sabato
+    const validScheduleDays = ["sabato", "domenica", "unscheduled"];
+    if (otherMatches.length > 0) validScheduleDays.push("other");
+    if (!validScheduleDays.includes(this.scheduleSelectedDay)) {
       this.scheduleSelectedDay = "sabato";
     }
 
@@ -4488,7 +4527,7 @@ class App {
         
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           
-          <!-- Pulsanti Principali: Sabato & Domenica -->
+          <!-- Pulsanti Principali: Sabato, Domenica, Altri Giorni, Da Programmare -->
           <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
             
             <!-- Tasto SABATO -->
@@ -4507,6 +4546,14 @@ class App {
               <span class="text-[11px] font-black px-2 py-0.5 rounded-full ${this.scheduleSelectedDay === 'domenica' ? 'bg-yellow-400 text-blue-950' : 'bg-gray-200 text-gray-700'}">${sunMatches.length}</span>
             </button>
 
+            ${otherMatches.length > 0 ? `
+              <!-- Tasto Altri Giorni -->
+              <button onclick="app.setScheduleDay('other')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 py-2.5 px-3.5 rounded-xl font-bold text-xs transition cursor-pointer ${this.scheduleSelectedDay === 'other' ? 'bg-indigo-600 text-white shadow-md' : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100 border border-indigo-200'}">
+                <span>Altri Giorni</span>
+                <span class="text-[10px] font-black px-1.5 py-0.2 rounded-full ${this.scheduleSelectedDay === 'other' ? 'bg-white text-indigo-900' : 'bg-indigo-200 text-indigo-900'}">${otherMatches.length}</span>
+              </button>
+            ` : ''}
+
             ${unscheduledMatches.length > 0 ? `
               <!-- Tasto Da Programmare -->
               <button onclick="app.setScheduleDay('unscheduled')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 py-2.5 px-3.5 rounded-xl font-bold text-xs transition cursor-pointer ${this.scheduleSelectedDay === 'unscheduled' ? 'bg-amber-500 text-white shadow-md' : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'}">
@@ -4524,11 +4571,11 @@ class App {
           
           <div class="flex items-center gap-1.5 flex-wrap">
             <span class="font-bold text-gray-600 mr-1">Categoria:</span>
-            <button onclick="app.selectedCategory='all'; app.render();" class="text-xs px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${this.selectedCategory === 'all' ? 'bg-blue-600 text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
+            <button onclick="app.setScheduleCategoryFilter('all');" class="text-xs px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${this.scheduleCategoryFilter === 'all' ? 'bg-blue-600 text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
               Tutte
             </button>
             ${TournamentManager.CATEGORIES.map(c => `
-              <button onclick="app.selectedCategory='${c}'; app.render();" class="text-xs px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${this.selectedCategory === c ? 'bg-blue-600 text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
+              <button onclick="app.setScheduleCategoryFilter('${c}');" class="text-xs px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${this.scheduleCategoryFilter === c ? 'bg-blue-600 text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
                 ${c}
               </button>
             `).join('')}
@@ -4553,12 +4600,10 @@ class App {
     if (this.scheduleSelectedDay === "sabato" || this.scheduleSelectedDay === "domenica") {
       const activeDayDate = this.scheduleSelectedDay === "sabato" ? satDate : sunDate;
       const dayLabel = this.scheduleSelectedDay === "sabato" ? "Sabato" : "Domenica";
+      const sourceMatches = this.scheduleSelectedDay === "sabato" ? satMatches : sunMatches;
 
       // Filtro partite per la giornata selezionata
-      const dayMatches = allMatches.filter(item => {
-        if (!this.isMatchOnDay(item.match, this.scheduleSelectedDay, satDate, sunDate)) return false;
-        if (this.selectedCategory !== "all" && item.category !== this.selectedCategory) return false;
-        
+      const dayMatches = sourceMatches.filter(item => {
         if (this.scheduleSearchQuery) {
           const q = this.scheduleSearchQuery;
           const p1 = this.tournamentManager.getPlayer(item.match.player1Id);
@@ -4753,6 +4798,106 @@ class App {
           }).join('')}
         </div>
       `;
+    } else if (this.scheduleSelectedDay === "other") {
+      // Vista Altri Giorni (partite programmate fuori dal weekend principale)
+      const dayMatches = otherMatches.filter(item => {
+        if (this.scheduleSearchQuery) {
+          const q = this.scheduleSearchQuery;
+          const p1 = this.tournamentManager.getPlayer(item.match.player1Id);
+          const p2 = this.tournamentManager.getPlayer(item.match.player2Id);
+          const p1Name = (p1 ? p1.name : (item.match.player1Id || '')).toLowerCase();
+          const p2Name = (p2 ? p2.name : (item.match.player2Id || '')).toLowerCase();
+          if (!p1Name.includes(q) && !p2Name.includes(q)) return false;
+        }
+        return true;
+      }).sort((a, b) => new Date(a.match.dateTime) - new Date(b.match.dateTime));
+
+      html += `
+        <div class="space-y-4">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h3 class="text-base sm:text-lg font-black text-gray-900">Incontri Fissati in Altri Giorni (${dayMatches.length})</h3>
+              <p class="text-xs text-gray-500">Partite programmate con date diverse rispetto al fine settimana selezionato (${satDate ? this.formatDayDate(satDate) : ''} - ${sunDate ? this.formatDayDate(sunDate) : ''}).</p>
+            </div>
+            ${this.isAdmin && !this.viewAsUser ? `
+              <button onclick="app.openCreateMatchModal()" class="text-xs bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black px-3 py-1.5 rounded-xl shadow-xs transition cursor-pointer">
+                + Crea Incontro
+              </button>
+            ` : ''}
+          </div>
+
+          ${dayMatches.length === 0 ? `
+            <div class="p-8 text-center bg-white rounded-2xl border border-gray-200">
+              <h4 class="font-bold text-sm text-gray-800">Nessuna partita trovata per questa ricerca.</h4>
+            </div>
+          ` : `
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              ${dayMatches.map(item => {
+                const m = item.match;
+                const p1 = this.tournamentManager.getPlayer(m.player1Id);
+                const p2 = this.tournamentManager.getPlayer(m.player2Id);
+                const isUserMatch = this.user && this.isMatchForUser(m, this.user);
+                const isLive = m.status === 'in_corso';
+                const isCompleted = m.status === 'completato';
+                const dtFormatted = this.formatScheduleDateTime(m.dateTime);
+
+                return `
+                  <div class="bg-white rounded-2xl border ${isUserMatch ? 'border-yellow-400 shadow-md ring-1 ring-yellow-400/40' : 'border-gray-200 shadow-sm'} p-4 space-y-3">
+                    <div class="flex items-center justify-between text-xs flex-wrap gap-1">
+                      <span class="font-black text-blue-950 bg-blue-100 px-2.5 py-0.5 rounded-md border border-blue-200 text-xs">
+                        ${dtFormatted}
+                      </span>
+                      <span class="text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        ${m.court || 'Campo da definire'}
+                      </span>
+                    </div>
+
+                    <div class="bg-slate-50 p-2.5 rounded-xl border border-gray-100 space-y-1.5 text-xs">
+                      <div class="flex items-center justify-between">
+                        <span class="font-bold text-gray-900 truncate max-w-[80%]">${p1 ? p1.name : (m.player1Id || 'In attesa')}</span>
+                        ${m.games1 !== null && m.games1 !== undefined ? `<span class="font-black text-xs text-blue-950 font-mono bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">${m.games1}</span>` : ''}
+                      </div>
+                      <div class="text-[10px] font-extrabold text-gray-400 text-center tracking-wider">VS</div>
+                      <div class="flex items-center justify-between">
+                        <span class="font-bold text-gray-900 truncate max-w-[80%]">${p2 ? p2.name : (m.player2Id || 'In attesa')}</span>
+                        ${m.games2 !== null && m.games2 !== undefined ? `<span class="font-black text-xs text-blue-950 font-mono bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">${m.games2}</span>` : ''}
+                      </div>
+                    </div>
+
+                    ${isCompleted && m.scores ? `
+                      <div class="text-[11px] font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded text-center border border-emerald-200">
+                        Risultato: <strong>${m.scores}</strong>
+                      </div>
+                    ` : ''}
+
+                    <div class="flex items-center justify-between text-[10px] text-gray-500 pt-1 border-t border-gray-100">
+                      <span class="font-semibold text-blue-900 truncate max-w-[130px]">${item.phase}</span>
+                      <span class="text-gray-400 uppercase truncate font-bold">${item.category}</span>
+                    </div>
+
+                    ${this.isAdmin && !this.viewAsUser ? `
+                      <div class="flex items-center justify-between gap-1.5 pt-2 border-t border-gray-200 text-xs">
+                        <button onclick="app.openScoreModalForMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="flex-1 ${isCompleted ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 font-bold' : 'bg-emerald-600 hover:bg-emerald-700 text-white font-black shadow-xs'} text-xs py-1.5 px-2 rounded-xl border transition cursor-pointer flex items-center justify-center gap-1">
+                          <span>${isCompleted ? 'Modifica Risultato' : 'Inserisci Risultato'}</span>
+                        </button>
+                        <button onclick="app.openScheduleMatchModal('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-blue-700 hover:text-blue-900 font-bold bg-blue-50 hover:bg-blue-100 px-2 py-1.5 rounded-lg border border-blue-200 transition cursor-pointer" title="Modifica orario e campo">
+                          Orario
+                        </button>
+                        <button onclick="app.removeMatchSchedule('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-amber-700 hover:text-amber-900 font-bold bg-amber-50 hover:bg-amber-100 px-2 py-1.5 rounded-lg border border-amber-200 transition cursor-pointer" title="Libera orario e campo">
+                          Libera
+                        </button>
+                        <button onclick="app.deleteMatch('${item.type}', '${item.groupKey !== undefined ? item.groupKey : item.roundIndex}', '${m.id}', '${item.category}')" class="text-rose-600 hover:text-rose-800 font-bold p-1.5 rounded-lg hover:bg-rose-50 transition cursor-pointer" title="Elimina incontro">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                      </div>
+                    ` : ''}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
+        </div>
+      `;
     } else {
       // Vista Partite Da Assegnare
       html += `
@@ -4924,6 +5069,29 @@ class App {
     this.openModal("modal-schedule-match");
   }
 
+  alignScheduleViewToMatch(dateTime) {
+    if (dateTime) {
+      const { satDate, sunDate } = this.getTournamentWeekendDates(this.getAllMatches());
+      const dStr = dateTime.substring(0, 10);
+      const d = new Date(dateTime.length === 10 ? dateTime + 'T12:00:00' : dateTime);
+      if (!isNaN(d.getTime())) {
+        if (satDate && dStr === satDate) {
+          this.scheduleSelectedDay = "sabato";
+        } else if (sunDate && dStr === sunDate) {
+          this.scheduleSelectedDay = "domenica";
+        } else if (d.getDay() === 6) {
+          this.scheduleSelectedDay = "sabato";
+        } else if (d.getDay() === 0) {
+          this.scheduleSelectedDay = "domenica";
+        } else {
+          this.scheduleSelectedDay = "other";
+        }
+      }
+    }
+    this.scheduleCategoryFilter = "all";
+    this.scheduleSearchQuery = "";
+  }
+
   handleSaveScheduleMatch() {
     if (!this.isAdmin) return;
 
@@ -4948,6 +5116,7 @@ class App {
       this.tournamentManager.updateBracketMatch(matchId, updatePayload, category);
     }
 
+    this.alignScheduleViewToMatch(dateTime);
     this.saveState();
     this.closeModal("modal-schedule-match");
     this.render();
@@ -4992,6 +5161,7 @@ class App {
       this.tournamentManager.updateBracketMatch(matchId, updatePayload, cat);
     }
 
+    this.alignScheduleViewToMatch(dateTime);
     this.saveState();
     this.render();
     this.showToast(`Incontro programmato con successo su ${court}!`, "success");
@@ -5021,7 +5191,7 @@ class App {
 
   openCreateMatchModal(category = null, court = null, dateTime = null) {
     if (!this.isAdmin) return;
-    const cat = category || ((this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Pre Agonistica U12");
+    const cat = category || (this.scheduleCategoryFilter !== "all" ? this.scheduleCategoryFilter : ((this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Pre Agonistica U12"));
 
     const catSelect = document.getElementById("create-match-category");
     if (catSelect) catSelect.value = cat;
@@ -5186,6 +5356,7 @@ class App {
       return;
     }
 
+    this.alignScheduleViewToMatch(dateTime);
     this.saveState();
     this.closeModal("modal-create-match");
     this.render();
@@ -5289,6 +5460,7 @@ class App {
       this.tournamentManager.updateBracketMatch(matchId, updatePayload, category);
     }
 
+    this.alignScheduleViewToMatch(dateTime);
     this.saveState();
     this.closeModal("modal-quick-court-assign");
     this.render();
