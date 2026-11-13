@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.2.9";
-const APP_BUILD_TIME = 1794532000000;
+const APP_VERSION = "1.3.0";
+const APP_BUILD_TIME = 1794578000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -110,7 +110,6 @@ class App {
     try {
       localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
       this.accounts = accounts;
-      this.pushAccountsToFirebase(accounts);
     } catch (e) {
       console.error("Errore salvataggio accounts", e);
     }
@@ -250,13 +249,15 @@ class App {
       let accountsChanged = false;
       const accountsToPush = {};
 
-      // 0. Deduplicazione preventiva di state.players per email/identità
+      // 0. Deduplicazione preventiva di state.players per email o identità
       const seenPlayerKeys = new Set();
       const dedupedPlayers = [];
       (this.state.players || []).forEach(p => {
         if (!p) return;
         const pEmail = (p.email || p.userId || "").toLowerCase().trim();
-        const key = (pEmail && pEmail.includes("@")) ? `email:${pEmail}` : `id:${p.id}`;
+        const pFn = (p.firstName || (p.name ? p.name.split(" ")[0] : "")).toLowerCase().trim();
+        const pLn = (p.lastName || (p.name ? p.name.split(" ").slice(1).join(" ") : "")).toLowerCase().trim();
+        const key = (pEmail && pEmail.includes("@")) ? `email:${pEmail}` : ((pFn && pLn) ? `name:${pFn}_${pLn}` : `id:${p.id}`);
         if (!seenPlayerKeys.has(key)) {
           seenPlayerKeys.add(key);
           dedupedPlayers.push(p);
@@ -275,22 +276,27 @@ class App {
         if (isUserAdmin(acc.email) || acc.role === "admin") return;
 
         const emailKey = acc.email.toLowerCase().trim();
-        let existing = this.state.players.find(p =>
-          (p.email && p.email.toLowerCase().trim() === emailKey) ||
-          (p.userId && p.userId.toLowerCase().trim() === emailKey)
-        );
+        const accFn = (acc.firstName || (acc.name ? acc.name.split(" ")[0] : "")).toLowerCase().trim();
+        const accLn = (acc.lastName || (acc.name ? acc.name.split(" ").slice(1).join(" ") : "")).toLowerCase().trim();
+
+        let existing = this.state.players.find(p => {
+          const pEmail = (p.email || p.userId || "").toLowerCase().trim();
+          if (pEmail && emailKey && pEmail === emailKey) return true;
+          const pFn = (p.firstName || (p.name ? p.name.split(" ")[0] : "")).toLowerCase().trim();
+          const pLn = (p.lastName || (p.name ? p.name.split(" ").slice(1).join(" ") : "")).toLowerCase().trim();
+          if (accFn && accLn && pFn && pLn && accFn === pFn && accLn === pLn) return true;
+          return false;
+        });
 
         if (!existing) {
-          const fn = acc.firstName || (acc.name ? acc.name.split(" ")[0] : "");
-          const ln = acc.lastName || (acc.name ? acc.name.split(" ").slice(1).join(" ") : "");
           const chosenCat = (acc.category && TournamentManager.CATEGORIES.includes(acc.category))
             ? acc.category
             : "Da Assegnare";
           existing = {
             id: `p-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-            firstName: fn,
-            lastName: ln,
-            name: acc.name || `${fn} ${ln}`.trim(),
+            firstName: acc.firstName || accFn,
+            lastName: acc.lastName || accLn,
+            name: acc.name || `${accFn} ${accLn}`.trim(),
             birthDate: acc.birthDate || "",
             ranking: acc.ranking || "NC",
             category: chosenCat,
@@ -302,25 +308,32 @@ class App {
           };
           this.state.players.push(existing);
           stateChanged = true;
+        } else {
+          if (!existing.email || existing.email !== emailKey) {
+            existing.email = emailKey;
+            existing.userId = emailKey;
+            stateChanged = true;
+          }
         }
 
         // REGOLA FONDAMENTALE DI CATEGORIA:
-        // 1. Se l'atleta esiste nel torneo con una categoria ufficiale (Pre Agonistica U12, Pre Agonistica, SAT),
-        //    quella è la categoria ufficiale stabilita dall'amministrazione e l'account DEVE rifletterla!
-        // 2. Se l'atleta non ha ancora una categoria ufficiale ma l'account sì (assegnata da admin), assegnala all'atleta!
+        // Una volta che un atleta o un account ha una categoria ufficiale assegnata (Pre Agonistica U12, Pre Agonistica, SAT),
+        // NON DEVE CAMBIARE MAI automaticamente!
         if (existing.category && TournamentManager.CATEGORIES.includes(existing.category)) {
+          // L'atleta ha una classifica/categoria ufficiale assegnata dall'amministrazione: l'account DEVE rifletterla
           if (acc.category !== existing.category) {
             acc.category = existing.category;
             accountsChanged = true;
             accountsToPush[this.encodeEmailKey(emailKey)] = acc;
           }
         } else if (acc.category && TournamentManager.CATEGORIES.includes(acc.category)) {
+          // L'account ha una classifica/categoria ufficiale assegnata dall'amministrazione: assegnala all'atleta
           if (existing.category !== acc.category) {
             existing.category = acc.category;
             stateChanged = true;
           }
         } else {
-          // Se entrambi non hanno ancora una categoria ufficiale, imposta "Da Assegnare"
+          // Se entrambi non hanno ancora una categoria ufficiale, imposta "Da Assegnare" (MAI Pre Agonistica U12)
           const defaultCat = "Da Assegnare";
           if (existing.category !== defaultCat) {
             existing.category = defaultCat;
@@ -439,7 +452,7 @@ class App {
   }
 
   pushAccountsToFirebase(accounts) {
-    if (!this.db || this.isRemoteUpdate) return;
+    if (!this.db || this.isRemoteUpdate || !this.isRealAdmin || !this.initialAccountsLoaded) return;
     try {
       const sanitized = {};
       Object.entries(accounts || {}).forEach(([email, acc]) => {
@@ -883,6 +896,11 @@ class App {
           if (categorySelectId.includes("account") && !this.isAdmin) {
             return;
           }
+          // Regola ferma: una volta che la categoria/classifica è assegnata non deve cambiare mai!
+          // Non sovrascrivere se il selettore ha già una categoria valida diversa da "Da Assegnare"
+          if (cEl.value && cEl.value !== "Da Assegnare" && TournamentManager.CATEGORIES.includes(cEl.value)) {
+            return;
+          }
           const val = e.target.value;
           if (val) {
             const year = new Date(val).getFullYear();
@@ -1197,6 +1215,7 @@ class App {
     account.password = newPassword;
     accounts[email] = account;
     this.saveAccounts(accounts);
+    this.pushSingleAccountToFirebase(email, account);
 
     // Rimuove richiesta pendente
     this.pendingPasswordReset = null;
@@ -1770,6 +1789,7 @@ class App {
       ...this.user
     };
     this.saveAccounts(accounts);
+    this.pushSingleAccountToFirebase(emailKey, accounts[emailKey]);
     this.saveUser(this.user);
 
     // Sincronizza nell'elenco iscritti
@@ -3014,7 +3034,7 @@ class App {
                 const avatarHtml = this.getAvatarMarkup(acc, "w-7 h-7", "text-[10px]");
                 const compName = linkedPlayer
                   ? (linkedPlayer.category || acc.category || "Da Assegnare")
-                  : (acc.category || "Pre Agonistica U12");
+                  : (acc.category || "Non Iscritto");
 
                 return `
                   <tr class="hover:bg-gray-50/80 transition ${!linkedPlayer ? 'bg-amber-50/25' : ''}">
@@ -3191,7 +3211,7 @@ class App {
       if (pwHelp) pwHelp.classList.add("hidden");
       if (bdInput) bdInput.value = "";
       if (rkInput) rkInput.value = "NC";
-      if (catSelect) catSelect.value = (this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Pre Agonistica U12";
+      if (catSelect) catSelect.value = (this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Da Assegnare";
       if (roleSelect) roleSelect.value = "player";
       if (alsoPlayerWrapper) alsoPlayerWrapper.classList.remove("hidden");
       if (alsoPlayerCheckbox) alsoPlayerCheckbox.checked = true;
@@ -3275,6 +3295,7 @@ class App {
 
     accounts[email] = updatedAccount;
     this.saveAccounts(accounts);
+    this.pushSingleAccountToFirebase(email, updatedAccount);
 
     // Se l'admin sta modificando il proprio account attualmente loggato
     if (this.user && (this.user.email.toLowerCase() === origEmail || this.user.email.toLowerCase() === email)) {
@@ -3293,6 +3314,7 @@ class App {
       linkedPlayer.category = category;
       linkedPlayer.email = email;
       linkedPlayer.userId = email;
+      this.tournamentManager.ensureCategories();
       this.saveState();
     } else if (alsoPlayer) {
       const newPlayer = {
@@ -3310,6 +3332,7 @@ class App {
         status: "confermato"
       };
       this.state.players.push(newPlayer);
+      this.tournamentManager.ensureCategories();
       this.saveState();
     }
 
@@ -3384,17 +3407,29 @@ class App {
       return;
     }
 
-    const chosenCat = specificCategory || (acc.category && TournamentManager.CATEGORIES.includes(acc.category) ? acc.category : "Pre Agonistica U12");
-
     const existingPlayer = this.getPlayerForAccount(acc);
+    // Preserva la categoria già assegnata se non ne viene specificata una nuova esplicitamente
+    let chosenCat = specificCategory;
+    if (!chosenCat) {
+      if (existingPlayer && existingPlayer.category && TournamentManager.CATEGORIES.includes(existingPlayer.category)) {
+        chosenCat = existingPlayer.category;
+      } else if (acc.category && TournamentManager.CATEGORIES.includes(acc.category)) {
+        chosenCat = acc.category;
+      } else {
+        chosenCat = "Da Assegnare";
+      }
+    }
+
     if (existingPlayer) {
-      existingPlayer.category = chosenCat;
-      acc.category = chosenCat;
+      if (chosenCat && chosenCat !== "Da Assegnare") {
+        existingPlayer.category = chosenCat;
+        acc.category = chosenCat;
+      }
       this.saveAccounts(accounts);
       this.pushSingleAccountToFirebase(cleanEmail, acc);
       this.tournamentManager.ensureCategories();
       this.saveState();
-      this.showToast(`Atleta "${acc.name || cleanEmail}" inserito in "${chosenCat}"!`, "success");
+      this.showToast(`Atleta "${acc.name || cleanEmail}" inserito in "${existingPlayer.category}"!`, "success");
       this.render();
       return;
     }
@@ -3614,7 +3649,7 @@ class App {
     lnInput.value = "";
     bdInput.value = "";
     rkInput.value = "NC";
-    if (catSelect) catSelect.value = (this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Pre Agonistica U12";
+    if (catSelect) catSelect.value = (this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Da Assegnare";
     notesInput.value = "";
 
     this.openModal("modal-player");
@@ -3691,9 +3726,9 @@ class App {
       const linkedPlayer = this.getPlayerForAccount(acc);
       const safeEmail = (acc.email || "").toLowerCase().replace(/[^a-z0-9]/g, "_");
       const avatarHtml = this.getAvatarMarkup(acc, "w-9 h-9", "text-xs");
-      const defaultCat = (acc.category && acc.category !== "Da Assegnare")
+      const defaultCat = (acc.category && acc.category !== "Da Assegnare" && TournamentManager.CATEGORIES.includes(acc.category))
         ? acc.category
-        : ((this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Pre Agonistica U12");
+        : (linkedPlayer?.category && TournamentManager.CATEGORIES.includes(linkedPlayer.category) ? linkedPlayer.category : ((this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Da Assegnare"));
 
       return `
         <div class="py-3 px-3 rounded-xl hover:bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition">
@@ -3759,7 +3794,7 @@ class App {
     document.getElementById("player-birthdate-input").value = p.birthDate || "";
     document.getElementById("player-ranking-input").value = p.ranking || "NC";
     const catSelect = document.getElementById("player-category-select");
-    if (catSelect) catSelect.value = p.category || this.tournamentManager.getPlayerCategory(p) || "Pre Agonistica U12";
+    if (catSelect) catSelect.value = p.category || this.tournamentManager.getPlayerCategory(p) || "Da Assegnare";
     document.getElementById("player-notes-input").value = p.notes || "";
 
     this.openModal("modal-player");
@@ -3819,6 +3854,7 @@ class App {
             accounts[pEmail].birthDate = birthDate;
             accounts[pEmail].ranking = ranking;
             this.saveAccounts(accounts);
+            this.pushSingleAccountToFirebase(pEmail, accounts[pEmail]);
           }
         }
       }
@@ -3850,6 +3886,7 @@ class App {
       this.state.players.push(newPlayer);
     }
 
+    this.tournamentManager.ensureCategories();
     this.saveState();
     this.closeModal("modal-player");
     this.showToast(`Dati di ${fullName} salvati con successo!`, "success");
