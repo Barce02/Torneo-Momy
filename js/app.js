@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.3.2";
-const APP_BUILD_TIME = 1794596000000;
+const APP_VERSION = "1.3.3";
+const APP_BUILD_TIME = 1794597000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -2263,11 +2263,7 @@ class App {
               </span>
             </div>
 
-            <div class="p-4 sm:p-5 space-y-3">
-              <div class="sm:hidden flex items-center justify-between text-[11px] text-gray-500 font-medium px-1">
-                <span class="text-gray-600 font-semibold">Classifica Girone</span>
-                <span class="inline-flex items-center gap-1 text-blue-600 font-bold">&larr; Scorri per GV e Diff &rarr;</span>
-              </div>
+            <div class="p-4 sm:p-5 space-y-4">
               <div class="overflow-x-auto rounded-xl border border-gray-100 shadow-2xs">
                 <table class="w-full min-w-[500px] text-left text-xs border-collapse">
                   <thead>
