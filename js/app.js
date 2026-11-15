@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.3.0";
-const APP_BUILD_TIME = 1794578000000;
+const APP_VERSION = "1.3.1";
+const APP_BUILD_TIME = 1794595000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -3955,25 +3955,41 @@ class App {
   }
 
   setScheduleFilter(key, value) {
+    const scrollY = window.scrollY || window.pageYOffset || (document.documentElement ? document.documentElement.scrollTop : 0) || 0;
     if (key === "phase") this.schedulePhaseFilter = value;
     if (key === "court") this.scheduleCourtFilter = value;
     if (key === "status") this.scheduleStatusFilter = value;
     if (key === "search") this.scheduleSearchQuery = (value || "").toLowerCase().trim();
     this.renderScheduleView();
+    window.scrollTo({ top: scrollY, behavior: "instant" });
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollY, behavior: "instant" });
+    });
   }
 
   setScheduleDay(day) {
+    // Preserva la posizione di scroll attuale per non riportare la pagina in alto su smartphone
+    const scrollY = window.scrollY || window.pageYOffset || (document.documentElement ? document.documentElement.scrollTop : 0) || 0;
     this.scheduleSelectedDay = day; // "sabato", "domenica", "unscheduled", "other"
     this.renderScheduleView();
-    this.scrollToTop();
+    window.scrollTo({ top: scrollY, behavior: "instant" });
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollY, behavior: "instant" });
+    });
   }
 
   setScheduleCategoryFilter(cat) {
+    const scrollY = window.scrollY || window.pageYOffset || (document.documentElement ? document.documentElement.scrollTop : 0) || 0;
     this.scheduleCategoryFilter = cat;
     this.renderScheduleView();
+    window.scrollTo({ top: scrollY, behavior: "instant" });
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollY, behavior: "instant" });
+    });
   }
 
   setWeekendDates(satDate, sunDate) {
+    const scrollY = window.scrollY || window.pageYOffset || (document.documentElement ? document.documentElement.scrollTop : 0) || 0;
     if (!this.state.tournament) this.state.tournament = {};
     if (satDate) {
       this.state.tournament.saturdayDate = satDate;
@@ -4000,6 +4016,10 @@ class App {
       } catch (e) {}
     }
     this.renderScheduleView();
+    window.scrollTo({ top: scrollY, behavior: "instant" });
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollY, behavior: "instant" });
+    });
     this.showToast("Date del fine settimana aggiornate!", "success");
   }
 
