@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.3.1";
-const APP_BUILD_TIME = 1794595000000;
+const APP_VERSION = "1.3.2";
+const APP_BUILD_TIME = 1794596000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -2263,20 +2263,24 @@ class App {
               </span>
             </div>
 
-            <div class="p-4 sm:p-5 space-y-4">
+            <div class="p-4 sm:p-5 space-y-3">
+              <div class="sm:hidden flex items-center justify-between text-[11px] text-gray-500 font-medium px-1">
+                <span class="text-gray-600 font-semibold">Classifica Girone</span>
+                <span class="inline-flex items-center gap-1 text-blue-600 font-bold">&larr; Scorri per GV e Diff &rarr;</span>
+              </div>
               <div class="overflow-x-auto rounded-xl border border-gray-100 shadow-2xs">
-                <table class="w-full text-left text-xs border-collapse">
+                <table class="w-full min-w-[500px] text-left text-xs border-collapse">
                   <thead>
                     <tr class="bg-slate-50 text-gray-600 uppercase text-[10px] font-bold border-b border-gray-200">
                       <th class="py-2.5 px-2 text-center w-7">#</th>
-                      <th class="py-2.5 px-2.5">Nome e Cognome</th>
-                      <th class="py-2.5 px-2 text-center font-black text-blue-950 bg-blue-50/50" title="Punti">PT</th>
-                      <th class="py-2.5 px-2 text-center text-gray-600" title="Partite Giocate">G</th>
-                      <th class="py-2.5 px-2 text-center text-emerald-700" title="Vinte">V</th>
-                      <th class="py-2.5 px-2 text-center text-amber-700" title="Pari">P</th>
-                      <th class="py-2.5 px-2 text-center text-rose-700" title="Perse">S</th>
-                      <th class="hidden sm:table-cell py-2.5 px-2 text-center text-gray-700" title="Game Vinti">GV</th>
-                      <th class="hidden sm:table-cell py-2.5 px-2 text-center text-gray-700" title="Diff Game">Diff</th>
+                      <th class="py-2.5 px-2.5 whitespace-nowrap">Nome e Cognome</th>
+                      <th class="py-2.5 px-2 text-center font-black text-blue-950 bg-blue-50/50 whitespace-nowrap" title="Punti">PT</th>
+                      <th class="py-2.5 px-2 text-center text-gray-600 whitespace-nowrap" title="Partite Giocate">G</th>
+                      <th class="py-2.5 px-2 text-center text-emerald-700 whitespace-nowrap" title="Vinte">V</th>
+                      <th class="py-2.5 px-2 text-center text-amber-700 whitespace-nowrap" title="Pari">P</th>
+                      <th class="py-2.5 px-2 text-center text-rose-700 whitespace-nowrap" title="Perse">S</th>
+                      <th class="py-2.5 px-2 text-center text-gray-700 whitespace-nowrap" title="Game Vinti">GV</th>
+                      <th class="py-2.5 px-2 text-center text-gray-700 whitespace-nowrap" title="Diff Game">Diff</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-100">
@@ -2297,25 +2301,25 @@ class App {
                               ${idx + 1}
                             </span>
                           </td>
-                          <td class="py-2.5 px-2.5 font-bold text-gray-900">
+                          <td class="py-2.5 px-2.5 font-bold text-gray-900 whitespace-nowrap">
                             <div class="flex items-center gap-1.5 min-w-0">
-                              <span class="truncate ${isMe ? 'text-blue-950 font-black' : ''}">${s.player.name}</span>
+                              <span class="${isMe ? 'text-blue-950 font-black' : ''}">${s.player.name}</span>
                               ${isMe ? `<span class="bg-yellow-400 text-blue-950 text-[9px] font-black px-1.5 py-0.2 rounded shadow-xs flex-shrink-0">TU</span>` : ''}
                               ${s.player.ranking ? `<span class="text-[9px] font-mono bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-semibold flex-shrink-0">${s.player.ranking}</span>` : ''}
                               <span class="hidden sm:inline-block text-[8px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 rounded font-bold flex-shrink-0">Qualificato</span>
                             </div>
                           </td>
-                          <td class="py-2.5 px-2 text-center bg-blue-50/30">
+                          <td class="py-2.5 px-2 text-center bg-blue-50/30 whitespace-nowrap">
                             <span class="bg-yellow-400 text-blue-950 font-black text-xs px-2 py-0.5 rounded-md shadow-xs">
                               ${s.points}
                             </span>
                           </td>
-                          <td class="py-2.5 px-2 text-center font-mono text-gray-600">${s.played}</td>
-                          <td class="py-2.5 px-2 text-center font-mono font-bold text-emerald-700">${s.won}</td>
-                          <td class="py-2.5 px-2 text-center font-mono text-amber-700">${s.drawn}</td>
-                          <td class="py-2.5 px-2 text-center font-mono text-rose-700">${s.lost}</td>
-                          <td class="hidden sm:table-cell py-2.5 px-2 text-center font-mono text-gray-800">${s.gamesFor}</td>
-                          <td class="hidden sm:table-cell py-2.5 px-2 text-center font-mono font-semibold ${s.diff > 0 ? 'text-emerald-700' : (s.diff < 0 ? 'text-rose-700' : 'text-gray-500')}">
+                          <td class="py-2.5 px-2 text-center font-mono text-gray-600 whitespace-nowrap">${s.played}</td>
+                          <td class="py-2.5 px-2 text-center font-mono font-bold text-emerald-700 whitespace-nowrap">${s.won}</td>
+                          <td class="py-2.5 px-2 text-center font-mono text-amber-700 whitespace-nowrap">${s.drawn}</td>
+                          <td class="py-2.5 px-2 text-center font-mono text-rose-700 whitespace-nowrap">${s.lost}</td>
+                          <td class="py-2.5 px-2 text-center font-mono font-bold text-gray-800 whitespace-nowrap">${s.gamesFor}</td>
+                          <td class="py-2.5 px-2 text-center font-mono font-bold whitespace-nowrap ${s.diff > 0 ? 'text-emerald-700' : (s.diff < 0 ? 'text-rose-700' : 'text-gray-500')}">
                             ${s.diff > 0 ? `+${s.diff}` : s.diff}
                           </td>
                         </tr>
