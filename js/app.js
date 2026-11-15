@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.3.6";
-const APP_BUILD_TIME = 1794600000000;
+const APP_VERSION = "1.3.7";
+const APP_BUILD_TIME = 1794601000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -62,7 +62,8 @@ class App {
     }
 
     // Filtri calendario
-    this.scheduleSelectedDay = "sabato"; // "sabato", "domenica", "unscheduled", "other"
+    this.scheduleSelectedDay = "sabato"; // "sabato", "domenica", "unscheduled", "history"
+    this.historySelectedWeekend = null; // chiave YYYY-MM-DD del weekend selezionato nello storico
     this.scheduleCategoryFilter = "all"; // "all" o categoria specifica per il calendario
     this.schedulePhaseFilter = "all";
     this.scheduleCourtFilter = "all";
@@ -3954,7 +3955,19 @@ class App {
   setScheduleDay(day) {
     // Preserva la posizione di scroll attuale per non riportare la pagina in alto su smartphone
     const scrollY = window.scrollY || window.pageYOffset || (document.documentElement ? document.documentElement.scrollTop : 0) || 0;
-    this.scheduleSelectedDay = day; // "sabato", "domenica", "unscheduled", "other"
+    this.scheduleSelectedDay = day; // "sabato", "domenica", "unscheduled", "history"
+    this.renderScheduleView();
+    window.scrollTo({ top: scrollY, behavior: "instant" });
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollY, behavior: "instant" });
+    });
+  }
+
+  setHistoryWeekend(weekendKey) {
+    // Preserva la posizione di scroll attuale
+    const scrollY = window.scrollY || window.pageYOffset || (document.documentElement ? document.documentElement.scrollTop : 0) || 0;
+    this.historySelectedWeekend = weekendKey;
+    this.scheduleSelectedDay = "history";
     this.renderScheduleView();
     window.scrollTo({ top: scrollY, behavior: "instant" });
     requestAnimationFrame(() => {
@@ -4224,9 +4237,103 @@ class App {
     return allMatches.filter(item => this.isMatchForUser(item.match, user));
   }
 
+  getWeekendRangeForDate(dStr) {
+    if (!dStr || dStr.length < 10) return null;
+    const parts = dStr.substring(0, 10).split('-');
+    if (parts.length !== 3) return null;
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    const dateObj = new Date(y, m, d, 12, 0, 0);
+    if (isNaN(dateObj.getTime())) return null;
+
+    const dayOfWeek = dateObj.getDay(); // 0 Sun, 1 Mon, ..., 6 Sat
+    let sat = new Date(dateObj);
+    let sun = new Date(dateObj);
+
+    if (dayOfWeek === 6) {
+      // Sabato
+      sun.setDate(dateObj.getDate() + 1);
+    } else if (dayOfWeek === 0) {
+      // Domenica
+      sat.setDate(dateObj.getDate() - 1);
+    } else {
+      // Lunedì-Venerdì: associa al weekend di quella settimana (Sabato/Domenica)
+      sat.setDate(dateObj.getDate() + (6 - dayOfWeek));
+      sun.setDate(dateObj.getDate() + (7 - dayOfWeek));
+    }
+
+    const formatIso = (dt) => {
+      const yr = dt.getFullYear();
+      const mo = String(dt.getMonth() + 1).padStart(2, '0');
+      const da = String(dt.getDate()).padStart(2, '0');
+      return `${yr}-${mo}-${da}`;
+    };
+
+    const satIso = formatIso(sat);
+    const sunIso = formatIso(sun);
+    const key = satIso;
+
+    const months = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
+    const satDay = sat.getDate();
+    const sunDay = sun.getDate();
+    const satMonth = months[sat.getMonth()];
+    const sunMonth = months[sun.getMonth()];
+    const curYear = new Date().getFullYear();
+
+    let label;
+    if (sat.getFullYear() !== sun.getFullYear()) {
+      label = `Weekend ${satDay} ${satMonth} ${sat.getFullYear()} - ${sunDay} ${sunMonth} ${sun.getFullYear()}`;
+    } else if (sat.getMonth() === sun.getMonth()) {
+      label = `Weekend ${satDay} - ${sunDay} ${satMonth}${sat.getFullYear() !== curYear ? ' ' + sat.getFullYear() : ''}`;
+    } else {
+      label = `Weekend ${satDay} ${satMonth} - ${sunDay} ${sunMonth}${sat.getFullYear() !== curYear ? ' ' + sat.getFullYear() : ''}`;
+    }
+
+    return { key, satIso, sunIso, label };
+  }
+
+  getHistoricalWeekends(matches, currentSatDate, currentSunDate) {
+    const pastMatches = (matches || []).filter(x => {
+      if (!x.match || !x.match.dateTime) return false;
+      if (this.isMatchOnDay(x.match, "sabato", currentSatDate, currentSunDate)) return false;
+      if (this.isMatchOnDay(x.match, "domenica", currentSatDate, currentSunDate)) return false;
+      return true;
+    });
+
+    const weekendMap = new Map();
+
+    pastMatches.forEach(item => {
+      const dtStr = item.match.dateTime.substring(0, 10);
+      const range = this.getWeekendRangeForDate(dtStr);
+      if (!range) return;
+
+      const { key, satIso, sunIso, label } = range;
+      if (!weekendMap.has(key)) {
+        weekendMap.set(key, {
+          key,
+          satIso,
+          sunIso,
+          label,
+          matches: []
+        });
+      }
+      weekendMap.get(key).matches.push(item);
+    });
+
+    // Ordina i weekend in ordine decrescente (dal più recente al più vecchio)
+    const weekends = Array.from(weekendMap.values()).sort((a, b) => b.key.localeCompare(a.key));
+
+    weekends.forEach(w => {
+      w.matches.sort((a, b) => new Date(a.match.dateTime) - new Date(b.match.dateTime));
+    });
+
+    return weekends;
+  }
+
   scrollToCourt(courtName, day) {
-    if (day && (day === "sabato" || day === "domenica" || day === "other")) {
-      this.scheduleSelectedDay = day;
+    if (day && (day === "sabato" || day === "domenica" || day === "other" || day === "history")) {
+      this.scheduleSelectedDay = day === "other" ? "history" : day;
       this.renderScheduleView();
     }
     setTimeout(() => {
@@ -4297,11 +4404,23 @@ class App {
     const { satDate, sunDate } = this.getTournamentWeekendDates(allMatches);
     const satMatches = matchesForCategory.filter(x => this.isMatchOnDay(x.match, "sabato", satDate, sunDate));
     const sunMatches = matchesForCategory.filter(x => this.isMatchOnDay(x.match, "domenica", satDate, sunDate));
-    const otherMatches = matchesForCategory.filter(x => x.match.dateTime && !this.isMatchOnDay(x.match, "sabato", satDate, sunDate) && !this.isMatchOnDay(x.match, "domenica", satDate, sunDate));
+    const historicalWeekends = this.getHistoricalWeekends(matchesForCategory, satDate, sunDate);
 
-    // Se non è selezionato né sabato né domenica né unscheduled né other, default a sabato
-    const validScheduleDays = ["sabato", "domenica", "unscheduled"];
-    if (otherMatches.length > 0) validScheduleDays.push("other");
+    // Seleziona il weekend predefinito nello storico se non impostato o non più valido
+    if (!this.historySelectedWeekend && historicalWeekends.length > 0) {
+      this.historySelectedWeekend = historicalWeekends[0].key;
+    } else if (this.historySelectedWeekend && historicalWeekends.length > 0) {
+      const exists = historicalWeekends.some(w => w.key === this.historySelectedWeekend);
+      if (!exists) {
+        this.historySelectedWeekend = historicalWeekends[0].key;
+      }
+    }
+
+    // Se non è selezionato né sabato né domenica né unscheduled né history, default a sabato
+    const validScheduleDays = ["sabato", "domenica", "unscheduled", "history"];
+    if (this.scheduleSelectedDay === "other") {
+      this.scheduleSelectedDay = "history";
+    }
     if (!validScheduleDays.includes(this.scheduleSelectedDay)) {
       this.scheduleSelectedDay = "sabato";
     }
@@ -4584,8 +4703,8 @@ class App {
         
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           
-          <!-- Pulsanti Principali: Sabato, Domenica, Altri Giorni, Da Programmare -->
-          <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          <!-- Pulsanti Principali: Sabato, Domenica, Da Programmare -->
+          <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto flex-1">
             
             <!-- Tasto SABATO -->
             <button onclick="app.setScheduleDay('sabato')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2.5 py-3 px-5 sm:px-7 rounded-xl font-black text-sm transition cursor-pointer select-none ${this.scheduleSelectedDay === 'sabato' ? 'bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-yellow-300 shadow-md ring-2 ring-yellow-400' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'}">
@@ -4603,14 +4722,6 @@ class App {
               <span class="text-[11px] font-black px-2 py-0.5 rounded-full select-none ${this.scheduleSelectedDay === 'domenica' ? 'bg-yellow-400 text-blue-950' : 'bg-gray-200 text-gray-700'}">${sunMatches.length}</span>
             </button>
 
-            ${otherMatches.length > 0 ? `
-              <!-- Tasto Altri Giorni -->
-              <button onclick="app.setScheduleDay('other')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 py-2.5 px-3.5 rounded-xl font-bold text-xs transition cursor-pointer select-none ${this.scheduleSelectedDay === 'other' ? 'bg-indigo-600 text-white shadow-md' : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100 border border-indigo-200'}">
-                <span class="select-none">Altri Giorni</span>
-                <span class="text-[10px] font-black px-1.5 py-0.2 rounded-full select-none ${this.scheduleSelectedDay === 'other' ? 'bg-white text-indigo-900' : 'bg-indigo-200 text-indigo-900'}">${otherMatches.length}</span>
-              </button>
-            ` : ''}
-
             ${unscheduledMatches.length > 0 ? `
               <!-- Tasto Da Programmare -->
               <button onclick="app.setScheduleDay('unscheduled')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 py-2.5 px-3.5 rounded-xl font-bold text-xs transition cursor-pointer select-none ${this.scheduleSelectedDay === 'unscheduled' ? 'bg-amber-500 text-white shadow-md' : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'}">
@@ -4619,6 +4730,16 @@ class App {
               </button>
             ` : ''}
 
+          </div>
+
+          <!-- Tasto Storico a Destra -->
+          <div class="flex items-center justify-end w-full sm:w-auto">
+            <button onclick="app.setScheduleDay('history')" class="w-full sm:w-auto flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-black text-xs transition cursor-pointer select-none ${this.scheduleSelectedDay === 'history' ? 'bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-yellow-300 shadow-md ring-2 ring-yellow-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300'}">
+              <svg class="w-4 h-4 ${this.scheduleSelectedDay === 'history' ? 'text-yellow-300' : 'text-slate-600'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span class="select-none tracking-wide uppercase">Storico</span>
+            </button>
           </div>
 
         </div>
@@ -4855,11 +4976,13 @@ class App {
           }).join('')}
         </div>
       `;
-    } else if (this.scheduleSelectedDay === "other") {
-      // Vista Altri Giorni (partite programmate fuori dal weekend principale)
-      const dayMatches = otherMatches.filter(item => {
+    } else if (this.scheduleSelectedDay === "history" || this.scheduleSelectedDay === "other") {
+      // Vista Storico: consulta i risultati e le partite giocate nei weekend passati
+      const activeWeekend = historicalWeekends.find(w => w.key === this.historySelectedWeekend) || historicalWeekends[0] || null;
+      const rawMatches = activeWeekend ? activeWeekend.matches : [];
+      const dayMatches = rawMatches.filter(item => {
         if (this.scheduleSearchQuery) {
-          const q = this.scheduleSearchQuery;
+          const q = this.scheduleSearchQuery.toLowerCase().trim();
           const p1 = this.tournamentManager.getPlayer(item.match.player1Id);
           const p2 = this.tournamentManager.getPlayer(item.match.player2Id);
           const p1Name = (p1 ? p1.name : (item.match.player1Id || '')).toLowerCase();
@@ -4871,21 +4994,65 @@ class App {
 
       html += `
         <div class="space-y-4">
-          <div class="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <h3 class="text-base sm:text-lg font-black text-gray-900">Incontri Fissati in Altri Giorni (${dayMatches.length})</h3>
-              <p class="text-xs text-gray-500">Partite programmate con date diverse rispetto al fine settimana selezionato (${satDate ? this.formatDayDate(satDate) : ''} - ${sunDate ? this.formatDayDate(sunDate) : ''}).</p>
+          <!-- Intestazione Archivio Storico & Selettore Weekend -->
+          <div class="bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 text-white p-4 sm:p-5 rounded-2xl border border-blue-900 shadow-lg space-y-3.5">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-blue-800/70">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-yellow-400 text-blue-950 flex items-center justify-center font-black shadow-xs flex-shrink-0">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <div>
+                  <h3 class="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2 flex-wrap">
+                    <span>Archivio Storico Weekend</span>
+                    ${activeWeekend ? `<span class="text-xs font-bold text-yellow-300 bg-yellow-400/20 px-2.5 py-0.5 rounded-lg border border-yellow-400/40">${activeWeekend.label}</span>` : ''}
+                  </h3>
+                  <p class="text-xs text-blue-200/85">Consulta gli incontri e i risultati dei fine settimana passati.</p>
+                </div>
+              </div>
+
+              ${this.isAdmin && !this.viewAsUser ? `
+                <button onclick="app.openCreateMatchModal()" class="text-xs bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer self-start sm:self-auto flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                  <span>+ Inserisci Partita</span>
+                </button>
+              ` : ''}
             </div>
-            ${this.isAdmin && !this.viewAsUser ? `
-              <button onclick="app.openCreateMatchModal()" class="text-xs bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black px-3 py-1.5 rounded-xl shadow-xs transition cursor-pointer">
-                + Crea Incontro
-              </button>
-            ` : ''}
+
+            <!-- Selettore Orizzontale dei Weekend Passati -->
+            ${historicalWeekends.length > 0 ? `
+              <div class="space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] font-bold text-yellow-300 uppercase tracking-wider block">Seleziona Weekend:</span>
+                  <span class="text-[11px] text-blue-200/80 font-medium">${historicalWeekends.length} ${historicalWeekends.length === 1 ? 'weekend registrato' : 'weekend registrati'}</span>
+                </div>
+                <div class="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                  ${historicalWeekends.map(w => {
+                    const isSelected = (activeWeekend && activeWeekend.key === w.key);
+                    return `
+                      <button onclick="app.setHistoryWeekend('${w.key}')" class="whitespace-nowrap flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs transition cursor-pointer select-none ${isSelected ? 'bg-yellow-400 text-blue-950 ring-2 ring-yellow-200 shadow-md font-black' : 'bg-white/10 hover:bg-white/20 text-white font-bold border border-white/15'}">
+                        <svg class="w-3.5 h-3.5 ${isSelected ? 'text-blue-950' : 'text-yellow-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        <span>${w.label}</span>
+                        <span class="text-[10px] font-black px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-blue-950 text-yellow-300' : 'bg-white/20 text-white'}">${w.matches.length}</span>
+                      </button>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            ` : `
+              <div class="text-xs text-blue-200/70 italic py-1">
+                Nessun fine settimana passato in archivio per questa categoria.
+              </div>
+            `}
           </div>
 
-          ${dayMatches.length === 0 ? `
-            <div class="p-8 text-center bg-white rounded-2xl border border-gray-200">
+          <!-- Elenco Incontri del Weekend Selezionato -->
+          ${!activeWeekend || dayMatches.length === 0 ? `
+            <div class="p-8 text-center bg-white rounded-2xl border border-gray-200 shadow-xs space-y-2">
+              <div class="w-12 h-12 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
               <h4 class="font-bold text-sm text-gray-800">Nessuna partita trovata per questa ricerca.</h4>
+              <p class="text-xs text-gray-500">Prova a modificare la ricerca atleta o seleziona un altro fine settimana.</p>
             </div>
           ` : `
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -5141,7 +5308,11 @@ class App {
         } else if (d.getDay() === 0) {
           this.scheduleSelectedDay = "domenica";
         } else {
-          this.scheduleSelectedDay = "other";
+          const range = this.getWeekendRangeForDate(dStr);
+          if (range) {
+            this.historySelectedWeekend = range.key;
+          }
+          this.scheduleSelectedDay = "history";
         }
       }
     }

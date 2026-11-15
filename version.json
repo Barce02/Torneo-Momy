@@ -1,6 +1,6 @@
 {
-  "version": "1.3.6",
-  "buildTime": 1794600000000,
-  "releasedAt": "2026-11-15T19:09:00+01:00",
-  "notes": "Fix(calendar): blocco totale selezione ed evidenziazione blu dei numeri nei selettori data da PC"
+  "version": "1.3.7",
+  "buildTime": 1794601000000,
+  "releasedAt": "2026-11-15T20:30:00+01:00",
+  "notes": "Feature(calendar): tasto Storico a destra con archivio interattivo weekend passati e partite giocate"
 }
