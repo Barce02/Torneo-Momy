@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.3.5";
-const APP_BUILD_TIME = 1794599000000;
+const APP_VERSION = "1.3.6";
+const APP_BUILD_TIME = 1794600000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -4022,11 +4022,19 @@ class App {
   }
 
   openDatePicker(inputId, evt) {
+    if (evt) {
+      try {
+        if (typeof evt.preventDefault === 'function') evt.preventDefault();
+        if (typeof evt.stopPropagation === 'function') evt.stopPropagation();
+      } catch (e) {}
+    }
+    try {
+      if (typeof window !== 'undefined' && window.getSelection) {
+        window.getSelection().removeAllRanges();
+      }
+    } catch (e) {}
     const input = typeof inputId === 'string' ? document.getElementById(inputId) : inputId;
     if (!input) return;
-    if (evt && evt.target === input) {
-      return;
-    }
     try {
       if (typeof input.showPicker === 'function') {
         input.showPicker();
@@ -4533,26 +4541,34 @@ class App {
               </span>
 
               <!-- Tastino Sabato Giallo -->
-              <div onclick="app.openDatePicker('admin-weekend-sat', event)" title="Clicca per aprire il calendario e cambiare la data di Sabato" class="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-blue-950 px-3 py-1.5 rounded-xl border-2 border-yellow-300 shadow-sm font-black cursor-pointer transition select-none">
+              <div onclick="app.openDatePicker('admin-weekend-sat', event)" title="Clicca per aprire il calendario e cambiare la data di Sabato" class="relative flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-blue-950 px-3 py-1.5 rounded-xl border-2 border-yellow-300 shadow-sm font-black cursor-pointer transition select-none">
                 <svg class="w-4 h-4 text-blue-950 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                <span class="text-xs uppercase tracking-wide font-black">Sabato:</span>
-                <input type="date" id="admin-weekend-sat" value="${satDate || ''}" onchange="app.setWeekendDates(this.value, null); this.blur();" onclick="try{if(this.showPicker)this.showPicker();}catch(e){}" class="text-xs px-2.5 py-1 bg-yellow-300 hover:bg-yellow-200 border border-yellow-600 rounded-lg text-blue-950 font-black focus:outline-none focus:ring-0 select-none shadow-xs cursor-pointer">
+                <span class="text-xs uppercase tracking-wide font-black select-none">Sabato:</span>
+                <span class="text-xs px-2.5 py-1 bg-yellow-300 hover:bg-yellow-200 border border-yellow-600 rounded-lg text-blue-950 font-black shadow-xs select-none inline-flex items-center gap-1.5">
+                  <span class="select-none">${satDate ? this.formatDate(satDate) : 'Imposta Data'}</span>
+                  <svg class="w-3.5 h-3.5 text-blue-950/70 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                </span>
+                <input type="date" id="admin-weekend-sat" value="${satDate || ''}" onchange="app.setWeekendDates(this.value, null); this.blur();" onfocus="this.blur();" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10 pointer-events-none">
               </div>
 
               <!-- Tastino Domenica Giallo -->
-              <div onclick="app.openDatePicker('admin-weekend-sun', event)" title="Clicca per aprire il calendario e cambiare la data di Domenica" class="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-blue-950 px-3 py-1.5 rounded-xl border-2 border-yellow-300 shadow-sm font-black cursor-pointer transition select-none">
+              <div onclick="app.openDatePicker('admin-weekend-sun', event)" title="Clicca per aprire il calendario e cambiare la data di Domenica" class="relative flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-blue-950 px-3 py-1.5 rounded-xl border-2 border-yellow-300 shadow-sm font-black cursor-pointer transition select-none">
                 <svg class="w-4 h-4 text-blue-950 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                <span class="text-xs uppercase tracking-wide font-black">Domenica:</span>
-                <input type="date" id="admin-weekend-sun" value="${sunDate || ''}" onchange="app.setWeekendDates(null, this.value); this.blur();" onclick="try{if(this.showPicker)this.showPicker();}catch(e){}" class="text-xs px-2.5 py-1 bg-yellow-300 hover:bg-yellow-200 border border-yellow-600 rounded-lg text-blue-950 font-black focus:outline-none focus:ring-0 select-none shadow-xs cursor-pointer">
+                <span class="text-xs uppercase tracking-wide font-black select-none">Domenica:</span>
+                <span class="text-xs px-2.5 py-1 bg-yellow-300 hover:bg-yellow-200 border border-yellow-600 rounded-lg text-blue-950 font-black shadow-xs select-none inline-flex items-center gap-1.5">
+                  <span class="select-none">${sunDate ? this.formatDate(sunDate) : 'Imposta Data'}</span>
+                  <svg class="w-3.5 h-3.5 text-blue-950/70 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                </span>
+                <input type="date" id="admin-weekend-sun" value="${sunDate || ''}" onchange="app.setWeekendDates(null, this.value); this.blur();" onfocus="this.blur();" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10 pointer-events-none">
               </div>
 
               <!-- Tasto Prossimo Weekend Giallo -->
-              <button onclick="app.setWeekendToNext()" title="Imposta automaticamente al prossimo fine settimana" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2 rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow border-2 border-yellow-300">
+              <button onclick="app.setWeekendToNext()" title="Imposta automaticamente al prossimo fine settimana" class="bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2 rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow border-2 border-yellow-300 select-none">
                 <svg class="w-3.5 h-3.5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-                <span>Prossimo Weekend</span>
+                <span class="select-none">Prossimo Weekend</span>
               </button>
             </div>
-            <div class="text-[11px] text-yellow-200/90 font-medium">
+            <div class="text-[11px] text-yellow-200/90 font-medium select-none">
               Le date scelte aggiornano i tasti del calendario e le partite sui campi.
             </div>
           </div>
@@ -4572,34 +4588,34 @@ class App {
           <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
             
             <!-- Tasto SABATO -->
-            <button onclick="app.setScheduleDay('sabato')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2.5 py-3 px-5 sm:px-7 rounded-xl font-black text-sm transition cursor-pointer ${this.scheduleSelectedDay === 'sabato' ? 'bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-yellow-300 shadow-md ring-2 ring-yellow-400' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'}">
+            <button onclick="app.setScheduleDay('sabato')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2.5 py-3 px-5 sm:px-7 rounded-xl font-black text-sm transition cursor-pointer select-none ${this.scheduleSelectedDay === 'sabato' ? 'bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-yellow-300 shadow-md ring-2 ring-yellow-400' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'}">
               <svg class="w-4 h-4 ${this.scheduleSelectedDay === 'sabato' ? 'text-yellow-300' : 'text-gray-500'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-              <span>SABATO</span>
-              ${satDate ? `<span class="text-xs font-semibold ${this.scheduleSelectedDay === 'sabato' ? 'text-yellow-200/90' : 'text-gray-500'}">(${this.formatDayDate(satDate)})</span>` : ''}
-              <span class="text-[11px] font-black px-2 py-0.5 rounded-full ${this.scheduleSelectedDay === 'sabato' ? 'bg-yellow-400 text-blue-950' : 'bg-gray-200 text-gray-700'}">${satMatches.length}</span>
+              <span class="select-none">SABATO</span>
+              ${satDate ? `<span class="text-xs font-semibold select-none ${this.scheduleSelectedDay === 'sabato' ? 'text-yellow-200/90' : 'text-gray-500'}">(${this.formatDayDate(satDate)})</span>` : ''}
+              <span class="text-[11px] font-black px-2 py-0.5 rounded-full select-none ${this.scheduleSelectedDay === 'sabato' ? 'bg-yellow-400 text-blue-950' : 'bg-gray-200 text-gray-700'}">${satMatches.length}</span>
             </button>
 
             <!-- Tasto DOMENICA -->
-            <button onclick="app.setScheduleDay('domenica')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2.5 py-3 px-5 sm:px-7 rounded-xl font-black text-sm transition cursor-pointer ${this.scheduleSelectedDay === 'domenica' ? 'bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-yellow-300 shadow-md ring-2 ring-yellow-400' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'}">
+            <button onclick="app.setScheduleDay('domenica')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2.5 py-3 px-5 sm:px-7 rounded-xl font-black text-sm transition cursor-pointer select-none ${this.scheduleSelectedDay === 'domenica' ? 'bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-yellow-300 shadow-md ring-2 ring-yellow-400' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'}">
               <svg class="w-4 h-4 ${this.scheduleSelectedDay === 'domenica' ? 'text-yellow-300' : 'text-gray-500'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-              <span>DOMENICA</span>
-              ${sunDate ? `<span class="text-xs font-semibold ${this.scheduleSelectedDay === 'domenica' ? 'text-yellow-200/90' : 'text-gray-500'}">(${this.formatDayDate(sunDate)})</span>` : ''}
-              <span class="text-[11px] font-black px-2 py-0.5 rounded-full ${this.scheduleSelectedDay === 'domenica' ? 'bg-yellow-400 text-blue-950' : 'bg-gray-200 text-gray-700'}">${sunMatches.length}</span>
+              <span class="select-none">DOMENICA</span>
+              ${sunDate ? `<span class="text-xs font-semibold select-none ${this.scheduleSelectedDay === 'domenica' ? 'text-yellow-200/90' : 'text-gray-500'}">(${this.formatDayDate(sunDate)})</span>` : ''}
+              <span class="text-[11px] font-black px-2 py-0.5 rounded-full select-none ${this.scheduleSelectedDay === 'domenica' ? 'bg-yellow-400 text-blue-950' : 'bg-gray-200 text-gray-700'}">${sunMatches.length}</span>
             </button>
 
             ${otherMatches.length > 0 ? `
               <!-- Tasto Altri Giorni -->
-              <button onclick="app.setScheduleDay('other')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 py-2.5 px-3.5 rounded-xl font-bold text-xs transition cursor-pointer ${this.scheduleSelectedDay === 'other' ? 'bg-indigo-600 text-white shadow-md' : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100 border border-indigo-200'}">
-                <span>Altri Giorni</span>
-                <span class="text-[10px] font-black px-1.5 py-0.2 rounded-full ${this.scheduleSelectedDay === 'other' ? 'bg-white text-indigo-900' : 'bg-indigo-200 text-indigo-900'}">${otherMatches.length}</span>
+              <button onclick="app.setScheduleDay('other')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 py-2.5 px-3.5 rounded-xl font-bold text-xs transition cursor-pointer select-none ${this.scheduleSelectedDay === 'other' ? 'bg-indigo-600 text-white shadow-md' : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100 border border-indigo-200'}">
+                <span class="select-none">Altri Giorni</span>
+                <span class="text-[10px] font-black px-1.5 py-0.2 rounded-full select-none ${this.scheduleSelectedDay === 'other' ? 'bg-white text-indigo-900' : 'bg-indigo-200 text-indigo-900'}">${otherMatches.length}</span>
               </button>
             ` : ''}
 
             ${unscheduledMatches.length > 0 ? `
               <!-- Tasto Da Programmare -->
-              <button onclick="app.setScheduleDay('unscheduled')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 py-2.5 px-3.5 rounded-xl font-bold text-xs transition cursor-pointer ${this.scheduleSelectedDay === 'unscheduled' ? 'bg-amber-500 text-white shadow-md' : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'}">
-                <span>Da Programmare</span>
-                <span class="text-[10px] font-black px-1.5 py-0.2 rounded-full ${this.scheduleSelectedDay === 'unscheduled' ? 'bg-white text-amber-900' : 'bg-amber-200 text-amber-900'}">${unscheduledMatches.length}</span>
+              <button onclick="app.setScheduleDay('unscheduled')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 py-2.5 px-3.5 rounded-xl font-bold text-xs transition cursor-pointer select-none ${this.scheduleSelectedDay === 'unscheduled' ? 'bg-amber-500 text-white shadow-md' : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'}">
+                <span class="select-none">Da Programmare</span>
+                <span class="text-[10px] font-black px-1.5 py-0.2 rounded-full select-none ${this.scheduleSelectedDay === 'unscheduled' ? 'bg-white text-amber-900' : 'bg-amber-200 text-amber-900'}">${unscheduledMatches.length}</span>
               </button>
             ` : ''}
 
