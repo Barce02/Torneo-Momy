@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.3.3";
-const APP_BUILD_TIME = 1794597000000;
+const APP_VERSION = "1.3.4";
+const APP_BUILD_TIME = 1794598000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -2248,18 +2248,19 @@ class App {
         <!-- Colonna Sinistra: Classifica Ufficiale Girone Unico -->
         <div class="lg:col-span-7 space-y-4">
           <div class="bg-white rounded-2xl border border-blue-200 shadow-sm overflow-hidden flex flex-col">
-            <div class="bg-gradient-to-r from-blue-900 to-blue-950 text-white p-4 sm:p-5 flex items-center justify-between border-b border-blue-900/60">
-              <div class="flex items-center gap-3">
+            <div class="bg-gradient-to-r from-blue-900 to-blue-950 text-white p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-blue-900/60">
+              <div class="flex items-center gap-3 min-w-0">
                 <div class="w-10 h-10 rounded-xl bg-yellow-400 text-blue-950 flex items-center justify-center font-black text-sm shadow-sm flex-shrink-0">
                   <svg class="w-5 h-5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
                 </div>
-                <div>
-                  <h3 class="text-base sm:text-lg font-black tracking-tight">Classifica Girone Unico (${cat})</h3>
+                <div class="min-w-0">
+                  <h3 class="text-base sm:text-lg font-black tracking-tight truncate sm:whitespace-normal">Classifica Girone Unico (${cat})</h3>
                   <p class="text-[11px] text-blue-200">${standings.length} ${standings.length === 1 ? 'atleta' : 'atleti'} • Aggiornamento automatico in tempo reale</p>
                 </div>
               </div>
-              <span class="bg-emerald-400 text-slate-950 text-[10px] font-black px-2.5 py-1 rounded-full shadow-sm">
-                Tutti al Tabellone Finale
+              <span class="self-start sm:self-auto inline-flex items-center gap-1.5 bg-emerald-400 text-slate-950 text-[10.5px] font-black px-3 py-1 rounded-full shadow-xs whitespace-nowrap flex-shrink-0">
+                <svg class="w-3.5 h-3.5 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                <span>Tutti al Tabellone Finale</span>
               </span>
             </div>
 
