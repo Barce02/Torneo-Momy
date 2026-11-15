@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.3.4";
-const APP_BUILD_TIME = 1794598000000;
+const APP_VERSION = "1.3.5";
+const APP_BUILD_TIME = 1794599000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -2187,23 +2187,6 @@ class App {
             </div>
             <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight">Classifica Ufficiale (${cat})</h2>
           </div>
-
-          ${this.isAdmin ? `
-            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
-              <button onclick="app.openCreateMatchModal('${cat}')" class="w-full sm:w-auto bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black text-xs px-3.5 py-2.5 rounded-xl shadow transition flex items-center justify-center gap-1.5 cursor-pointer">
-                <svg class="w-4 h-4 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                <span>+ Inserisci Partita (${cat})</span>
-              </button>
-              <button onclick="app.handleAutoAssignGroups('${cat}')" title="Sincronizza lista atleti del girone" class="w-full sm:w-auto bg-white/15 hover:bg-white/25 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-white/30 transition flex items-center justify-center gap-1.5 cursor-pointer">
-                <span>Sincronizza Iscritti (${cat})</span>
-              </button>
-              ${totalInGroup >= 2 ? `
-                <button onclick="app.handleGenerateBracketFromGroups('${cat}')" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl border border-blue-500 transition flex items-center justify-center gap-1.5 cursor-pointer shadow">
-                  Genera Tabellone Finale (${cat})
-                </button>
-              ` : ''}
-            </div>
-          ` : ''}
         </div>
     `;
 
