@@ -742,10 +742,17 @@ class TournamentManager {
     const sortedPoints = Object.keys(pointsMap).map(Number).sort((a, b) => b - a);
     const sortedStandings = [];
 
+    // Ordinamento alfabetico per COGNOME (e a parità per NOME)
     const compareAlphabetical = (pA, pB) => {
-      const nameA = (pA.name || `${pA.firstName || ''} ${pA.lastName || ''}`).trim();
-      const nameB = (pB.name || `${pB.firstName || ''} ${pB.lastName || ''}`).trim();
-      return nameA.localeCompare(nameB, 'it', { sensitivity: 'base' });
+      const getLn = (p) => (p?.lastName || (p?.name ? p.name.trim().split(/\s+/).slice(1).join(' ') : '')).trim().toLowerCase();
+      const getFn = (p) => (p?.firstName || (p?.name ? p.name.trim().split(/\s+/)[0] : '')).trim().toLowerCase();
+      const lnA = getLn(pA);
+      const lnB = getLn(pB);
+      const cmp = lnA.localeCompare(lnB, 'it', { sensitivity: 'base' });
+      if (cmp !== 0) return cmp;
+      const fnA = getFn(pA);
+      const fnB = getFn(pB);
+      return fnA.localeCompare(fnB, 'it', { sensitivity: 'base' });
     };
 
     sortedPoints.forEach(pt => {

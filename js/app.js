@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.3.8";
-const APP_BUILD_TIME = 1795130000000;
+const APP_VERSION = "1.3.9";
+const APP_BUILD_TIME = 1795133000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -2267,7 +2267,7 @@ class App {
                   <thead>
                     <tr class="bg-slate-50 text-gray-600 uppercase text-[10px] font-bold border-b border-gray-200">
                       <th class="py-2.5 px-2 text-center w-7">#</th>
-                      <th class="py-2.5 px-2.5 whitespace-nowrap">Nome e Cognome</th>
+                      <th class="py-2.5 px-2.5 whitespace-nowrap">Atleta (Cognome e Nome)</th>
                       <th class="py-2.5 px-2 text-center font-black text-blue-950 bg-blue-50/50 whitespace-nowrap" title="Punti">PT</th>
                       <th class="py-2.5 px-2 text-center text-gray-600 whitespace-nowrap" title="Partite Giocate">G</th>
                       <th class="py-2.5 px-2 text-center text-emerald-700 whitespace-nowrap" title="Vinte">V</th>
@@ -2287,6 +2287,10 @@ class App {
                           (s.player.userId && s.player.userId.toLowerCase().trim() === this.user.email.toLowerCase().trim())
                         ))
                       );
+                      const { firstName: pFn, lastName: pLn } = this.splitName(s.player);
+                      const athleteNameHtml = pLn 
+                        ? `<span class="font-extrabold uppercase text-gray-950">${this.escapeHtml(pLn)}</span> <span class="font-medium ${isMe ? 'text-blue-950 font-bold' : 'text-gray-800'}">${this.escapeHtml(pFn)}</span>` 
+                        : this.escapeHtml(s.player.name || 'Atleta');
                       
                       return `
                         <tr class="hover:bg-blue-50/50 transition ${isMe ? 'bg-amber-50/90 font-bold border-l-4 border-l-yellow-400 shadow-xs' : ''}">
@@ -2297,7 +2301,7 @@ class App {
                           </td>
                           <td class="py-2.5 px-2.5 font-bold text-gray-900 whitespace-nowrap">
                             <div class="flex items-center gap-1.5 min-w-0">
-                              <span class="${isMe ? 'text-blue-950 font-black' : ''}">${s.player.name}</span>
+                              <span class="${isMe ? 'text-blue-950 font-black' : ''}">${athleteNameHtml}</span>
                               ${isMe ? `<span class="bg-yellow-400 text-blue-950 text-[9px] font-black px-1.5 py-0.2 rounded shadow-xs flex-shrink-0">TU</span>` : ''}
                               ${s.player.ranking ? `<span class="text-[9px] font-mono bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-semibold flex-shrink-0">${s.player.ranking}</span>` : ''}
                               <span class="hidden sm:inline-block text-[8px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 rounded font-bold flex-shrink-0">Qualificato</span>
@@ -2637,6 +2641,91 @@ class App {
     }) || null;
   }
 
+  // Helper anagrafica: estrae { firstName, lastName } da atleta o account
+  splitName(person) {
+    if (!person) return { firstName: "", lastName: "" };
+    let ln = (person.lastName || "").trim();
+    let fn = (person.firstName || "").trim();
+    if (!ln && !fn && person.name) {
+      const parts = person.name.trim().split(/\s+/);
+      if (parts.length === 1) {
+        fn = parts[0];
+      } else {
+        fn = parts[0];
+        ln = parts.slice(1).join(" ");
+      }
+    }
+    return { firstName: fn, lastName: ln };
+  }
+
+  // Ordinamento alfabetico rigoroso per COGNOME (e a parità per NOME)
+  compareByLastName(a, b) {
+    const aName = this.splitName(a);
+    const bName = this.splitName(b);
+    const lnA = aName.lastName.toLowerCase();
+    const lnB = bName.lastName.toLowerCase();
+    const cmp = lnA.localeCompare(lnB, 'it', { sensitivity: 'base' });
+    if (cmp !== 0) return cmp;
+    const fnA = aName.firstName.toLowerCase();
+    const fnB = bName.firstName.toLowerCase();
+    return fnA.localeCompare(fnB, 'it', { sensitivity: 'base' });
+  }
+
+  // Formatta il nome per visualizzazione con Cognome prima o Nome prima
+  formatAthleteName(person, format = "lastUpperFirst") {
+    if (!person) return "";
+    const { firstName, lastName } = this.splitName(person);
+    if (lastName && firstName) {
+      if (format === "lastUpperFirst") return `${lastName.toUpperCase()} ${firstName}`;
+      if (format === "lastFirst") return `${lastName} ${firstName}`;
+      if (format === "firstLast") return `${firstName} ${lastName}`;
+    }
+    return person.name || `${lastName || ''} ${firstName || ''}`.trim() || "Atleta";
+  }
+
+  // Ricarica forzata in tempo reale dal Cloud Firebase
+  async forceCloudRefresh() {
+    this.showToast("Sincronizzazione in corso con il Cloud Firebase...", "info");
+    try {
+      if (!this.db) {
+        this.initFirebase();
+      }
+      if (this.db) {
+        const [accSnap, stateSnap] = await Promise.all([
+          this.db.ref("torneo_momy/accounts").once("value"),
+          this.db.ref("torneo_momy/state").once("value")
+        ]);
+
+        const cloudAcc = accSnap.val();
+        if (cloudAcc) {
+          const freshAccounts = {};
+          Object.values(cloudAcc).forEach(a => {
+            if (a && a.email) freshAccounts[a.email.toLowerCase().trim()] = a;
+          });
+          this.accounts = freshAccounts;
+          localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(freshAccounts));
+        }
+
+        const cloudState = stateSnap.val();
+        if (cloudState) {
+          this.state = cloudState;
+          this.tournamentManager.state = this.state;
+          this.tournamentManager.ensureCategories();
+          localStorage.setItem(DATA_KEY, JSON.stringify(this.state));
+        }
+
+        this.syncAccountsToPlayers();
+        this.render();
+        const accCount = Object.keys(this.loadAccounts()).length;
+        const plCount = (this.state.players || []).length;
+        this.showToast(`Dati cloud aggiornati: ${accCount} account, ${plCount} atleti!`, "success");
+      }
+    } catch (e) {
+      console.error("Errore forceCloudRefresh:", e);
+      this.showToast("Errore durante l'aggiornamento dal cloud.", "error");
+    }
+  }
+
   renderPlayersView() {
     const container = document.getElementById("players-container");
     if (!container) return;
@@ -2663,7 +2752,7 @@ class App {
         (p.birthDate && p.birthDate.includes(q)) ||
         (p.notes && p.notes.toLowerCase().includes(q))
       );
-    });
+    }).sort((a, b) => this.compareByLastName(a, b));
 
     const accountsCount = Object.keys(this.loadAccounts()).length;
 
@@ -2771,8 +2860,8 @@ class App {
             <thead>
               <tr class="bg-gray-50 text-gray-600 uppercase text-[11px] font-semibold border-b border-gray-200">
                 <th class="py-3 px-3 w-12 text-center">#</th>
-                <th class="py-3 px-3">Nome</th>
                 <th class="py-3 px-3">Cognome</th>
+                <th class="py-3 px-3">Nome</th>
                 <th class="py-3 px-3">Categoria</th>
                 <th class="py-3 px-3">Data di Nascita</th>
                 <th class="py-3 px-3">Classifica FITP</th>
@@ -2784,11 +2873,12 @@ class App {
               ${filtered.map((p, idx) => {
                 const playerCat = this.tournamentManager.getPlayerCategory(p);
                 const isUnassigned = playerCat === "Da Assegnare";
+                const { firstName: pFn, lastName: pLn } = this.splitName(p);
                 return `
                   <tr class="hover:bg-gray-50/80 transition ${isUnassigned ? 'bg-amber-50/60' : ''}">
                     <td class="py-3 px-3 font-mono text-center text-gray-400 font-semibold">${idx + 1}</td>
-                    <td class="py-3 px-3 font-bold text-gray-900">${p.firstName || (p.name ? p.name.split(' ')[0] : '-') || '-'}</td>
-                    <td class="py-3 px-3 font-bold text-gray-900">${p.lastName || (p.name ? p.name.split(' ').slice(1).join(' ') : '-') || '-'}</td>
+                    <td class="py-3 px-3 font-extrabold text-gray-900 uppercase">${this.escapeHtml(pLn || '-')}</td>
+                    <td class="py-3 px-3 font-semibold text-gray-800">${this.escapeHtml(pFn || '-')}</td>
                     <td class="py-3 px-3">${this.getCategoryBadgeMarkup(playerCat)}</td>
                     <td class="py-3 px-3 text-gray-600 font-mono text-xs">${this.formatDate(p.birthDate)}</td>
                     <td class="py-3 px-3">
@@ -2854,11 +2944,7 @@ class App {
     }
 
     const accounts = this.loadAccounts();
-    const accountsList = Object.values(accounts).sort((a, b) => {
-      const nameA = (a.name || `${a.firstName || ''} ${a.lastName || ''}`).trim().toLowerCase();
-      const nameB = (b.name || `${b.firstName || ''} ${b.lastName || ''}`).trim().toLowerCase();
-      return nameA.localeCompare(nameB, 'it', { sensitivity: 'base' });
-    });
+    const accountsList = Object.values(accounts).sort((a, b) => this.compareByLastName(a, b));
 
     // Statistiche Iscrizioni per categoria
     let inTournamentCount = 0;
@@ -2935,6 +3021,10 @@ class App {
               </button>
               <button onclick="app.openAdminAccountModal(null, false)" class="bg-white/10 hover:bg-white/20 text-white font-semibold text-xs px-3 py-2.5 rounded-xl border border-white/20 shadow-sm transition flex items-center gap-1.5 cursor-pointer">
                 <span>+ Nuovo Account</span>
+              </button>
+              <button onclick="app.forceCloudRefresh()" title="Sincronizza subito con il Cloud Firebase" class="bg-white/10 hover:bg-white/20 text-white font-semibold text-xs px-3 py-2.5 rounded-xl border border-white/20 shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+                <svg class="w-3.5 h-3.5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <span>Sincronizza Cloud</span>
               </button>
               <button onclick="app.exportBackupData()" title="Esporta file backup JSON" class="bg-white/10 hover:bg-white/20 text-white font-semibold text-xs px-3 py-2.5 rounded-xl border border-white/20 shadow-sm transition flex items-center gap-1.5 cursor-pointer">
                 <svg class="w-3.5 h-3.5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
@@ -3022,7 +3112,7 @@ class App {
             <thead>
               <tr class="bg-gray-50 text-gray-600 uppercase text-[11px] font-semibold border-b border-gray-200">
                 <th class="py-3 px-3 w-10 text-center">#</th>
-                <th class="py-3 px-3">Utente</th>
+                <th class="py-3 px-3">Atleta (Cognome Nome)</th>
                 <th class="py-3 px-3">Email (Account)</th>
                 <th class="py-3 px-3">Privacy & Accesso</th>
                 <th class="py-3 px-3">Nascita / FITP</th>
@@ -3039,6 +3129,10 @@ class App {
                 const compName = linkedPlayer
                   ? (linkedPlayer.category || acc.category || "Da Assegnare")
                   : (acc.category || "Non Iscritto");
+                const { firstName: accFn, lastName: accLn } = this.splitName(acc);
+                const accDisplayName = accLn 
+                  ? `<span class="font-extrabold uppercase text-gray-950">${this.escapeHtml(accLn)}</span> <span class="font-medium text-gray-700">${this.escapeHtml(accFn)}</span>` 
+                  : this.escapeHtml(acc.name || 'Utente');
 
                 return `
                   <tr class="hover:bg-gray-50/80 transition ${!linkedPlayer ? 'bg-amber-50/25' : ''}">
@@ -3048,7 +3142,7 @@ class App {
                         <div class="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-blue-900 text-yellow-300 shadow-sm font-bold">
                           ${avatarHtml}
                         </div>
-                        <span class="truncate max-w-[150px]">${acc.name || `${acc.firstName || ''} ${acc.lastName || ''}`.trim() || 'Utente'}</span>
+                        <span class="truncate max-w-[170px] inline-flex items-center gap-1">${accDisplayName}</span>
                       </div>
                     </td>
                     <td class="py-3 px-3 font-medium text-gray-800 font-mono text-xs">
@@ -3698,11 +3792,7 @@ class App {
     if (!container) return;
 
     const accounts = this.loadAccounts();
-    const accountsList = Object.values(accounts).sort((a, b) => {
-      const nameA = (a.name || `${a.firstName || ''} ${a.lastName || ''}`).trim().toLowerCase();
-      const nameB = (b.name || `${b.firstName || ''} ${b.lastName || ''}`).trim().toLowerCase();
-      return nameA.localeCompare(nameB, 'it', { sensitivity: 'base' });
-    });
+    const accountsList = Object.values(accounts).sort((a, b) => this.compareByLastName(a, b));
 
     const q = (this.selectAccountSearchQuery || "").toLowerCase();
     const filtered = accountsList.filter(acc => {
@@ -3746,6 +3836,10 @@ class App {
       const defaultCat = (acc.category && acc.category !== "Da Assegnare" && TournamentManager.CATEGORIES.includes(acc.category))
         ? acc.category
         : (linkedPlayer?.category && TournamentManager.CATEGORIES.includes(linkedPlayer.category) ? linkedPlayer.category : ((this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Da Assegnare"));
+      const { firstName: accFn, lastName: accLn } = this.splitName(acc);
+      const accDisplayName = accLn 
+        ? `<span class="font-extrabold uppercase text-gray-950">${this.escapeHtml(accLn)}</span> <span class="font-medium text-gray-700">${this.escapeHtml(accFn)}</span>` 
+        : this.escapeHtml(acc.name || 'Utente');
 
       return `
         <div class="py-3 px-3 rounded-xl hover:bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition">
@@ -3755,7 +3849,7 @@ class App {
             </div>
             <div class="min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="font-bold text-xs sm:text-sm text-gray-900 truncate">${acc.name || `${acc.firstName || ''} ${acc.lastName || ''}`.trim() || 'Utente'}</span>
+                <span class="font-bold text-xs sm:text-sm text-gray-900 truncate inline-flex items-center gap-1">${accDisplayName}</span>
                 ${acc.role === 'admin' ? '<span class="bg-yellow-400 text-blue-950 font-black text-[9px] uppercase px-1.5 py-0.2 rounded">Admin</span>' : ''}
               </div>
               <div class="text-[11px] text-gray-500 font-mono truncate" title="${acc.email}">${acc.email}</div>
@@ -5489,11 +5583,7 @@ class App {
 
   getPlayersForCategorySorted(cat) {
     const list = (this.state.players || []).filter(p => this.tournamentManager.getPlayerCategory(p) === cat);
-    return list.sort((a, b) => {
-      const nameA = (a.name || `${a.firstName || ''} ${a.lastName || ''}`).trim();
-      const nameB = (b.name || `${b.firstName || ''} ${b.lastName || ''}`).trim();
-      return nameA.localeCompare(nameB, 'it', { sensitivity: 'base' });
-    });
+    return list.sort((a, b) => this.compareByLastName(a, b));
   }
 
   onCategoryChangeInCreateMatchModal() {
@@ -5530,7 +5620,7 @@ class App {
     }
 
     if (badgeEl) {
-      badgeEl.textContent = q ? `${filtered.length} di ${allPlayers.length}` : `${allPlayers.length} atleti A-Z`;
+      badgeEl.textContent = q ? `${filtered.length} di ${allPlayers.length}` : `${allPlayers.length} per Cognome (A-Z)`;
     }
 
     if (allPlayers.length === 0) {
@@ -5543,7 +5633,9 @@ class App {
     const opts = [`<option value="">${placeholder}</option>`];
 
     filtered.forEach(p => {
-      const label = `${p.name} (${p.ranking || 'NC'})`;
+      const { firstName: fn, lastName: ln } = this.splitName(p);
+      const displayName = ln ? `${ln.toUpperCase()} ${fn}` : p.name;
+      const label = `${displayName} (${p.ranking || 'NC'})`;
       opts.push(`<option value="${p.id}">${label}</option>`);
     });
 
@@ -5900,7 +5992,7 @@ class App {
                         ${idx + 1}°
                       </span>
                       <div class="truncate">
-                        <div class="text-xs font-bold text-gray-900 truncate">${s.player.name}</div>
+                        <div class="text-xs font-bold text-gray-900 truncate">${this.formatAthleteName(s.player, 'lastUpperFirst')}</div>
                         <div class="text-[10px] text-gray-400 font-mono">${s.player.ranking || 'NC'} • G: ${s.played}</div>
                       </div>
                     </div>
