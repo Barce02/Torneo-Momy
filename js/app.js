@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.3.7";
-const APP_BUILD_TIME = 1794601000000;
+const APP_VERSION = "1.3.8";
+const APP_BUILD_TIME = 1795124000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -439,12 +439,19 @@ class App {
     }
   }
 
-  pushSingleAccountToFirebase(email, account) {
+  async pushSingleAccountToFirebase(email, account) {
     if (!this.db || this.isRemoteUpdate || !email || !account) return;
     try {
       const key = this.encodeEmailKey(email);
       if (!key) return;
-      this.db.ref(`torneo_momy/accounts/${key}`).set(account).catch(err => {
+      if (this.auth && !this.auth.currentUser) {
+        try {
+          await this.auth.signInAnonymously();
+        } catch (authErr) {
+          console.warn("signInAnonymously fallito durante push:", authErr);
+        }
+      }
+      return this.db.ref(`torneo_momy/accounts/${key}`).set(account).catch(err => {
         console.warn("Errore salvataggio singolo account su Firebase:", err);
       });
     } catch (e) {
@@ -580,6 +587,11 @@ class App {
         if (freshAcc && freshAcc.category && this.user.category !== freshAcc.category) {
           this.user.category = freshAcc.category;
           localStorage.setItem(USER_KEY, JSON.stringify(this.user));
+        }
+        // Se l'account dell'utente loggato non era presente su Firebase, invialo subito al cloud
+        if (!cloudAccounts[cleanUserEmail] && freshAcc) {
+          console.log("[Sync] Reinvio account utente locale mancante su Firebase:", cleanUserEmail);
+          this.pushSingleAccountToFirebase(cleanUserEmail, freshAcc);
         }
       }
 
@@ -1415,6 +1427,7 @@ class App {
 
     localStorage.setItem(LAST_EMAIL_KEY, email);
     this.saveUser(account);
+    this.pushSingleAccountToFirebase(email, account);
 
     if (!isAdmin) {
       this.userHasManuallyChangedCategory = false;
@@ -2854,14 +2867,14 @@ class App {
 
     accountsList.forEach(acc => {
       const lp = this.getPlayerForAccount(acc);
-      if (lp) {
+      const isEnrolled = lp && lp.category && TournamentManager.CATEGORIES.includes(lp.category);
+      if (isEnrolled) {
         inTournamentCount++;
-        const c = lp.category || acc.category || "Da Assegnare";
-        if (catCounts[c] !== undefined) {
-          catCounts[c]++;
-        } else {
-          catCounts["Da Assegnare"]++;
+        if (catCounts[lp.category] !== undefined) {
+          catCounts[lp.category]++;
         }
+      } else {
+        catCounts["Da Assegnare"]++;
       }
     });
     const notInTournamentCount = accountsList.length - inTournamentCount;
@@ -2869,13 +2882,14 @@ class App {
     const activeFilter = this.adminAccountsCategoryFilter || "all";
     const filteredAccounts = accountsList.filter(acc => {
       const linkedPlayer = this.getPlayerForAccount(acc);
-      const playerCategory = linkedPlayer ? (linkedPlayer.category || acc.category || "Da Assegnare") : null;
+      const isEnrolled = linkedPlayer && linkedPlayer.category && TournamentManager.CATEGORIES.includes(linkedPlayer.category);
+      const playerCategory = isEnrolled ? linkedPlayer.category : "Da Assegnare";
 
       // Filtro per competizione / stato iscrizione
-      if (activeFilter === "enrolled" && !linkedPlayer) return false;
-      if (activeFilter === "unenrolled" && linkedPlayer) return false;
+      if (activeFilter === "enrolled" && !isEnrolled) return false;
+      if (activeFilter === "unenrolled" && isEnrolled) return false;
       if (TournamentManager.CATEGORIES.includes(activeFilter) && playerCategory !== activeFilter) return false;
-      if (activeFilter === "Da Assegnare" && (!linkedPlayer || playerCategory !== "Da Assegnare")) return false;
+      if (activeFilter === "Da Assegnare" && isEnrolled) return false;
 
       if (!this.accountsSearchQuery) return true;
       const q = this.accountsSearchQuery.toLowerCase();
@@ -2942,6 +2956,7 @@ class App {
               { id: "all", label: "Tutti gli Account", count: accountsList.length },
               { id: "enrolled", label: "Iscritti al Torneo", count: inTournamentCount },
               { id: "unenrolled", label: "Non ancora Iscritti", count: notInTournamentCount },
+              ...(catCounts["Da Assegnare"] > 0 ? [{ id: "Da Assegnare", label: "Da Assegnare", count: catCounts["Da Assegnare"] }] : []),
               { id: "Pre Agonistica U12", label: "Pre Ag. U12", count: catCounts["Pre Agonistica U12"] },
               { id: "Pre Agonistica", label: "Pre Agonistica", count: catCounts["Pre Agonistica"] },
               { id: "SAT", label: "SAT", count: catCounts["SAT"] }
@@ -3679,7 +3694,8 @@ class App {
     const q = (this.selectAccountSearchQuery || "").toLowerCase();
     const filtered = accountsList.filter(acc => {
       const linkedPlayer = this.getPlayerForAccount(acc);
-      if (this.selectAccountFilter === "unenrolled" && linkedPlayer) {
+      const isOfficiallyEnrolled = linkedPlayer && linkedPlayer.category && TournamentManager.CATEGORIES.includes(linkedPlayer.category);
+      if (this.selectAccountFilter === "unenrolled" && isOfficiallyEnrolled) {
         return false;
       }
       if (!q) return true;
@@ -3691,8 +3707,11 @@ class App {
     });
 
     if (countLabel) {
-      const unenrolledTotal = accountsList.filter(a => !this.getPlayerForAccount(a)).length;
-      countLabel.textContent = `${filtered.length} account visualizzati • ${unenrolledTotal} non ancora iscritti al torneo`;
+      const unenrolledTotal = accountsList.filter(a => {
+        const lp = this.getPlayerForAccount(a);
+        return !(lp && lp.category && TournamentManager.CATEGORIES.includes(lp.category));
+      }).length;
+      countLabel.textContent = `${filtered.length} account visualizzati • ${unenrolledTotal} non ancora assegnati a una categoria`;
     }
 
     if (filtered.length === 0) {

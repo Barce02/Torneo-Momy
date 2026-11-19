@@ -1,6 +1,6 @@
 {
-  "version": "1.3.7",
-  "buildTime": 1794601000000,
-  "releasedAt": "2026-11-15T20:30:00+01:00",
-  "notes": "Feature(calendar): tasto Storico a destra con archivio interattivo weekend passati e partite giocate"
+  "version": "1.3.8",
+  "buildTime": 1795124000000,
+  "releasedAt": "2026-11-19T22:20:00+01:00",
+  "notes": "Fix(accounts): auto-sincronizzazione account al login, chip Da Assegnare e inclusione corretta account senza categoria in Non ancora iscritti"
 }
