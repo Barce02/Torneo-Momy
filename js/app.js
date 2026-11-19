@@ -10,7 +10,7 @@ function isUserAdmin(email) {
 }
 
 const APP_VERSION = "1.3.8";
-const APP_BUILD_TIME = 1795124000000;
+const APP_BUILD_TIME = 1795130000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -2854,7 +2854,11 @@ class App {
     }
 
     const accounts = this.loadAccounts();
-    const accountsList = Object.values(accounts);
+    const accountsList = Object.values(accounts).sort((a, b) => {
+      const nameA = (a.name || `${a.firstName || ''} ${a.lastName || ''}`).trim().toLowerCase();
+      const nameB = (b.name || `${b.firstName || ''} ${b.lastName || ''}`).trim().toLowerCase();
+      return nameA.localeCompare(nameB, 'it', { sensitivity: 'base' });
+    });
 
     // Statistiche Iscrizioni per categoria
     let inTournamentCount = 0;
@@ -3130,6 +3134,11 @@ class App {
       accSearch.addEventListener("input", (e) => {
         this.accountsSearchQuery = e.target.value.toLowerCase().trim();
         this.renderAdminAccountsView(container);
+        const newSearch = document.getElementById("accounts-search-input");
+        if (newSearch) {
+          newSearch.focus();
+          newSearch.selectionStart = newSearch.selectionEnd = newSearch.value.length;
+        }
       });
     }
   }
@@ -3689,7 +3698,11 @@ class App {
     if (!container) return;
 
     const accounts = this.loadAccounts();
-    const accountsList = Object.values(accounts);
+    const accountsList = Object.values(accounts).sort((a, b) => {
+      const nameA = (a.name || `${a.firstName || ''} ${a.lastName || ''}`).trim().toLowerCase();
+      const nameB = (b.name || `${b.firstName || ''} ${b.lastName || ''}`).trim().toLowerCase();
+      return nameA.localeCompare(nameB, 'it', { sensitivity: 'base' });
+    });
 
     const q = (this.selectAccountSearchQuery || "").toLowerCase();
     const filtered = accountsList.filter(acc => {
