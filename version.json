@@ -1,6 +1,6 @@
 {
-  "version": "1.4.0",
-  "buildTime": 1795135000000,
-  "releasedAt": "2026-11-20T00:40:00+01:00",
-  "notes": "Fix(sync): sincronizzazione universale infallibile SDK + REST fallback con tutti i 40 account e 43 atleti sempre garantiti"
+  "version": "1.4.1",
+  "buildTime": 1795136000000,
+  "releasedAt": "2026-11-20T00:55:00+01:00",
+  "notes": "Feature: associazione automatica immediata atleta-email da registrazione utente o da modifica atleta admin"
 }

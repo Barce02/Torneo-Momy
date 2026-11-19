@@ -1343,16 +1343,22 @@ class App {
       return;
     }
 
-    // Se l'atleta era già stato inserito nel torneo dall'amministrazione, eredita la categoria ufficiale
+    // Se l'atleta era già stato inserito nel torneo dall'amministrazione, eredita la categoria ufficiale e associa l'atleta
     let category = "Da Assegnare";
+    let matchedPlayer = null;
     if (!isAdmin && this.state.players) {
       const cleanEmail = email.toLowerCase().trim();
-      const existingPlayer = this.state.players.find(p =>
-        (p.email && p.email.toLowerCase().trim() === cleanEmail) ||
-        (p.userId && p.userId.toLowerCase().trim() === cleanEmail)
-      );
-      if (existingPlayer && existingPlayer.category && TournamentManager.CATEGORIES.includes(existingPlayer.category)) {
-        category = existingPlayer.category;
+      const cleanFn = firstName.toLowerCase().trim();
+      const cleanLn = lastName.toLowerCase().trim();
+      matchedPlayer = this.state.players.find(p => {
+        const pEmail = (p.email || p.userId || "").toLowerCase().trim();
+        if (pEmail && pEmail === cleanEmail) return true;
+        const pFn = (p.firstName || (p.name ? p.name.split(" ")[0] : "")).toLowerCase().trim();
+        const pLn = (p.lastName || (p.name ? p.name.split(" ").slice(1).join(" ") : "")).toLowerCase().trim();
+        return (cleanFn && cleanLn && pFn && pLn && cleanFn === pFn && cleanLn === pLn);
+      });
+      if (matchedPlayer && matchedPlayer.category && TournamentManager.CATEGORIES.includes(matchedPlayer.category)) {
+        category = matchedPlayer.category;
       }
     }
 
@@ -1374,22 +1380,18 @@ class App {
     this.pushSingleAccountToFirebase(email, accountObj);
     localStorage.setItem(LAST_EMAIL_KEY, email);
 
-    // Se l'atleta era già stato inserito nel torneo dall'amministrazione, aggiorna anagrafica
-    if (!isAdmin && this.state.players) {
-      const cleanEmail = email.toLowerCase().trim();
-      const existingPlayer = this.state.players.find(p =>
-        (p.email && p.email.toLowerCase().trim() === cleanEmail) ||
-        (p.userId && p.userId.toLowerCase().trim() === cleanEmail)
-      );
-      if (existingPlayer) {
-        existingPlayer.firstName = firstName;
-        existingPlayer.lastName = lastName;
-        existingPlayer.name = accountObj.name;
-        existingPlayer.birthDate = birthDate;
-        existingPlayer.ranking = ranking;
-        this.tournamentManager.ensureCategories();
-        this.saveState();
-      }
+    // Se l'atleta era già stato inserito nel torneo dall'amministrazione, aggiorna anagrafica e collega l'email
+    if (!isAdmin && matchedPlayer) {
+      matchedPlayer.email = email;
+      matchedPlayer.userId = email;
+      matchedPlayer.firstName = firstName;
+      matchedPlayer.lastName = lastName;
+      matchedPlayer.name = accountObj.name;
+      matchedPlayer.birthDate = birthDate;
+      matchedPlayer.ranking = ranking;
+      this.tournamentManager.ensureCategories();
+      this.saveState();
+      this.pushStateToFirebase(this.state);
     }
 
     if (!isAdmin && category && TournamentManager.CATEGORIES.includes(category)) {
@@ -3867,6 +3869,7 @@ class App {
 
     const fnInput = document.getElementById("player-firstname-input");
     const lnInput = document.getElementById("player-lastname-input");
+    const emInput = document.getElementById("player-email-input");
     const bdInput = document.getElementById("player-birthdate-input");
     const rkInput = document.getElementById("player-ranking-input");
     const catSelect = document.getElementById("player-category-select");
@@ -3874,6 +3877,7 @@ class App {
 
     fnInput.value = "";
     lnInput.value = "";
+    if (emInput) emInput.value = "";
     bdInput.value = "";
     rkInput.value = "NC";
     if (catSelect) catSelect.value = (this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Da Assegnare";
@@ -4026,6 +4030,8 @@ class App {
 
     document.getElementById("player-firstname-input").value = p.firstName || (p.name ? p.name.split(' ')[0] : "") || "";
     document.getElementById("player-lastname-input").value = p.lastName || (p.name ? p.name.split(' ').slice(1).join(' ') : "") || "";
+    const emInput = document.getElementById("player-email-input");
+    if (emInput) emInput.value = p.email || p.userId || "";
     document.getElementById("player-birthdate-input").value = p.birthDate || "";
     document.getElementById("player-ranking-input").value = p.ranking || "NC";
     const catSelect = document.getElementById("player-category-select");
@@ -4044,6 +4050,7 @@ class App {
     const id = document.getElementById("player-id-input").value;
     const firstName = document.getElementById("player-firstname-input").value.trim();
     const lastName = document.getElementById("player-lastname-input").value.trim();
+    const email = (document.getElementById("player-email-input")?.value || "").trim().toLowerCase();
     const birthDate = document.getElementById("player-birthdate-input").value.trim();
     const ranking = document.getElementById("player-ranking-input").value.trim() || "NC";
     const categorySelect = document.getElementById("player-category-select");
@@ -4061,11 +4068,45 @@ class App {
     }
 
     const fullName = `${firstName} ${lastName}`.trim();
+    const accounts = this.loadAccounts();
+
+    // Se è stata inserita un'email, collega o crea l'account utente
+    if (email) {
+      let acc = accounts[email];
+      if (!acc) {
+        acc = {
+          firstName,
+          lastName,
+          name: fullName,
+          email,
+          password: "momy",
+          birthDate,
+          ranking,
+          category,
+          role: isUserAdmin(email) ? "admin" : "player",
+          biometricsEnabled: false
+        };
+        accounts[email] = acc;
+        this.saveAccounts(accounts);
+        this.pushSingleAccountToFirebase(email, acc);
+      } else {
+        acc.firstName = firstName;
+        acc.lastName = lastName;
+        acc.name = fullName;
+        acc.category = category;
+        if (birthDate) acc.birthDate = birthDate;
+        if (ranking) acc.ranking = ranking;
+        this.saveAccounts(accounts);
+        this.pushSingleAccountToFirebase(email, acc);
+      }
+    }
 
     if (id) {
       // Modifica atleta esistente
       const idx = this.state.players.findIndex(x => x.id === id);
       if (idx !== -1) {
+        const oldEmail = (this.state.players[idx].email || this.state.players[idx].userId || "").toLowerCase().trim();
+        const effectiveEmail = email || oldEmail;
         this.state.players[idx] = {
           ...this.state.players[idx],
           firstName,
@@ -4074,23 +4115,21 @@ class App {
           birthDate,
           ranking,
           category,
+          email: effectiveEmail,
+          userId: effectiveEmail,
           notes
         };
 
         // Sincronizza anche sull'account registrato se presente
-        const pEmail = (this.state.players[idx].email || "").toLowerCase().trim();
-        if (pEmail) {
-          const accounts = this.loadAccounts();
-          if (accounts[pEmail]) {
-            accounts[pEmail].category = category;
-            accounts[pEmail].firstName = firstName;
-            accounts[pEmail].lastName = lastName;
-            accounts[pEmail].name = fullName;
-            accounts[pEmail].birthDate = birthDate;
-            accounts[pEmail].ranking = ranking;
-            this.saveAccounts(accounts);
-            this.pushSingleAccountToFirebase(pEmail, accounts[pEmail]);
-          }
+        if (effectiveEmail && accounts[effectiveEmail]) {
+          accounts[effectiveEmail].category = category;
+          accounts[effectiveEmail].firstName = firstName;
+          accounts[effectiveEmail].lastName = lastName;
+          accounts[effectiveEmail].name = fullName;
+          accounts[effectiveEmail].birthDate = birthDate;
+          accounts[effectiveEmail].ranking = ranking;
+          this.saveAccounts(accounts);
+          this.pushSingleAccountToFirebase(effectiveEmail, accounts[effectiveEmail]);
         }
       }
     } else {
@@ -4114,8 +4153,8 @@ class App {
         ranking,
         category,
         notes,
-        email: "",
-        userId: "",
+        email: email || "",
+        userId: email || "",
         status: "confermato"
       };
       this.state.players.push(newPlayer);
@@ -4123,6 +4162,7 @@ class App {
 
     this.tournamentManager.ensureCategories();
     this.saveState();
+    this.pushStateToFirebase(this.state);
     this.closeModal("modal-player");
     this.showToast(`Dati di ${fullName} salvati con successo!`, "success");
     this.render();
