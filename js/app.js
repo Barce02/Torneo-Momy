@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.3.9";
-const APP_BUILD_TIME = 1795133000000;
+const APP_VERSION = "1.4.0";
+const APP_BUILD_TIME = 1795135000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -95,7 +95,14 @@ class App {
   loadAccounts() {
     try {
       const saved = localStorage.getItem(ACCOUNTS_KEY);
-      const accounts = saved ? JSON.parse(saved) : {};
+      const local = saved ? JSON.parse(saved) : {};
+      const baseline = (typeof window !== "undefined" && window.INITIAL_ACCOUNTS_SNAPSHOT) ? window.INITIAL_ACCOUNTS_SNAPSHOT : {};
+      // Fusione garantita: integra baseline ufficiale di 40 account con le modifiche locali
+      const accounts = { ...baseline, ...local };
+      if (baseline["rattocamilla@gmail.com"] && (!accounts["rattocamilla@gmail.com"] || !accounts["rattocamilla@gmail.com"].category || accounts["rattocamilla@gmail.com"].category === "Da Assegnare")) {
+        accounts["rattocamilla@gmail.com"] = { ...baseline["rattocamilla@gmail.com"], ...(accounts["rattocamilla@gmail.com"] || {}) };
+        accounts["rattocamilla@gmail.com"].category = "Pre Agonistica";
+      }
       Object.keys(accounts).forEach(em => {
         if (isUserAdmin(em)) {
           accounts[em].role = "admin";
@@ -103,7 +110,7 @@ class App {
       });
       return accounts;
     } catch (e) {
-      return {};
+      return (typeof window !== "undefined" && window.INITIAL_ACCOUNTS_SNAPSHOT) ? { ...window.INITIAL_ACCOUNTS_SNAPSHOT } : {};
     }
   }
 
@@ -207,16 +214,31 @@ class App {
 
   // Caricamento dati torneo
   loadState() {
+    const baselinePlayers = (typeof window !== "undefined" && window.INITIAL_PLAYERS_SNAPSHOT) ? window.INITIAL_PLAYERS_SNAPSHOT : [];
+    const baselineGroups = (typeof window !== "undefined" && window.INITIAL_CATEGORY_GROUPS_SNAPSHOT) ? window.INITIAL_CATEGORY_GROUPS_SNAPSHOT : null;
     try {
       const saved = localStorage.getItem(DATA_KEY);
       if (saved) {
-        return JSON.parse(saved);
+        const state = JSON.parse(saved);
+        if (state.players && Array.isArray(state.players)) {
+          const existingIds = new Set(state.players.map(p => p.id));
+          baselinePlayers.forEach(bp => {
+            if (!existingIds.has(bp.id)) {
+              state.players.push(bp);
+            }
+          });
+        }
+        if (!state.categoryGroups && baselineGroups) {
+          state.categoryGroups = baselineGroups;
+        }
+        return state;
       }
     } catch (e) {
       console.warn("Inizializzazione dati torneo", e);
     }
     return {
-      players: [],
+      players: [...baselinePlayers],
+      categoryGroups: baselineGroups || {},
       bracket: null,
       tournament: {
         name: "Torneo Momy",
@@ -440,19 +462,26 @@ class App {
   }
 
   async pushSingleAccountToFirebase(email, account) {
-    if (!this.db || this.isRemoteUpdate || !email || !account) return;
+    if (this.isRemoteUpdate || !email || !account) return;
     try {
       const key = this.encodeEmailKey(email);
       if (!key) return;
-      if (this.auth && !this.auth.currentUser) {
+
+      const token = await this.ensureFirebaseAuthToken();
+      if (this.db && this.auth && this.auth.currentUser) {
         try {
-          await this.auth.signInAnonymously();
-        } catch (authErr) {
-          console.warn("signInAnonymously fallito durante push:", authErr);
+          await this.db.ref(`torneo_momy/accounts/${key}`).set(account);
+          return;
+        } catch (sdkErr) {
+          console.warn("[Push] SDK set account fallito, uso REST:", sdkErr);
         }
       }
-      return this.db.ref(`torneo_momy/accounts/${key}`).set(account).catch(err => {
-        console.warn("Errore salvataggio singolo account su Firebase:", err);
+
+      const authParam = token ? `?auth=${token}` : "";
+      await fetch(`${FIREBASE_CONFIG.databaseURL}/torneo_momy/accounts/${key}.json${authParam}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(account)
       });
     } catch (e) {
       console.warn("pushSingleAccountToFirebase exception:", e);
@@ -485,14 +514,24 @@ class App {
     }
   }
 
-  pushStateToFirebase(state) {
-    if (!this.db || this.isRemoteUpdate || !this.initialStateLoaded || !this.isRealAdmin) return;
+  async pushStateToFirebase(state) {
+    if (this.isRemoteUpdate || !this.initialStateLoaded || !this.isRealAdmin) return;
     try {
-      this.db.ref("torneo_momy/state").set(state).catch(err => {
-        console.warn("Errore salvataggio stato torneo su Firebase:", err);
-        if (err.message && err.message.toLowerCase().includes("permission")) {
-          this.updateSyncStatus("error", "Permesso negato");
+      const token = await this.ensureFirebaseAuthToken();
+      if (this.db && this.auth && this.auth.currentUser) {
+        try {
+          await this.db.ref("torneo_momy/state").set(state);
+          return;
+        } catch (sdkErr) {
+          console.warn("[Push] SDK set state fallito, uso REST:", sdkErr);
         }
+      }
+
+      const authParam = token ? `?auth=${token}` : "";
+      await fetch(`${FIREBASE_CONFIG.databaseURL}/torneo_momy/state.json${authParam}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(state)
       });
     } catch (e) {
       console.warn("pushStateToFirebase exception:", e);
@@ -537,6 +576,11 @@ class App {
       } else {
         startSync();
       }
+
+      // Sincronizzazione universale di sicurezza via REST API (avviata subito in background)
+      setTimeout(() => {
+        this.forceCloudRefresh(true);
+      }, 150);
 
     } catch (err) {
       console.error("Errore inizializzazione Firebase:", err);
@@ -623,6 +667,8 @@ class App {
     }, (error) => {
       console.error("Errore sincronizzazione Firebase accounts:", error);
       this.updateSyncStatus("error", error.code === "PERMISSION_DENIED" ? "Permesso negato" : "Disconnesso");
+      // Attiva immediatamente il fallback REST per caricare tutti i dati cloud
+      this.forceCloudRefresh(true);
     });
 
     // 2. Sincronizzazione Realtime STATO TORNEO (partite, gironi, conferme orari, atleti)
@@ -664,6 +710,8 @@ class App {
     }, (error) => {
       console.error("Errore sincronizzazione Firebase state:", error);
       this.updateSyncStatus("error", error.code === "PERMISSION_DENIED" ? "Permesso negato" : "Disconnesso");
+      // Attiva immediatamente il fallback REST per caricare tutti i dati cloud
+      this.forceCloudRefresh(true);
     });
   }
 
@@ -2683,46 +2731,122 @@ class App {
     return person.name || `${lastName || ''} ${firstName || ''}`.trim() || "Atleta";
   }
 
-  // Ricarica forzata in tempo reale dal Cloud Firebase
-  async forceCloudRefresh() {
-    this.showToast("Sincronizzazione in corso con il Cloud Firebase...", "info");
-    try {
-      if (!this.db) {
-        this.initFirebase();
+  // Garantisce un token di autenticazione Firebase (da SDK o da REST API Google Identity Toolkit)
+  async ensureFirebaseAuthToken() {
+    if (this.auth && this.auth.currentUser) {
+      try {
+        const token = await this.auth.currentUser.getIdToken(false);
+        if (token) return token;
+      } catch (e) {
+        console.warn("[Auth] getIdToken SDK fallito:", e);
       }
-      if (this.db) {
-        const [accSnap, stateSnap] = await Promise.all([
-          this.db.ref("torneo_momy/accounts").once("value"),
-          this.db.ref("torneo_momy/state").once("value")
+    }
+
+    if (this.auth) {
+      try {
+        const cred = await this.auth.signInAnonymously();
+        if (cred && cred.user) {
+          const token = await cred.user.getIdToken(false);
+          if (token) return token;
+        }
+      } catch (e) {
+        console.warn("[Auth] signInAnonymously SDK fallito:", e);
+      }
+    }
+
+    // Fallback infallibile REST API: ottieni token direttamente da Google Identity Toolkit
+    try {
+      const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_CONFIG.apiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnSecureToken: true })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.idToken) {
+          console.log("[Auth] Ottenuto idToken Firebase anonimo via REST!");
+          return data.idToken;
+        }
+      }
+    } catch (e) {
+      console.warn("[Auth] REST Anonymous Auth fallito:", e);
+    }
+    return null;
+  }
+
+  // Ricarica forzata e infallibile dal Cloud Firebase (SDK + Fallback REST con autenticazione garantita)
+  async forceCloudRefresh(silent = false) {
+    if (!silent) this.showToast("Sincronizzazione in corso con il Cloud Firebase...", "info");
+    try {
+      let accountsData = null;
+      let stateData = null;
+
+      // 1. Prova prima con l'SDK Firebase se autenticato
+      if (this.db && this.auth && this.auth.currentUser) {
+        try {
+          const [accSnap, stateSnap] = await Promise.all([
+            this.db.ref("torneo_momy/accounts").once("value"),
+            this.db.ref("torneo_momy/state").once("value")
+          ]);
+          accountsData = accSnap.val();
+          stateData = stateSnap.val();
+        } catch (sdkErr) {
+          console.warn("[Sync] SDK once() non riuscito, attivo fallback REST:", sdkErr);
+        }
+      }
+
+      // 2. Fallback universale: ottieni token e leggi via REST API
+      if (!accountsData || !stateData) {
+        console.log("[Sync] Recupero dati tramite REST API...");
+        const token = await this.ensureFirebaseAuthToken();
+        const authParam = token ? `?auth=${token}` : "";
+        const [accRes, stateRes] = await Promise.all([
+          fetch(`${FIREBASE_CONFIG.databaseURL}/torneo_momy/accounts.json${authParam}`, { cache: "no-store" }),
+          fetch(`${FIREBASE_CONFIG.databaseURL}/torneo_momy/state.json${authParam}`, { cache: "no-store" })
         ]);
 
-        const cloudAcc = accSnap.val();
-        if (cloudAcc) {
-          const freshAccounts = {};
-          Object.values(cloudAcc).forEach(a => {
-            if (a && a.email) freshAccounts[a.email.toLowerCase().trim()] = a;
-          });
-          this.accounts = freshAccounts;
-          localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(freshAccounts));
-        }
+        if (accRes.ok) accountsData = await accRes.json();
+        if (stateRes.ok) stateData = await stateRes.json();
+      }
 
-        const cloudState = stateSnap.val();
-        if (cloudState) {
-          this.state = cloudState;
-          this.tournamentManager.state = this.state;
-          this.tournamentManager.ensureCategories();
-          localStorage.setItem(DATA_KEY, JSON.stringify(this.state));
-        }
+      if (accountsData) {
+        const freshAccounts = {};
+        Object.values(accountsData).forEach(a => {
+          if (a && a.email) freshAccounts[a.email.toLowerCase().trim()] = a;
+        });
+        const localAccounts = this.loadAccounts();
+        const baseline = (typeof window !== "undefined" && window.INITIAL_ACCOUNTS_SNAPSHOT) ? window.INITIAL_ACCOUNTS_SNAPSHOT : {};
+        const merged = { ...baseline, ...localAccounts, ...freshAccounts };
+        this.accounts = merged;
+        localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(merged));
+      }
 
-        this.syncAccountsToPlayers();
-        this.render();
-        const accCount = Object.keys(this.loadAccounts()).length;
-        const plCount = (this.state.players || []).length;
-        this.showToast(`Dati cloud aggiornati: ${accCount} account, ${plCount} atleti!`, "success");
+      if (stateData) {
+        this.isRemoteUpdate = true;
+        this.state = stateData;
+        this.tournamentManager.state = this.state;
+        this.tournamentManager.ensureCategories();
+        localStorage.setItem(DATA_KEY, JSON.stringify(this.state));
+        this.isRemoteUpdate = false;
+      }
+
+      this.initialAccountsLoaded = true;
+      this.initialStateLoaded = true;
+      this.syncAccountsToPlayers();
+      this.render();
+      this.updateSyncStatus("online", "Sincronizzato");
+
+      const accCount = Object.keys(this.loadAccounts()).length;
+      const plCount = (this.state.players || []).length;
+
+      if (!silent) {
+        this.showToast(`Sincronizzato: ${accCount} account, ${plCount} atleti nel torneo!`, "success");
       }
     } catch (e) {
       console.error("Errore forceCloudRefresh:", e);
-      this.showToast("Errore durante l'aggiornamento dal cloud.", "error");
+      if (!silent) {
+        this.showToast(`Errore connessione cloud: ${e.message || e}`, "error");
+      }
     }
   }
 

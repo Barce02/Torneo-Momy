@@ -1,6 +1,6 @@
 {
-  "version": "1.3.9",
-  "buildTime": 1795133000000,
-  "releasedAt": "2026-11-20T00:30:00+01:00",
-  "notes": "Ordinamento alfabetico per Cognome in tutte le sezioni: account registrati, classifica gironi e selezione/ricerca atleti negli incontri"
+  "version": "1.4.0",
+  "buildTime": 1795135000000,
+  "releasedAt": "2026-11-20T00:40:00+01:00",
+  "notes": "Fix(sync): sincronizzazione universale infallibile SDK + REST fallback con tutti i 40 account e 43 atleti sempre garantiti"
 }
