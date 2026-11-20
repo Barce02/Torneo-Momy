@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.4.1";
-const APP_BUILD_TIME = 1795136000000;
+const APP_VERSION = "1.4.2";
+const APP_BUILD_TIME = 1795137000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -5115,7 +5115,7 @@ class App {
           </div>
 
           ${this.isAdmin && !this.viewAsUser ? `
-            <button onclick="app.openCreateMatchModal(null, 'Campo 1 (Terra)', '${activeDayDate}T10:00')" class="text-xs bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black px-3 py-1.5 rounded-xl shadow-xs transition cursor-pointer flex items-center gap-1.5">
+            <button onclick="app.openCreateMatchModal(null, null, '${activeDayDate}')" class="text-xs bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black px-3 py-1.5 rounded-xl shadow-xs transition cursor-pointer flex items-center gap-1.5">
               <span>+ Inserisci Partita in ${dayLabel}</span>
             </button>
           ` : ''}
@@ -5535,6 +5535,219 @@ class App {
     }
   }
 
+  // ==========================================
+  // GESTIONE ORARI PARTITE (MINUTI :00/:30 & AUTOMAZIONE A SEGUIRE)
+  // ==========================================
+  isPreAgonisticaCategory(category) {
+    if (!category) return false;
+    const clean = String(category).toLowerCase().replace(/[^a-z0-9]/g, '');
+    return clean.includes("preagonistica");
+  }
+
+  getMatchDurationMinutes(category) {
+    // Partite pre-agonistiche: 1 ora e mezza (90 min). Altre (es. SAT): 1 ora (60 min)
+    return this.isPreAgonisticaCategory(category) ? 90 : 60;
+  }
+
+  isSameCourt(cA, cB) {
+    if (!cA || !cB) return false;
+    if (cA === cB) return true;
+    const cleanA = String(cA).toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanB = String(cB).toLowerCase().replace(/[^a-z0-9]/g, '');
+    return cleanA.includes(cleanB) || cleanB.includes(cleanA);
+  }
+
+  calculateNextMatchDateTime(startDateTime, category) {
+    if (!startDateTime || !startDateTime.includes('T')) return null;
+    const [dStr, tStr] = startDateTime.split('T');
+    let [h, m] = (tStr || "10:00").split(':').map(Number);
+    if (isNaN(h)) h = 10;
+    if (isNaN(m)) m = 0;
+
+    const duration = this.getMatchDurationMinutes(category);
+    const totalMinutes = h * 60 + m + duration;
+
+    const nextHour = Math.floor(totalMinutes / 60);
+    const nextMin = totalMinutes % 60;
+    const roundedMin = nextMin >= 45 ? 0 : (nextMin >= 15 ? 30 : 0);
+    const finalHour = nextMin >= 45 ? nextHour + 1 : nextHour;
+
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${dStr}T${pad(finalHour % 24)}:${pad(roundedMin)}`;
+  }
+
+  recordLastScheduledMatch(matchInfo) {
+    if (!matchInfo || !matchInfo.dateTime) return;
+    this._lastScheduledMatch = {
+      dateTime: matchInfo.dateTime,
+      category: matchInfo.category || "Pre Agonistica",
+      court: matchInfo.court || "Campo 1 (Terra)",
+      timestamp: Date.now()
+    };
+    try {
+      sessionStorage.setItem("torneo_momy_last_scheduled_match", JSON.stringify(this._lastScheduledMatch));
+    } catch (e) {}
+  }
+
+  getLastScheduledMatch() {
+    if (this._lastScheduledMatch) return this._lastScheduledMatch;
+    try {
+      const stored = sessionStorage.getItem("torneo_momy_last_scheduled_match");
+      if (stored) {
+        this._lastScheduledMatch = JSON.parse(stored);
+        return this._lastScheduledMatch;
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  getNextMatchDefault(court = null, dateStr = null, fallbackCategory = null) {
+    const { satDate, sunDate } = this.getTournamentWeekendDates(this.getAllMatches());
+    const targetDate = dateStr || (this.scheduleSelectedDay === "domenica" ? sunDate : satDate) || new Date().toISOString().split('T')[0];
+    const targetCourt = court || "Campo 1 (Terra)";
+
+    const allMatches = this.getAllMatches();
+
+    // 1. Se è specificato un campo, cerca l'ultimo incontro programmato su quel campo in quella data
+    if (court) {
+      const courtMatchesOnDay = allMatches.filter(item => {
+        const m = item.match;
+        if (!m || !m.dateTime || !m.court) return false;
+        const mDate = m.dateTime.substring(0, 10);
+        return mDate === targetDate && this.isSameCourt(m.court, court);
+      }).sort((a, b) => new Date(a.match.dateTime) - new Date(b.match.dateTime));
+
+      if (courtMatchesOnDay.length > 0) {
+        const lastItem = courtMatchesOnDay[courtMatchesOnDay.length - 1];
+        const prevCat = lastItem.category || lastItem.match.category || fallbackCategory;
+        const nextDt = this.calculateNextMatchDateTime(lastItem.match.dateTime, prevCat);
+        if (nextDt) {
+          return {
+            dateTime: nextDt,
+            court: lastItem.match.court || targetCourt,
+            date: nextDt.split('T')[0],
+            time: nextDt.split('T')[1]
+          };
+        }
+      }
+    }
+
+    // 2. Se l'utente ha appena creato o programmato una partita in questa sessione (o a seguire)
+    const lastSession = this.getLastScheduledMatch();
+    if (lastSession && lastSession.dateTime) {
+      const lastDate = lastSession.dateTime.substring(0, 10);
+      if (!dateStr || dateStr === lastDate) {
+        const nextDt = this.calculateNextMatchDateTime(lastSession.dateTime, lastSession.category);
+        if (nextDt) {
+          return {
+            dateTime: nextDt,
+            court: court || lastSession.court || targetCourt,
+            date: nextDt.split('T')[0],
+            time: nextDt.split('T')[1]
+          };
+        }
+      }
+    }
+
+    // 3. Altrimenti cerca l'ultimo incontro programmato in assoluto per quella giornata
+    const dayMatches = allMatches.filter(item => {
+      const m = item.match;
+      if (!m || !m.dateTime) return false;
+      return m.dateTime.substring(0, 10) === targetDate;
+    }).sort((a, b) => new Date(a.match.dateTime) - new Date(b.match.dateTime));
+
+    if (dayMatches.length > 0) {
+      const lastItem = dayMatches[dayMatches.length - 1];
+      const prevCat = lastItem.category || lastItem.match.category || fallbackCategory;
+      const nextDt = this.calculateNextMatchDateTime(lastItem.match.dateTime, prevCat);
+      if (nextDt) {
+        return {
+          dateTime: nextDt,
+          court: court || lastItem.match.court || targetCourt,
+          date: nextDt.split('T')[0],
+          time: nextDt.split('T')[1]
+        };
+      }
+    }
+
+    // 4. Default standard (ore 10:00)
+    return {
+      dateTime: `${targetDate}T10:00`,
+      court: targetCourt,
+      date: targetDate,
+      time: "10:00"
+    };
+  }
+
+  syncMatchDateTime(prefix) {
+    const dEl = document.getElementById(`${prefix}-date`);
+    const hEl = document.getElementById(`${prefix}-hour`);
+    const mEl = document.getElementById(`${prefix}-minute`);
+    const hiddenEl = document.getElementById(`${prefix}-datetime`);
+    if (!hiddenEl) return;
+
+    if (dEl && dEl.value) {
+      const h = (hEl && hEl.value) ? hEl.value : "10";
+      const m = (mEl && mEl.value) ? mEl.value : "00";
+      hiddenEl.value = `${dEl.value}T${h}:${m}`;
+    } else {
+      hiddenEl.value = "";
+    }
+  }
+
+  setMatchDateTimeInputs(prefix, dateTimeStr) {
+    const dEl = document.getElementById(`${prefix}-date`);
+    const hEl = document.getElementById(`${prefix}-hour`);
+    const mEl = document.getElementById(`${prefix}-minute`);
+    const hiddenEl = document.getElementById(`${prefix}-datetime`);
+
+    if (!dateTimeStr) {
+      if (dEl) dEl.value = "";
+      if (hEl) hEl.value = "10";
+      if (mEl) mEl.value = "00";
+      if (hiddenEl) hiddenEl.value = "";
+      return;
+    }
+
+    let [dStr, tStr] = dateTimeStr.split('T');
+    if (!tStr && dateTimeStr.includes(' ')) {
+      [dStr, tStr] = dateTimeStr.split(' ');
+    }
+
+    let h = "10";
+    let m = "00";
+    if (tStr) {
+      const parts = tStr.split(':');
+      if (parts[0]) h = parts[0].padStart(2, '0');
+      if (parts[1]) {
+        const rawM = parseInt(parts[1], 10);
+        m = (isNaN(rawM) || rawM < 15) ? "00" : (rawM < 45 ? "30" : "00");
+        if (rawM >= 45) {
+          const nextH = (parseInt(h, 10) + 1) % 24;
+          h = String(nextH).padStart(2, '0');
+        }
+      }
+    }
+
+    if (dEl && dStr) dEl.value = dStr;
+    if (hEl) {
+      if (!hEl.querySelector(`option[value="${h}"]`)) {
+        const opt = document.createElement("option");
+        opt.value = h;
+        opt.textContent = h;
+        hEl.appendChild(opt);
+      }
+      hEl.value = h;
+    }
+    if (mEl) {
+      mEl.value = (m === "30") ? "30" : "00";
+    }
+
+    if (hiddenEl) {
+      hiddenEl.value = dStr ? `${dStr}T${h}:${mEl ? mEl.value : m}` : "";
+    }
+  }
+
   openScheduleMatchModal(type, groupKeyOrRound, matchId, category = null) {
     if (!this.isAdmin) {
       this.showToast("Operazione riservata all'amministrazione del torneo.", "error");
@@ -5585,8 +5798,14 @@ class App {
     document.getElementById("schedule-match-p1-name").textContent = p1 ? p1.name : "In attesa";
     document.getElementById("schedule-match-p2-name").textContent = p2 ? p2.name : "In attesa";
 
-    document.getElementById("schedule-match-datetime").value = targetMatch.dateTime || "";
-    document.getElementById("schedule-match-court").value = targetMatch.court || "Campo 1 (Terra)";
+    if (targetMatch.dateTime) {
+      this.setMatchDateTimeInputs("schedule-match", targetMatch.dateTime);
+      document.getElementById("schedule-match-court").value = targetMatch.court || "Campo 1 (Terra)";
+    } else {
+      const smartDefault = this.getNextMatchDefault(targetMatch.court || null, null, cat);
+      this.setMatchDateTimeInputs("schedule-match", smartDefault.dateTime);
+      document.getElementById("schedule-match-court").value = targetMatch.court || smartDefault.court || "Campo 1 (Terra)";
+    }
     document.getElementById("schedule-match-status").value = targetMatch.status || "in_programma";
 
     const clearBtn = document.getElementById("schedule-match-clear-btn");
@@ -5631,6 +5850,7 @@ class App {
   handleSaveScheduleMatch() {
     if (!this.isAdmin) return;
 
+    this.syncMatchDateTime("schedule-match");
     const type = document.getElementById("schedule-match-type").value;
     const groupKeyOrRound = document.getElementById("schedule-match-group-or-round").value;
     const matchId = document.getElementById("schedule-match-id").value;
@@ -5652,6 +5872,7 @@ class App {
       this.tournamentManager.updateBracketMatch(matchId, updatePayload, category);
     }
 
+    this.recordLastScheduledMatch({ dateTime, category, court });
     this.alignScheduleViewToMatch(dateTime);
     this.saveState();
     this.closeModal("modal-schedule-match");
@@ -5735,21 +5956,29 @@ class App {
     const phaseSelect = document.getElementById("create-match-phase");
     if (phaseSelect) phaseSelect.value = "Girone Unico";
 
-    const courtSelect = document.getElementById("create-match-court");
-    if (courtSelect) {
-      courtSelect.value = court || "Campo 1 (Terra)";
+    const { satDate, sunDate } = this.getTournamentWeekendDates(this.getAllMatches());
+    const defaultDate = this.scheduleSelectedDay === "domenica" ? sunDate : satDate;
+
+    let targetDate = defaultDate;
+    if (dateTime && dateTime.length === 10) {
+      targetDate = dateTime;
+    } else if (dateTime && dateTime.includes('T')) {
+      targetDate = dateTime.split('T')[0];
     }
 
-    const dtInput = document.getElementById("create-match-datetime");
-    if (dtInput) {
-      if (dateTime) {
-        dtInput.value = dateTime;
-      } else {
-        const { satDate, sunDate } = this.getTournamentWeekendDates(this.getAllMatches());
-        const defaultDate = this.scheduleSelectedDay === "domenica" ? sunDate : satDate;
-        dtInput.value = `${defaultDate}T10:00`;
-      }
+    const smartDefault = this.getNextMatchDefault(court, targetDate, cat);
+
+    const courtSelect = document.getElementById("create-match-court");
+    if (courtSelect) {
+      courtSelect.value = court || smartDefault.court || "Campo 1 (Terra)";
     }
+
+    let finalDateTime = smartDefault.dateTime;
+    if (dateTime && dateTime.includes('T') && !dateTime.endsWith('T10:00')) {
+      finalDateTime = dateTime;
+    }
+
+    this.setMatchDateTimeInputs("create-match", finalDateTime);
 
     // Reset delle caselle di ricerca rapida
     const s1 = document.getElementById("create-match-search-p1");
@@ -5857,6 +6086,7 @@ class App {
 
   handleSaveCreateMatch() {
     if (!this.isAdmin) return;
+    this.syncMatchDateTime("create-match");
     const catSelect = document.getElementById("create-match-category");
     const phaseSelect = document.getElementById("create-match-phase");
     const p1Select = document.getElementById("create-match-player1");
@@ -5890,6 +6120,7 @@ class App {
       return;
     }
 
+    this.recordLastScheduledMatch({ dateTime, category, court });
     this.alignScheduleViewToMatch(dateTime);
     this.saveState();
     this.closeModal("modal-create-match");
@@ -5939,9 +6170,11 @@ class App {
     const unscheduled = allMatches.filter(x => !x.match.dateTime);
     const dStr = dateStr || new Date().toISOString().split('T')[0];
 
+    const smartDefault = this.getNextMatchDefault(courtName, dStr);
+
     if (unscheduled.length === 0) {
       // Se non ci sono partite esistenti da assegnare, apri direttamente il modale di creazione per questo campo e data
-      this.openCreateMatchModal(null, courtName, `${dStr}T10:00`);
+      this.openCreateMatchModal(null, courtName, smartDefault.dateTime);
       return;
     }
 
@@ -5958,13 +6191,14 @@ class App {
 
     document.getElementById("quick-court-assign-court-name").value = courtName;
     document.getElementById("quick-court-assign-court-display").textContent = courtName;
-    document.getElementById("quick-court-assign-datetime").value = `${dStr}T15:00`;
+    this.setMatchDateTimeInputs("quick-court-assign", smartDefault.dateTime);
 
     this.openModal("modal-quick-court-assign");
   }
 
   handleSaveQuickCourtAssign() {
     if (!this.isAdmin) return;
+    this.syncMatchDateTime("quick-court-assign");
     const selectEl = document.getElementById("quick-court-assign-match-select");
     const courtName = document.getElementById("quick-court-assign-court-name").value;
     const dateTime = document.getElementById("quick-court-assign-datetime").value;
@@ -5994,6 +6228,7 @@ class App {
       this.tournamentManager.updateBracketMatch(matchId, updatePayload, category);
     }
 
+    this.recordLastScheduledMatch({ dateTime, category: category || "Pre Agonistica", court: courtName });
     this.alignScheduleViewToMatch(dateTime);
     this.saveState();
     this.closeModal("modal-quick-court-assign");

@@ -1,6 +1,6 @@
 {
-  "version": "1.4.1",
-  "buildTime": 1795136000000,
-  "releasedAt": "2026-11-20T00:55:00+01:00",
-  "notes": "Feature: associazione automatica immediata atleta-email da registrazione utente o da modifica atleta admin"
+  "version": "1.4.2",
+  "buildTime": 1795137000000,
+  "releasedAt": "2026-11-20T09:30:00+01:00",
+  "notes": "Feature: orari partite a intervalli di 30 minuti (:00 e :30) e orario predefinito automatico a seguire (+1h o +1h30m)"
 }
