@@ -1,6 +1,6 @@
 {
-  "version": "1.4.2",
-  "buildTime": 1795137000000,
-  "releasedAt": "2026-11-20T09:30:00+01:00",
-  "notes": "Feature: orari partite a intervalli di 30 minuti (:00 e :30) e orario predefinito automatico a seguire (+1h o +1h30m)"
+  "version": "1.4.3",
+  "buildTime": 1795138000000,
+  "releasedAt": "2026-11-20T09:46:00+01:00",
+  "notes": "UI: rimozione badge e scritte informative azzurre dal modale inserimento partita"
 }
