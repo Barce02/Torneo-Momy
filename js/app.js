@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.4.0";
-const APP_BUILD_TIME = 1795135000000;
+const APP_VERSION = "1.4.1";
+const APP_BUILD_TIME = 1795136000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -829,19 +829,37 @@ class App {
       if (hasNewVersion) {
         console.log(`[UpdateManager] Nuova versione rilevata: v${remote.version} (build ${remote.buildTime})`);
         
+        // Protezione anti-loop: se abbiamo già tentato un ricaricamento automatico per questa specifica build
+        // ma la versione in memoria non è cambiata (es. caching del browser o mismatch), evitiamo ricaricamenti a catena.
+        const reloadKey = `torneo_momy_reloaded_${remote.version}_${remote.buildTime || 0}`;
+        const alreadyAttemptedReload = sessionStorage.getItem(reloadKey);
+
         // Verifica se l'utente sta compilando un input o ha un modale aperto
         const isEditing = document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
         const hasOpenModal = document.querySelector('.modal-backdrop:not(.hidden)');
 
-        if (isEditing || hasOpenModal) {
+        if (alreadyAttemptedReload) {
+          console.warn("[UpdateManager] Ricaricamento già tentato per questa versione. Blocco il loop automatico e mostro il banner.");
+          this.showUpdateBanner(remote.version);
+        } else if (isEditing || hasOpenModal) {
           this.showUpdateBanner(remote.version);
         } else {
+          try {
+            sessionStorage.setItem(reloadKey, "true");
+          } catch (e) {}
           this.showToast("Nuovo aggiornamento applicato! Ricaricamento in corso...", "info");
           setTimeout(() => {
             window.location.reload(true);
           }, 600);
         }
       } else {
+        // Se l'app è allineata all'ultima versione, ripulisci eventuali flag di reload
+        try {
+          Object.keys(sessionStorage).forEach(k => {
+            if (k.startsWith("torneo_momy_reloaded_")) sessionStorage.removeItem(k);
+          });
+        } catch (e) {}
+
         if (!silent) {
           this.showToast(`L'app è aggiornata all'ultima versione (v${APP_VERSION})!`, "success");
         }
@@ -865,7 +883,7 @@ class App {
           <svg class="w-4 h-4 flex-shrink-0 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
           <span class="truncate">È disponibile una nuova versione del Torneo Momy${newVersion ? ' (' + newVersion + ')' : ''}!</span>
         </div>
-        <button onclick="window.location.reload(true)" class="bg-slate-950 text-yellow-400 hover:text-white px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider ml-2 flex-shrink-0 shadow transition cursor-pointer">
+        <button onclick="try{sessionStorage.clear();}catch(e){} window.location.reload(true)" class="bg-slate-950 text-yellow-400 hover:text-white px-3 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider ml-2 flex-shrink-0 shadow transition cursor-pointer">
           Aggiorna ora
         </button>
       `;

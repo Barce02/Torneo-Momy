@@ -1,4 +1,4 @@
-// Torneo Momy - Baseline Data Snapshot v1.4.0
+// Torneo Momy - Baseline Data Snapshot v1.4.1
 const root = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this);
 root.INITIAL_ACCOUNTS_SNAPSHOT = {
   "alessia.ditullio1996@gmail.com": {
