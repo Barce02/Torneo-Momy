@@ -1,4 +1,4 @@
-// Torneo Momy - Baseline Data Snapshot v1.4.3
+// Torneo Momy - Baseline Data Snapshot v1.4.4
 const root = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this);
 root.INITIAL_ACCOUNTS_SNAPSHOT = {
   "alessia.ditullio1996@gmail.com": {
@@ -1102,20 +1102,6 @@ root.INITIAL_PLAYERS_SNAPSHOT = [
     "birthDate": "",
     "category": "Pre Agonistica",
     "email": "",
-    "firstName": "Vittorio",
-    "id": "p-1795123194373",
-    "lastName": "Pampiglione",
-    "name": "Vittorio Pampiglione",
-    "notes": "",
-    "photoUrl": "",
-    "ranking": "NC",
-    "status": "confermato",
-    "userId": ""
-  },
-  {
-    "birthDate": "",
-    "category": "Pre Agonistica",
-    "email": "",
     "firstName": "Lorenzo",
     "id": "p-1795123194383",
     "lastName": "Spinelli",
@@ -1286,7 +1272,6 @@ root.INITIAL_CATEGORY_GROUPS_SNAPSHOT = {
         "p-1794576821925-287",
         "p-1795123069689",
         "p-1795123194363",
-        "p-1795123194373",
         "p-1795123194383"
       ]
     },
@@ -1446,7 +1431,6 @@ root.INITIAL_CATEGORY_GROUPS_SNAPSHOT = {
         "p-1794576821925-287",
         "p-1795123069689",
         "p-1795123194363",
-        "p-1795123194373",
         "p-1795123194383"
       ]
     },
@@ -1606,7 +1590,6 @@ root.INITIAL_CATEGORY_GROUPS_SNAPSHOT = {
         "p-1794576821925-287",
         "p-1795123069689",
         "p-1795123194363",
-        "p-1795123194373",
         "p-1795123194383"
       ]
     }

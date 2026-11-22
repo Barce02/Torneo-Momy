@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.4.3";
-const APP_BUILD_TIME = 1795138000000;
+const APP_VERSION = "1.4.4";
+const APP_BUILD_TIME = 1795333000000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
