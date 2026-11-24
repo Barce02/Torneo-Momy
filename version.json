@@ -1,6 +1,6 @@
 {
-  "version": "1.4.4",
-  "buildTime": 1795333000000,
-  "releasedAt": "2026-11-22T08:08:00+01:00",
-  "notes": "Atleti: rimozione Pampiglione Vittorio"
+  "version": "1.4.5",
+  "buildTime": 1795555100000,
+  "releasedAt": "2026-11-24T22:18:00+01:00",
+  "notes": "Classifica Admin: sezione riepilogo sfide effettuate e da fare per ogni giocatore"
 }

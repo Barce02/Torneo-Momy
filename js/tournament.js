@@ -742,19 +742,6 @@ class TournamentManager {
     const sortedPoints = Object.keys(pointsMap).map(Number).sort((a, b) => b - a);
     const sortedStandings = [];
 
-    // Ordinamento alfabetico per COGNOME (e a parità per NOME)
-    const compareAlphabetical = (pA, pB) => {
-      const getLn = (p) => (p?.lastName || (p?.name ? p.name.trim().split(/\s+/).slice(1).join(' ') : '')).trim().toLowerCase();
-      const getFn = (p) => (p?.firstName || (p?.name ? p.name.trim().split(/\s+/)[0] : '')).trim().toLowerCase();
-      const lnA = getLn(pA);
-      const lnB = getLn(pB);
-      const cmp = lnA.localeCompare(lnB, 'it', { sensitivity: 'base' });
-      if (cmp !== 0) return cmp;
-      const fnA = getFn(pA);
-      const fnB = getFn(pB);
-      return fnA.localeCompare(fnB, 'it', { sensitivity: 'base' });
-    };
-
     sortedPoints.forEach(pt => {
       const cluster = pointsMap[pt];
       if (cluster.length === 1) {
@@ -764,7 +751,7 @@ class TournamentManager {
         const p2 = cluster[1];
         // Se entrambi hanno 0 partite giocate, ordina in puro ordine alfabetico
         if (p1.played === 0 && p2.played === 0) {
-          cluster.sort((a, b) => compareAlphabetical(a.player, b.player));
+          cluster.sort((a, b) => this.comparePlayersAlphabetical(a.player, b.player));
           sortedStandings.push(...cluster);
         } else {
           const h2h = this.getHeadToHeadWinner(group.matches || [], p1.player.id, p2.player.id);
@@ -778,7 +765,7 @@ class TournamentManager {
               if (b.gamesFor !== a.gamesFor) return b.gamesFor - a.gamesFor;
               const rankDiff = this.getRankingWeight(b.player.ranking) - this.getRankingWeight(a.player.ranking);
               if (rankDiff !== 0) return rankDiff;
-              return compareAlphabetical(a.player, b.player);
+              return this.comparePlayersAlphabetical(a.player, b.player);
             });
             sortedStandings.push(...cluster);
           }
@@ -787,7 +774,7 @@ class TournamentManager {
         cluster.sort((a, b) => {
           // Se entrambi hanno 0 partite giocate, ordina in puro ordine alfabetico
           if (a.played === 0 && b.played === 0) {
-            return compareAlphabetical(a.player, b.player);
+            return this.comparePlayersAlphabetical(a.player, b.player);
           }
           const h2h = this.getHeadToHeadWinner(group.matches || [], a.player.id, b.player.id);
           if (h2h === a.player.id) return -1;
@@ -796,13 +783,94 @@ class TournamentManager {
           if (b.gamesFor !== a.gamesFor) return b.gamesFor - a.gamesFor;
           const rankDiff = this.getRankingWeight(b.player.ranking) - this.getRankingWeight(a.player.ranking);
           if (rankDiff !== 0) return rankDiff;
-          return compareAlphabetical(a.player, b.player);
+          return this.comparePlayersAlphabetical(a.player, b.player);
         });
         sortedStandings.push(...cluster);
       }
     });
 
     return sortedStandings;
+  }
+
+  // Ordinamento alfabetico per COGNOME (e a parità per NOME)
+  comparePlayersAlphabetical(pA, pB) {
+    const getLn = (p) => (p?.lastName || (p?.name ? p.name.trim().split(/\s+/).slice(1).join(' ') : '')).trim().toLowerCase();
+    const getFn = (p) => (p?.firstName || (p?.name ? p.name.trim().split(/\s+/)[0] : '')).trim().toLowerCase();
+    const lnA = getLn(pA);
+    const lnB = getLn(pB);
+    const cmp = lnA.localeCompare(lnB, 'it', { sensitivity: 'base' });
+    if (cmp !== 0) return cmp;
+    const fnA = getFn(pA);
+    const fnB = getFn(pB);
+    return fnA.localeCompare(fnB, 'it', { sensitivity: 'base' });
+  }
+
+  // Riepilogo per ogni atleta della categoria: chi ha già sfidato e chi deve ancora sfidare
+  getPlayerChallengeSummary(category = "Pre Agonistica U12") {
+    this.ensureCategories();
+    const cat = category || "Pre Agonistica U12";
+    const catGroup = this.state.categoryGroups[cat];
+    if (!catGroup) return [];
+    const group = catGroup.single || catGroup.sinner;
+    if (!group) return [];
+
+    const catPlayers = this.getPlayersByCategory(cat)
+      .slice()
+      .sort((a, b) => this.comparePlayersAlphabetical(a, b));
+    const matches = group.matches || [];
+
+    return catPlayers.map(player => {
+      const challenged = [];
+      const toChallenge = [];
+
+      catPlayers.forEach(opponent => {
+        if (opponent.id === player.id) return;
+
+        const pairMatches = matches.filter(m =>
+          (m.player1Id === player.id && m.player2Id === opponent.id) ||
+          (m.player1Id === opponent.id && m.player2Id === player.id)
+        );
+
+        const completedMatches = pairMatches.filter(m => m.status === "completato");
+        if (completedMatches.length > 0) {
+          const m = completedMatches[completedMatches.length - 1];
+          const isP1 = m.player1Id === player.id;
+          const myGames = isP1 ? m.games1 : m.games2;
+          const oppGames = isP1 ? m.games2 : m.games1;
+          let outcome = "";
+          if (m.isDraw || (myGames !== null && oppGames !== null && myGames === oppGames)) {
+            outcome = "P";
+          } else if (m.winnerId === player.id) {
+            outcome = "V";
+          } else if (m.winnerId === opponent.id) {
+            outcome = "S";
+          }
+          const scoreLabel = (myGames !== null && myGames !== undefined && oppGames !== null && oppGames !== undefined)
+            ? `${myGames}-${oppGames}`
+            : (m.scores || "");
+
+          challenged.push({
+            opponent,
+            match: m,
+            outcome,
+            scoreLabel
+          });
+        } else {
+          const scheduledMatch = pairMatches.find(m => m.status !== "completato") || null;
+          toChallenge.push({
+            opponent,
+            scheduledMatch
+          });
+        }
+      });
+
+      return {
+        player,
+        challenged,
+        toChallenge,
+        totalOpponents: Math.max(0, catPlayers.length - 1)
+      };
+    });
   }
 
   generateBracketFromGroups(category = "Pre Agonistica U12") {

@@ -9,8 +9,8 @@ function isUserAdmin(email) {
   return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
 }
 
-const APP_VERSION = "1.4.4";
-const APP_BUILD_TIME = 1795333000000;
+const APP_VERSION = "1.4.5";
+const APP_BUILD_TIME = 1795555100000;
 
 const ADMIN_EMAIL = "barcello.luca02@gmail.com";
 const USER_KEY = "torneo_momy_user_session_v7";
@@ -75,6 +75,8 @@ class App {
     this.adminAccountsCategoryFilter = "all";
     this.selectAccountSearchQuery = "";
     this.selectAccountFilter = "all";
+    this.challengeTrackerSearch = "";
+    this.challengeTrackerSort = "alpha";
 
     this.init();
   }
@@ -2483,10 +2485,261 @@ class App {
         </div>
 
       </div>
+
+      ${this.isAdmin ? this.renderAdminChallengeSectionHtml(cat) : ''}
     </div>
     `;
 
     container.innerHTML = html;
+  }
+
+  renderAdminChallengeSectionHtml(cat) {
+    if (!this.isAdmin) return "";
+    const summary = this.tournamentManager.getPlayerChallengeSummary(cat);
+    if (!summary || summary.length === 0) return "";
+
+    const completedPairs = Math.round(summary.reduce((acc, s) => acc + s.challenged.length, 0) / 2);
+    const remainingPairs = Math.round(summary.reduce((acc, s) => acc + s.toChallenge.length, 0) / 2);
+    const safeCatJs = this.escapeHtml(String(cat || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'"));
+
+    return `
+      <div id="admin-challenge-tracker" class="bg-white rounded-2xl border border-blue-200 shadow-sm overflow-hidden">
+        <div class="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-blue-900/60">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-10 h-10 rounded-xl bg-yellow-400 text-blue-950 flex items-center justify-center font-black text-sm shadow-sm flex-shrink-0">
+              <svg class="w-5 h-5 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+              </svg>
+            </div>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="text-base sm:text-lg font-black tracking-tight">Riepilogo Sfide per Giocatore (${this.escapeHtml(cat)})</h3>
+                <span class="bg-yellow-400 text-blue-950 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-xs">Solo Admin</span>
+              </div>
+              <p class="text-[11px] text-blue-200 mt-0.5">Controlla per ogni atleta chi ha già sfidato e chi deve ancora sfidare nel Girone Unico</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap self-start sm:self-auto flex-shrink-0">
+            <span class="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 text-[11px] font-bold px-2.5 py-1 rounded-full">
+              ${completedPairs} sfide completate
+            </span>
+            <span class="inline-flex items-center gap-1 bg-amber-400/20 text-amber-200 border border-amber-400/30 text-[11px] font-bold px-2.5 py-1 rounded-full">
+              ${remainingPairs} da sfidare
+            </span>
+          </div>
+        </div>
+
+        <div class="p-4 sm:p-5 bg-slate-50 border-b border-gray-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-grow">
+            <div class="relative flex-grow max-w-md">
+              <input type="text"
+                id="admin-challenge-search"
+                value="${this.escapeHtml(this.challengeTrackerSearch || '')}"
+                oninput="app.onChallengeTrackerSearch(this.value, '${safeCatJs}')"
+                placeholder="Cerca giocatore per cognome o nome..."
+                class="w-full text-xs sm:text-sm pl-8 pr-8 py-2 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+              <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+              <button type="button"
+                id="admin-challenge-search-clear"
+                onclick="app.onChallengeTrackerSearch('', '${safeCatJs}'); const el = document.getElementById('admin-challenge-search'); if (el) { el.value = ''; el.focus(); }"
+                class="${this.challengeTrackerSearch ? '' : 'hidden'} absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 text-xs font-bold px-1 cursor-pointer">✕</button>
+            </div>
+
+            <select id="admin-challenge-sort"
+              onchange="app.onChallengeTrackerSort(this.value, '${safeCatJs}')"
+              class="text-xs sm:text-sm px-3 py-2 border border-gray-300 rounded-xl bg-white font-semibold text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+              <option value="alpha" ${this.challengeTrackerSort === 'alpha' ? 'selected' : ''}>Ordina: Alfabetico (A-Z)</option>
+              <option value="least_played" ${this.challengeTrackerSort === 'least_played' ? 'selected' : ''}>Ordina: Meno sfidati</option>
+              <option value="most_played" ${this.challengeTrackerSort === 'most_played' ? 'selected' : ''}>Ordina: Più sfidati</option>
+            </select>
+          </div>
+
+          <div class="flex items-center gap-2 flex-wrap text-[10.5px] font-semibold text-gray-600">
+            <span class="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+              Già sfidato
+            </span>
+            <span class="inline-flex items-center gap-1 bg-sky-50 text-sky-900 border border-sky-300 border-dashed px-2 py-0.5 rounded-full">
+              <span class="w-1.5 h-1.5 rounded-full bg-sky-600"></span>
+              In programma
+            </span>
+            <span class="inline-flex items-center gap-1 bg-white text-rose-800 border border-rose-200 px-2 py-0.5 rounded-full">
+              <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+              Da sfidare (+ crea partita)
+            </span>
+          </div>
+        </div>
+
+        <div id="admin-challenge-cards-list" class="p-4 sm:p-5 space-y-3">
+          ${this.renderAdminChallengeCardsHtml(cat)}
+        </div>
+      </div>
+    `;
+  }
+
+  renderAdminChallengeCardsHtml(cat) {
+    const safeJsStr = (s) => this.escapeHtml(String(s || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'"));
+    let summary = this.tournamentManager.getPlayerChallengeSummary(cat);
+
+    const q = (this.challengeTrackerSearch || "").trim().toLowerCase();
+    if (q) {
+      summary = summary.filter(item => {
+        const p = item.player;
+        const full = (p.name || `${p.firstName || ''} ${p.lastName || ''}`).toLowerCase();
+        const rev = `${p.lastName || ''} ${p.firstName || ''}`.toLowerCase();
+        return full.includes(q) || rev.includes(q);
+      });
+    }
+
+    if (this.challengeTrackerSort === "least_played") {
+      summary = [...summary].sort((a, b) => a.challenged.length - b.challenged.length || this.compareByLastName(a.player, b.player));
+    } else if (this.challengeTrackerSort === "most_played") {
+      summary = [...summary].sort((a, b) => b.challenged.length - a.challenged.length || this.compareByLastName(a.player, b.player));
+    }
+
+    if (summary.length === 0) {
+      return `
+        <div class="text-center py-8 text-xs sm:text-sm text-gray-500 bg-slate-50 rounded-xl border border-gray-200">
+          Nessun giocatore trovato per "<strong>${this.escapeHtml(this.challengeTrackerSearch)}</strong>".
+        </div>
+      `;
+    }
+
+    const safeCat = safeJsStr(cat);
+
+    return summary.map(item => {
+      const p = item.player;
+      const pct = item.totalOpponents > 0 ? Math.round((item.challenged.length / item.totalOpponents) * 100) : 0;
+      const allDone = item.toChallenge.length === 0 && item.totalOpponents > 0;
+      const { firstName: pFn, lastName: pLn } = this.splitName(p);
+      const nameHtml = pLn
+        ? `<span class="font-extrabold uppercase text-gray-950">${this.escapeHtml(pLn)}</span> <span class="font-semibold text-gray-800">${this.escapeHtml(pFn)}</span>`
+        : `<span class="font-bold text-gray-950">${this.escapeHtml(p.name || 'Atleta')}</span>`;
+
+      const challengedHtml = item.challenged.length === 0
+        ? `<p class="text-[11px] text-gray-400 italic">Nessun avversario ancora sfidato</p>`
+        : `<div class="flex flex-wrap gap-1.5">
+            ${item.challenged.map(c => {
+              const oppName = this.escapeHtml(this.formatAthleteName(c.opponent, 'lastUpperFirst'));
+              const safeMatchId = safeJsStr(c.match.id);
+              const badgeColor = c.outcome === "V"
+                ? "bg-emerald-600 text-white"
+                : (c.outcome === "P" ? "bg-amber-500 text-white" : (c.outcome === "S" ? "bg-rose-600 text-white" : "bg-slate-600 text-white"));
+              const resLabel = [c.scoreLabel, c.outcome].filter(Boolean).join(" ");
+              return `
+                <button type="button"
+                  onclick="app.openGroupMatchModal('single', '${safeMatchId}', '${safeCat}')"
+                  title="Clicca per vedere o modificare il risultato"
+                  class="inline-flex items-center gap-1.5 text-[11px] bg-white hover:bg-emerald-50 text-gray-900 border border-emerald-300 px-2 py-1 rounded-lg shadow-2xs transition cursor-pointer">
+                  <span class="font-semibold">${oppName}</span>
+                  ${resLabel ? `<span class="text-[10px] font-black px-1.5 py-0.2 rounded ${badgeColor}">${this.escapeHtml(resLabel)}</span>` : ''}
+                </button>
+              `;
+            }).join('')}
+          </div>`;
+
+      const toChallengeHtml = item.toChallenge.length === 0
+        ? `<p class="text-[11px] text-emerald-700 font-bold flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            <span>Ha già sfidato tutti gli avversari!</span>
+          </p>`
+        : `<div class="flex flex-wrap gap-1.5">
+            ${item.toChallenge.map(tc => {
+              const oppName = this.escapeHtml(this.formatAthleteName(tc.opponent, 'lastUpperFirst'));
+              if (tc.scheduledMatch) {
+                const safeMatchId = safeJsStr(tc.scheduledMatch.id);
+                const whenText = tc.scheduledMatch.dateTime ? this.formatShortDate(tc.scheduledMatch.dateTime) : "In programma";
+                return `
+                  <button type="button"
+                    onclick="app.openGroupMatchModal('single', '${safeMatchId}', '${safeCat}')"
+                    title="Partita già in programma (${this.escapeHtml(whenText)}). Clicca per inserire risultato o modificare."
+                    class="inline-flex items-center gap-1.5 text-[11px] bg-sky-50 hover:bg-sky-100 text-sky-950 border border-sky-300 border-dashed px-2 py-1 rounded-lg shadow-2xs transition cursor-pointer">
+                    <span class="font-semibold">${oppName}</span>
+                    <span class="text-[9.5px] font-bold bg-sky-200/80 text-sky-900 px-1.5 py-0.2 rounded">${this.escapeHtml(whenText)}</span>
+                  </button>
+                `;
+              }
+              const safeP1Id = safeJsStr(p.id);
+              const safeP2Id = safeJsStr(tc.opponent.id);
+              return `
+                <button type="button"
+                  onclick="app.openCreateMatchModal('${safeCat}', null, null, '${safeP1Id}', '${safeP2Id}')"
+                  title="Clicca per programmare questa sfida"
+                  class="inline-flex items-center gap-1 text-[11px] bg-white hover:bg-blue-50 text-gray-800 hover:text-blue-950 border border-rose-200 hover:border-blue-400 px-2 py-1 rounded-lg shadow-2xs transition cursor-pointer group">
+                  <span class="font-semibold">${oppName}</span>
+                  <span class="text-[10px] font-black text-rose-500 group-hover:text-blue-700">+</span>
+                </button>
+              `;
+            }).join('')}
+          </div>`;
+
+      return `
+        <div class="rounded-xl border ${allDone ? 'border-emerald-300 bg-emerald-50/20' : 'border-gray-200 bg-white'} p-3.5 sm:p-4 shadow-2xs">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100">
+            <div class="flex items-center gap-2 min-w-0 flex-wrap">
+              <span class="text-sm">${nameHtml}</span>
+              ${p.ranking ? `<span class="text-[10px] font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-semibold">${this.escapeHtml(p.ranking)}</span>` : ''}
+            </div>
+
+            <div class="flex items-center gap-2.5 flex-wrap">
+              <div class="flex items-center gap-1.5">
+                <div class="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div class="h-full ${allDone ? 'bg-emerald-500' : 'bg-blue-600'} rounded-full transition-all" style="width: ${pct}%"></div>
+                </div>
+                <span class="text-[11px] font-mono font-bold text-gray-700">${item.challenged.length}/${item.totalOpponents}</span>
+              </div>
+              <span class="text-[10.5px] font-bold px-2 py-0.5 rounded-full ${allDone ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-900 border border-amber-200'}">
+                ${allDone ? 'Tutte giocate' : `${item.toChallenge.length} da sfidare`}
+              </span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3">
+            <div class="bg-emerald-50/50 border border-emerald-200/80 rounded-xl p-3">
+              <div class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-900 mb-2 flex items-center justify-between">
+                <span class="flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span>Ha sfidato (${item.challenged.length})</span>
+                </span>
+              </div>
+              ${challengedHtml}
+            </div>
+
+            <div class="bg-amber-50/40 border border-amber-200/80 rounded-xl p-3">
+              <div class="text-[11px] font-extrabold uppercase tracking-wider text-amber-950 mb-2 flex items-center justify-between">
+                <span class="flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                  <span>Deve ancora sfidare (${item.toChallenge.length})</span>
+                </span>
+              </div>
+              ${toChallengeHtml}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  onChallengeTrackerSearch(query, cat) {
+    this.challengeTrackerSearch = query || "";
+    const clearBtn = document.getElementById("admin-challenge-search-clear");
+    if (clearBtn) {
+      clearBtn.classList.toggle("hidden", !this.challengeTrackerSearch.trim());
+    }
+    const listEl = document.getElementById("admin-challenge-cards-list");
+    if (listEl) {
+      listEl.innerHTML = this.renderAdminChallengeCardsHtml(cat);
+    }
+  }
+
+  onChallengeTrackerSort(sortVal, cat) {
+    this.challengeTrackerSort = sortVal || "alpha";
+    const listEl = document.getElementById("admin-challenge-cards-list");
+    if (listEl) {
+      listEl.innerHTML = this.renderAdminChallengeCardsHtml(cat);
+    }
   }
 
   handleAutoAssignGroups(category = null) {
@@ -5946,7 +6199,7 @@ class App {
     this.showToast("Programmazione dell'incontro rimossa.", "info");
   }
 
-  openCreateMatchModal(category = null, court = null, dateTime = null) {
+  openCreateMatchModal(category = null, court = null, dateTime = null, player1Id = null, player2Id = null) {
     if (!this.isAdmin) return;
     const cat = category || (this.scheduleCategoryFilter !== "all" ? this.scheduleCategoryFilter : ((this.selectedCategory !== "all" && this.selectedCategory !== "Da Assegnare") ? this.selectedCategory : "Pre Agonistica U12"));
 
@@ -5989,6 +6242,14 @@ class App {
     this.updateClearBtnVisibility("p2");
 
     this.onCategoryChangeInCreateMatchModal();
+    if (player1Id) {
+      const p1Select = document.getElementById("create-match-player1");
+      if (p1Select) p1Select.value = player1Id;
+    }
+    if (player2Id) {
+      const p2Select = document.getElementById("create-match-player2");
+      if (p2Select) p2Select.value = player2Id;
+    }
     this.openModal("modal-create-match");
   }
 
